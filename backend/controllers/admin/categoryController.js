@@ -3,7 +3,11 @@ const Category = require('../../models/Category');
 exports.createCategory = async (req, res) => {
   try {
     const { name } = req.body;
-    const newCategory = new Category({ name });
+    // Create the new category with the shop ID if it exists on the request
+    const newCategory = new Category({
+      name,
+      ...(req.shopId && { shop: req.shopId }),
+    });
     await newCategory.save();
     res.status(201).json(newCategory);
   } catch (error) {
@@ -14,7 +18,9 @@ exports.createCategory = async (req, res) => {
 
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Category.find().populate('products');
+    // If req.shopId exists, filter by it. Otherwise, return all for the main admin.
+    const filter = req.shopId ? { shop: req.shopId } : {};
+    const categories = await Category.find(filter).populate('products');
     res.json(categories);
   } catch (error) {
     console.error('Error fetching categories:', error);
@@ -25,7 +31,14 @@ exports.getCategories = async (req, res) => {
 exports.deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    await Category.findByIdAndDelete(id);
+    // Add the shopId to the filter to ensure ownership
+    const filter = req.shopId ? { _id: id, shop: req.shopId } : { _id: id };
+    const deletedCategory = await Category.findOneAndDelete(filter);
+
+    if (!deletedCategory) {
+      return res.status(404).json({ message: 'Category not found or not authorized to delete.' });
+    }
+    
     res.status(200).json({ message: 'Category deleted successfully.' });
   } catch (error) {
     console.error('Error deleting category:', error);

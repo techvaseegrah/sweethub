@@ -20,12 +20,14 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (token, role) => {
+    console.log('Logging in with token and role:', { token, role });
     localStorage.setItem('token', token);
     localStorage.setItem('role', role);
     setAuthState({ token, role });
   };
 
   const logout = () => {
+    console.log('Logging out - clearing localStorage');
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     setAuthState({ token: null, role: null });

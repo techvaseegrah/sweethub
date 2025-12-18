@@ -9,6 +9,14 @@ const shopSchema = new mongoose.Schema({
   location: {
     type: String,
   },
+  shopPhoneNumber: { // Add this new field
+    type: String,
+  },
+  shopCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

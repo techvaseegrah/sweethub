@@ -1,0 +1,186 @@
+const Attendance = require('../../models/attendanceModel');
+const Worker = require('../../models/workerModel');
+const { exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const { saveFaceImagePermanently, cleanupTempFiles, getWorkerFaceImages } = require('../../utils/faceRecognitionUtils');
+
+// --- Main Face Enrollment Logic ---
+// This function now correctly saves mathematical encodings and permanent face images.
+exports.enrollFace = async (req, res) => {
+    const { workerId } = req.body;
+    const files = req.files;
+
+    if (!workerId || !files || !files.length) {
+        return res.status(400).json({ message: 'Worker ID and face images are required.' });
+    }
+
+    try {
+        const worker = await Worker.findById(workerId);
+        if (!worker) {
+            cleanupTempFiles(files.map(file => file.path));
+            return res.status(404).json({ message: 'Worker not found.' });
+        }
+
+        // Save images permanently and get their new paths
+        const permanentImagePaths = files.map(file => 
+            saveFaceImagePermanently(file.path, workerId, file.originalname)
+        );
+
+        // Prepare paths for the Python script
+        const command = `python face_recognition_service.py enroll '${JSON.stringify(permanentImagePaths)}'`;
+
+        // Execute the Python script for face encoding
+        exec(command, async (error, stdout, stderr) => {
+            if (error || stderr) {
+                const errorMessage = stderr || error.message;
+                console.error(`Python script error during enrollment: ${errorMessage}`);
+                cleanupTempFiles(permanentImagePaths);
+                return res.status(500).json({ message: `Face encoding failed: ${errorMessage}` });
+            }
+
+            try {
+                const encodings = JSON.parse(stdout);
+                if (encodings.length === 0) {
+                    cleanupTempFiles(permanentImagePaths);
+                    return res.status(400).json({ message: 'Could not detect a face in any of the uploaded images.' });
+                }
+
+                // Save the "mathematical values" (encodings) to the database
+                worker.faceEncodings = (worker.faceEncodings || []).concat(encodings);
+                
+                // Save the permanent image paths for display purposes and future recognition
+                worker.faceImages = (worker.faceImages || []).concat(permanentImagePaths);
+                await worker.save();
+
+                res.status(200).json({ 
+                    message: 'Face enrolled and encoded successfully.',
+                    imagesSaved: permanentImagePaths.length
+                });
+
+            } catch (dbError) {
+                console.error('Error updating worker in DB:', dbError);
+                cleanupTempFiles(permanentImagePaths);
+                res.status(500).json({ message: 'Database update failed after encoding faces.' });
+            }
+        });
+    } catch (findError) {
+        console.error('Error finding worker:', findError);
+        cleanupTempFiles(files.map(file => file.path));
+        res.status(500).json({ message: 'Server error while finding worker.' });
+    }
+};
+
+// --- Main Face Recognition and Attendance Logic ---
+exports.recognizeFaceForAttendance = async (req, res) => {
+    const { file } = req;
+    if (!file) {
+        return res.status(400).json({ message: 'A face image is required.' });
+    }
+
+    const unknownImagePath = file.path;
+
+    try {
+        // 1. Fetch all workers and their saved "mathematical values"
+        const workersWithEncodings = await Worker.find({ "faceEncodings.0": { "$exists": true } }).select('_id faceEncodings');
+        if (!workersWithEncodings.length) {
+            cleanupTempFiles(unknownImagePath);
+            return res.status(404).json({ message: 'No workers are enrolled for face recognition.' });
+        }
+        
+        // 2. Prepare the data for the Python script
+        const knownEncodings = {};
+        workersWithEncodings.forEach(w => {
+            knownEncodings[w._id.toString()] = w.faceEncodings;
+        });
+
+        const recognitionData = {
+            unknown_image_path: unknownImagePath,
+            known_encodings: knownEncodings
+        };
+        const command = `python face_recognition_service.py recognize '${JSON.stringify(recognitionData)}'`;
+
+        // 3. Execute the Python script for recognition
+        exec(command, async (error, stdout, stderr) => {
+            if (error || stderr) {
+                const errorMessage = stderr || error.message;
+                console.error(`Python script error during recognition: ${errorMessage}`);
+                cleanupTempFiles(unknownImagePath);
+                return res.status(500).json({ message: 'Recognition process failed.' });
+            }
+            
+            const result = JSON.parse(stdout);
+            
+            // 4. Handle specific feedback messages
+            if (result.match === "no_face_detected") {
+                cleanupTempFiles(unknownImagePath);
+                return res.status(400).json({ message: "Show your face clearly." });
+            }
+            if (result.match === "unknown") {
+                cleanupTempFiles(unknownImagePath);
+                return res.status(404).json({ message: "No ID found for this face. Please register first." });
+            }
+
+            const workerId = result.match;
+            const worker = await Worker.findById(workerId);
+            if(!worker) {
+                cleanupTempFiles(unknownImagePath);
+                return res.status(404).json({ message: "Recognized worker no longer exists." });
+            }
+
+            // 5. Handle multiple Punch In / Punch Out (allowing multiple per day)
+            // Find the latest attendance record for today for this worker
+            const today = new Date();
+            const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+            
+            const latestRecord = await Attendance.findOne({ 
+                worker: workerId, 
+                checkIn: { $gte: startOfDay, $lt: endOfDay } 
+            }).sort({ checkIn: -1 });
+
+            if (latestRecord && !latestRecord.checkOut) {
+                // Punching Out
+                latestRecord.checkOut = new Date();
+                await latestRecord.save();
+                cleanupTempFiles(unknownImagePath);
+                res.json({ 
+                    message: `Punch Out successful for ${worker.name}.`,
+                    worker: worker.name,
+                    type: 'checkout'
+                });
+            } else {
+                // Punching In (create new record for multiple punches per day)
+                const newAttendance = new Attendance({ 
+                    worker: workerId, 
+                    checkIn: new Date() 
+                });
+                await newAttendance.save();
+                cleanupTempFiles(unknownImagePath);
+                res.json({ 
+                    message: `Punch In successful for ${worker.name}.`,
+                    worker: worker.name,
+                    type: 'checkin'
+                });
+            }
+        });
+    } catch (dbError) {
+        cleanupTempFiles(unknownImagePath);
+        console.error('Database error:', dbError);
+        res.status(500).json({ message: 'Server error.' });
+    }
+};
+
+
+// --- Your Existing Functions (Unchanged) ---
+// Note: These functions do not need to be modified.
+
+const getTodayBounds = () => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    return { startOfDay, endOfDay };
+};
+
+exports.getTodaysAttendance = async (req, res) => {
+    try

@@ -1,7 +1,8 @@
 import axios from 'axios';
 
+// Updated to use port 5001 to match the backend server port
 const instance = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: 'http://localhost:5001/api',
 });
 
 // Intercepts every request and adds the Authorization header if a token exists
@@ -25,11 +26,13 @@ instance.interceptors.response.use(
     },
     (error) => {
         if (error.response?.status === 401) {
-            // For example, remove the token and redirect to login
+            // For 401 errors, remove the token but don't automatically redirect
+            // Let the component handle the redirect as needed
+            console.log('401 Unauthorized - Removing token from localStorage');
             localStorage.removeItem('token');
             localStorage.removeItem('role');
-            // This will force a reload and redirect to the login page
-            window.location.href = '/'; 
+            // Instead of forcing a redirect, we'll let the app handle it
+            // The AuthContext will update and components can respond accordingly
         }
         return Promise.reject(error);
     }

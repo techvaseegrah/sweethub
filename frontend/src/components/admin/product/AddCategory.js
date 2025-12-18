@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
 
-const CATEGORY_URL = '/admin/categories';
-
-function AddCategory() {
+function AddCategory({ baseUrl = '/admin' }) {
+  const CATEGORY_URL = `${baseUrl}/categories`;
+  const SHOPS_URL = `${baseUrl}/shops`;
   const [categoryName, setCategoryName] = useState('');
   const [categories, setCategories] = useState([]);
   const [message, setMessage] = useState('');
@@ -12,10 +12,8 @@ function AddCategory() {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(CATEGORY_URL, {
-        headers: { 'Content-Type': 'application/json' },
-        withCredentials: true,
-      });
+      const params = { showAdmin: true }; // Always fetch admin categories
+      const response = await axios.get(CATEGORY_URL, { params, withCredentials: true });
       setCategories(response.data);
     } catch (err) {
       setError('Failed to fetch categories.');
@@ -27,7 +25,7 @@ function AddCategory() {
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [CATEGORY_URL]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -35,9 +33,14 @@ function AddCategory() {
     setError('');
 
     try {
+      const payload = {
+        name: categoryName,
+        shop: null, 
+      };
+
       await axios.post(
         CATEGORY_URL,
-        JSON.stringify({ name: categoryName }),
+        JSON.stringify(payload),
         {
           headers: { 'Content-Type': 'application/json' },
           withCredentials: true,
@@ -66,12 +69,24 @@ function AddCategory() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center">Loading categories...</div>;
+    return (
+      <div className="p-6 flex flex-col items-center justify-center">
+        <div className="relative flex justify-center items-center mb-4">
+          <div className="w-16 h-16 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+          <img 
+            src="/sweethub-logo.png" 
+            alt="Sweet Hub Logo" 
+            className="absolute w-10 h-10"
+          />
+        </div>
+        <div className="text-red-500 font-medium">Loading...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <h3 className="text-2xl font-semibold mb-4 text-gray-800">Add New Category</h3>
+    <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
+     <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800"></h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="categoryName">
@@ -88,7 +103,7 @@ function AddCategory() {
         </div>
         <button
           type="submit"
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+         className="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
         >
           Create Category
         </button>
@@ -97,22 +112,24 @@ function AddCategory() {
       {error && <p className="mt-4 text-red-500">{error}</p>}
 
       <div className="mt-8">
-        <h3 className="text-2xl font-semibold mb-4 text-gray-800">Categories</h3>
+      <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800"></h3>
         {categories.length === 0 ? (
           <p>No categories found.</p>
         ) : (
           <ul className="divide-y divide-gray-200">
             {categories.map((category) => (
-              <li key={category._id} className="flex justify-between items-center py-4">
+              <li key={category._id} className="flex flex-col items-start gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="font-medium text-gray-900">
                   {category.name} <span className="text-sm text-gray-500">({category.products.length} products)</span>
                 </p>
-                <button
-                  onClick={() => handleDelete(category._id)}
-                  className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
-                >
-                  Delete
-                </button>
+                <div className="w-full flex justify-end sm:w-auto">
+  <button
+    onClick={() => handleDelete(category._id)}
+    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
+  >
+    Delete
+  </button>
+</div>
               </li>
             ))}
           </ul>

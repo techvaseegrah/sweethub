@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { createBill, getBills } = require('../../controllers/admin/billingController');
+const billingController = require('../../controllers/admin/billingController');
 const { adminAuth } = require('../../middleware/auth');
 
-router.post('/', adminAuth, createBill);
-router.get('/', adminAuth, getBills);
+router.post('/billing', adminAuth, billingController.createBill);
+router.get('/billing', adminAuth, billingController.getBills);
 
-module.exports = router;    
+// MAKE SURE THIS LINE IS HERE
+module.exports = router;

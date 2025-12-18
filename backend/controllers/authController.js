@@ -2,10 +2,11 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const User = require('../models/User');
 const Role = require('../models/Role');
+const Shop = require('../models/shopModel');
 
-const generateToken = (id, role) => {
-    return jwt.sign({ id, role }, process.env.JWT_SECRET, {
-        expiresIn: '1h',
+const generateToken = (id, role, shopId = null) => {
+    return jwt.sign({ id, role, shopId }, process.env.JWT_SECRET, {
+        expiresIn: '24h', // Extended from 1h to 24h
     });
 };
 
@@ -48,27 +49,43 @@ exports.registerUser = async (req, res) => {
 };
 
 exports.loginUser = async (req, res) => {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
     try {
-        const user = await User.findOne({ email }).populate('role');
+        const user = await User.findOne({ username }).populate('role');
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
-
+        
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
+        let shopId = null;
+        // If the user is a shop admin, find their shop ID
+        if (user.role.name === 'shop') {
+            const shop = await Shop.findOne({ user: user._id });
+            if (shop) {
+                shopId = shop._id;
+            }
+        }
+
+        // Add shopId to the token payload
+        const token = jwt.sign(
+            { id: user._id, role: user.role.name, shopId }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '24h' } // Extended from 1h to 24h
+        );
+
         res.status(200).json({
             _id: user._id,
             name: user.name,
-            email: user.email,
             role: user.role.name,
-            token: generateToken(user._id, user.role.name),
+            token,
         });
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ message: 'Server error' });
     }
 };

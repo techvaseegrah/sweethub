@@ -6,6 +6,10 @@ const departmentSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    shop: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Shop',
+      },
     workers: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Worker'

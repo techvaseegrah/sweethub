@@ -6,6 +6,10 @@ const categorySchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  shop: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Shop',
+  },
   products: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',

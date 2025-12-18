@@ -1,29 +1,57 @@
-const Product = require('../../models/productModel'); // Updated import
-const Bill = require('../../models/billModel'); // Updated import
-const Worker = require('../../models/workerModel'); // Updated import
+const Product = require('../../models/productModel'); 
+const Bill = require('../../models/billModel'); 
+const Worker = require('../../models/workerModel'); 
+const Department = require('../../models/departmentModel');
+const Shop = require('../../models/shopModel');
+const mongoose = require('mongoose'); // Added this missing line
 
 exports.getShopDashboard = async (req, res) => {
   try {
-    // Fetch total sales for the shop (assuming shop ID is available from auth or query)
-    // For now, let's just get overall sales for simplicity, you'd filter by shop in a real app
+    // Fetch total sales for the specific shop using req.shopId from the token
     const sales = await Bill.aggregate([
+      { $match: { shop: new mongoose.Types.ObjectId(req.shopId) } },
       { $group: { _id: null, totalSales: { $sum: '$totalAmount' } } },
     ]);
     const totalSales = sales.length > 0 ? sales[0].totalSales : 0;
 
-    const workers = await Worker.find().populate('user', 'name').select('name workingHours');
+    // Fetch workers belonging to this shop
+    const workers = await Worker.find({ shop: req.shopId }).populate('user', 'name').select('name workingHours');
     
-    // Fetch products with their current stock levels
-    const products = await Product.find().select('name stockLevel unit');
+    // Fetch products belonging to this shop
+    const products = await Product.find({ shop: req.shopId }).select('name stockLevel unit');
+    
+    // Fetch departments belonging to this shop
+    const departments = await Department.find({ shop: req.shopId }).select('name');
+    
+    // Fetch invoice count for this shop
+    const invoiceCount = await Bill.countDocuments({ shop: req.shopId });
 
     res.status(200).json({
       message: 'Shop dashboard data retrieved successfully.',
       totalSales,
       workers,
       stockLevels: products,
+      departments: departments,
+      invoiceCount: invoiceCount
     });
   } catch (error) {
-    console.error(error);
+    console.error('Error fetching shop dashboard:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+exports.getShopDetails = async (req, res) => {
+  try {
+    if (!req.shopId) {
+      return res.status(400).json({ message: 'Shop ID not found in token.' });
+    }
+    const shop = await Shop.findById(req.shopId).select('name');
+    if (!shop) {
+      return res.status(404).json({ message: 'Shop not found.' });
+    }
+    res.json(shop);
+  } catch (error) {
+    console.error('Error fetching shop details:', error);
     res.status(500).json({ message: 'Server Error' });
   }
 };
@@ -33,9 +61,10 @@ exports.updateStock = async (req, res) => {
     const { productId } = req.params;
     const { newStockLevel } = req.body;
 
-    const product = await Product.findById(productId);
+    // Ensure the product belongs to the shop making the request
+    const product = await Product.findOne({ _id: productId, shop: req.shopId });
     if (!product) {
-      return res.status(404).json({ message: 'Product not found.' });
+      return res.status(404).json({ message: 'Product not found in this shop.' });
     }
 
     product.stockLevel = newStockLevel;

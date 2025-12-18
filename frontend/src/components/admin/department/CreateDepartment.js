@@ -3,7 +3,8 @@ import axios from '../../../api/axios';
 
 const DEPARTMENT_URL = '/admin/departments';
 
-function CreateDepartment() {
+function CreateDepartment({ baseUrl = '/admin' }) {
+  const DEPARTMENT_URL = `${baseUrl}/departments`;
   const [departmentName, setDepartmentName] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -35,8 +36,8 @@ function CreateDepartment() {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <h3 className="text-2xl font-semibold mb-4 text-gray-800">Create New Department</h3>
+    <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
+     <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800">Create New Department</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="departmentName">
@@ -53,7 +54,7 @@ function CreateDepartment() {
         </div>
         <button
           type="submit"
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          className="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
         >
           Add Department
         </button>
