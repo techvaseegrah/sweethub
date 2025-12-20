@@ -656,7 +656,6 @@ function AttendanceTracking() {
                         <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Punch In</th>
                         <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Punch Out</th>
                         <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Duration</th>
-                        <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -780,22 +779,6 @@ function AttendanceTracking() {
                                     </div>
                                 </td>
                                 <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{totalDuration}</td>
-                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-                                    {incompleteRecord && (
-                                        <button
-                                            onClick={() => {
-                                                setSelectedWorkerForCorrection({
-                                                    worker: entry.worker,
-                                                    incompleteRecord: incompleteRecord
-                                                });
-                                                setShowMissingPunchModal(true);
-                                            }}
-                                            className="px-2 sm:px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-xs"
-                                        >
-                                            Correct Missing Punch
-                                        </button>
-                                    )}
-                                </td>
                             </tr>
                         );
                     })}

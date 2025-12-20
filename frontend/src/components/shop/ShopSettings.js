@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from '../../../api/axios';
+import axios from '../../api/axios';
 
 // Add a utility function to convert 24-hour time to 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
@@ -15,7 +15,7 @@ const formatTimeTo12Hour = (time24) => {
   return `${hoursInt}:${minutes} ${ampm}`;
 };
 
-const Settings = () => {
+const ShopSettings = () => {
   const [gstPercentage, setGstPercentage] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -36,7 +36,7 @@ const Settings = () => {
   useEffect(() => {
     const fetchGstSettings = async () => {
       try {
-        const response = await axios.get('/admin/settings/gst');
+        const response = await axios.get('/shop/settings/gst');
         setGstPercentage(response.data.gstPercentage || '');
       } catch (error) {
         console.error('Error fetching GST settings:', error);
@@ -47,7 +47,7 @@ const Settings = () => {
     
     const fetchBatchSettings = async () => {
       try {
-        const response = await axios.get('/admin/settings/batches');
+        const response = await axios.get('/shop/settings/batches');
         setBatches(response.data);
       } catch (error) {
         console.error('Error fetching batch settings:', error);
@@ -70,7 +70,7 @@ const Settings = () => {
     setMessage('');
     
     try {
-      const response = await axios.post('/admin/settings/gst', { gstPercentage });
+      const response = await axios.post('/shop/settings/gst', { gstPercentage });
       
       setMessage(response.data.message);
       setMessageType('success');
@@ -101,7 +101,7 @@ const Settings = () => {
     
     try {
       const batchId = editingBatchId || Date.now().toString();
-      const response = await axios.post('/admin/settings/batches', {
+      const response = await axios.post('/shop/settings/batches', {
         batchId,
         name: newBatch.name,
         workingHours: newBatch.workingHours,
@@ -122,7 +122,7 @@ const Settings = () => {
       setEditingBatchId(null);
       
       // Refresh batches
-      const batchResponse = await axios.get('/admin/settings/batches');
+      const batchResponse = await axios.get('/shop/settings/batches');
       setBatches(batchResponse.data);
       
       // Clear message after 3 seconds
@@ -154,12 +154,12 @@ const Settings = () => {
     }
     
     try {
-      const response = await axios.delete(`/admin/settings/batches/${batchId}`);
+      const response = await axios.delete(`/shop/settings/batches/${batchId}`);
       setMessage(response.data.message);
       setMessageType('success');
       
       // Refresh batches
-      const batchResponse = await axios.get('/admin/settings/batches');
+      const batchResponse = await axios.get('/shop/settings/batches');
       setBatches(batchResponse.data);
       
       // Clear message after 3 seconds
@@ -203,8 +203,8 @@ const Settings = () => {
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Settings</h1>
-      <p className="text-gray-600 mb-8">Configure application settings and preferences.</p>
+      <h1 className="text-2xl font-bold mb-6 text-gray-800">Shop Settings</h1>
+      <p className="text-gray-600 mb-8">Configure shop-specific settings and preferences.</p>
       
       {/* Message Display */}
       {message && (
@@ -533,5 +533,4 @@ const Settings = () => {
   );
 };
 
-export default Settings;
-
+export default ShopSettings;

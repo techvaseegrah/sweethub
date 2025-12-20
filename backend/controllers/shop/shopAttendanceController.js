@@ -147,10 +147,16 @@ const groupAttendanceByWorkerAndDate = (attendanceRecords) => {
 };
 
 // Unified handler for attendance punch (check-in/check-out)
-const handleAttendancePunch = async (workerId) => {
+const handleAttendancePunch = async (workerId, shopId) => {
     const today = new Date();
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+
+    // Ensure the worker belongs to this shop
+    const worker = await Worker.findOne({ _id: workerId, shop: shopId }).populate('shift');
+    if (!worker) {
+        throw new Error('Worker not found or not authorized for this shop.');
+    }
 
     // Find an incomplete attendance record for today
     const todaysIncompleteRecord = await Attendance.findOne({
@@ -158,11 +164,6 @@ const handleAttendancePunch = async (workerId) => {
         checkIn: { $gte: startOfToday, $lt: endOfToday },
         checkOut: { $exists: false }
     });
-
-    const worker = await Worker.findById(workerId).populate('shift');
-    if (!worker) {
-        throw new Error('Worker not found');
-    }
 
     if (todaysIncompleteRecord) {
         // --- This is a PUNCH OUT ---
@@ -183,7 +184,7 @@ const handleAttendancePunch = async (workerId) => {
         await worker.save();
 
         return {
-            message: `Punch Out successful for ${worker.name}.`,
+            message: `Punch Out successful for ${worker.name}. Next punch must be IN.`,
             worker: worker.name,
             attendance: savedRecord,
             type: 'checkout'
@@ -199,7 +200,7 @@ const handleAttendancePunch = async (workerId) => {
         await worker.save();
 
         return {
-            message: `Punch In successful for ${worker.name}.`,
+            message: `Punch In successful for ${worker.name}. Next punch must be OUT.`,
             worker: worker.name,
             attendance: savedRecord,
             type: 'checkin'
@@ -520,7 +521,7 @@ exports.recordRFIDAttendance = async (req, res) => {
       }
 
       // Use the unified attendance handler
-      const result = await handleAttendancePunch(worker._id);
+      const result = await handleAttendancePunch(worker._id, req.shopId);
       
       res.json({
           ...result,
@@ -569,13 +570,52 @@ exports.recognizeFaceForAttendance = async (req, res) => {
 
     try {
         // 1. Fetch workers with encodings, filtered by this specific shop
+        console.log('Searching for workers with face encodings in shop:', req.shopId);
+        
+        // First, let's see all workers in this shop to understand what we're working with
+        const allShopWorkers = await Worker.find({ shop: req.shopId }).select('_id name faceEncodings faceImages');
+        console.log('All workers in shop:', allShopWorkers.map(w => ({
+            id: w._id,
+            name: w.name,
+            hasFaceEncodings: !!w.faceEncodings,
+            faceEncodingsCount: w.faceEncodings ? w.faceEncodings.length : 0,
+            hasFaceImages: !!w.faceImages,
+            faceImagesCount: w.faceImages ? w.faceImages.length : 0
+        })));
+        
         const workerQuery = { 
             "faceEncodings.0": { "$exists": true },
             shop: req.shopId  // Only fetch workers from this shop
         };
         
+        console.log('Worker query being used:', workerQuery);
         const workersWithEncodings = await Worker.find(workerQuery).select('_id name faceEncodings lastAttendanceTime');
         console.log('Found workers with encodings:', workersWithEncodings.length);
+        
+        // Log detailed information about workers with encodings
+        workersWithEncodings.forEach(worker => {
+            console.log(`Worker ${worker.name} (${worker._id}): faceEncodings length = ${worker.faceEncodings ? worker.faceEncodings.length : 0}`);
+            if (worker.faceEncodings && worker.faceEncodings.length > 0) {
+                console.log(`  First encoding length: ${worker.faceEncodings[0].length}`);
+                // Log a sample of the encoding data
+                console.log(`  Sample encoding data (first 5 values):`, worker.faceEncodings[0].slice(0, 5));
+                
+                // Log all encodings for this worker
+                worker.faceEncodings.forEach((encoding, index) => {
+                    console.log(`  Encoding ${index}: length=${encoding.length}, sample=${encoding.slice(0, 5)}`);
+                });
+            }
+        });
+        
+        // Log details of each worker for debugging
+        workersWithEncodings.forEach(worker => {
+            console.log(`Worker ${worker.name} (${worker._id}): faceEncodings length = ${worker.faceEncodings ? worker.faceEncodings.length : 0}`);
+            if (worker.faceEncodings && worker.faceEncodings.length > 0) {
+                console.log(`First encoding length: ${worker.faceEncodings[0].length}`);
+                // Log a sample of the encoding data
+                console.log(`Sample encoding data (first 5 values):`, worker.faceEncodings[0].slice(0, 5));
+            }
+        });
         
         if (!workersWithEncodings.length) {
             cleanupFile();
@@ -607,18 +647,30 @@ exports.recognizeFaceForAttendance = async (req, res) => {
         let bestMatch = null;
         let bestDistance = Infinity;
         const threshold = 0.5; // Similarity threshold
+        
+        console.log('Starting face recognition process');
+        console.log('Total workers with encodings:', workersWithEncodings.length);
+        console.log('Input descriptor length:', descriptorToUse.length);
+        console.log('Sample input descriptor (first 5 values):', descriptorToUse.slice(0, 5));
 
         for (const worker of workersWithEncodings) {
-            for (const enrolledDescriptor of worker.faceEncodings) {
+            console.log(`Checking worker ${worker.name} (${worker._id}) with ${worker.faceEncodings.length} encodings`);
+            for (let i = 0; i < worker.faceEncodings.length; i++) {
+                const enrolledDescriptor = worker.faceEncodings[i];
                 // Calculate Euclidean distance between descriptors
                 const distance = calculateEuclideanDistance(descriptorToUse, enrolledDescriptor);
+                
+                console.log(`Comparing with worker ${worker.name}, encoding ${i}: distance=${distance}`);
                 
                 if (distance < threshold && distance < bestDistance) {
                     bestDistance = distance;
                     bestMatch = worker;
+                    console.log(`New best match: worker ${worker.name}, distance=${distance}`);
                 }
             }
         }
+        
+        console.log('Final recognition result:', { bestMatch: bestMatch ? bestMatch.name : null, bestDistance, threshold });
 
         if (!bestMatch) {
             cleanupFile();
@@ -643,7 +695,7 @@ exports.recognizeFaceForAttendance = async (req, res) => {
         }
         
         // Use the unified attendance handler
-        const result = await handleAttendancePunch(workerIdMatch);
+        const result = await handleAttendancePunch(workerIdMatch, req.shopId);
         
         cleanupFile();
         
@@ -778,7 +830,11 @@ exports.enrollFace = async (req, res) => {
             const formattedDescriptors = descriptors.map(desc => 
                 Array.isArray(desc) ? desc : Array.from(desc)
             );
-            worker.faceEncodings = (worker.faceEncodings || []).concat(formattedDescriptors);
+            console.log('Saving face encodings for worker:', worker._id, 'Count:', formattedDescriptors.length);
+            console.log('Sample of formatted descriptors (first 5 values of first descriptor):', formattedDescriptors[0].slice(0, 5));
+            // Replace face encodings instead of concatenating to ensure clean data
+            worker.faceEncodings = formattedDescriptors;
+            console.log('Worker faceEncodings after assignment:', worker.faceEncodings.length, 'encodings');
         }
         
         // Handle image files if provided - store as binary data in database for display
@@ -802,10 +858,30 @@ exports.enrollFace = async (req, res) => {
             }
             
             // Add the binary image data to the worker's faceImages array
-            worker.faceImages = (worker.faceImages || []).concat(imageDocuments);
+            // Replace face images instead of concatenating to ensure clean data
+            worker.faceImages = imageDocuments;
         }
         
         await worker.save();
+        
+        // Verify the data was saved correctly
+        const savedWorker = await Worker.findById(worker._id).select('faceEncodings faceImages');
+        console.log('Saved worker faceEncodings verification:', {
+            workerId: worker._id,
+            workerName: worker.name,
+            faceEncodingsCount: savedWorker.faceEncodings ? savedWorker.faceEncodings.length : 0,
+            sampleData: savedWorker.faceEncodings && savedWorker.faceEncodings.length > 0 ? 
+                savedWorker.faceEncodings[0].slice(0, 5) : null
+        });
+        
+        // Log all face encodings for debugging
+        if (savedWorker.faceEncodings && savedWorker.faceEncodings.length > 0) {
+            console.log('All face encodings for worker:', savedWorker.faceEncodings.map((enc, index) => ({
+                index,
+                length: enc.length,
+                sample: enc.slice(0, 5)
+            })));
+        }
 
         res.status(200).json({ 
             message: 'Face enrolled successfully with high-accuracy descriptors.',

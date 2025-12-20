@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import AdminSidebar from '../components/admin/Sidebar';
@@ -53,6 +53,19 @@ const AdminDashboardPage = () => {
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
     };
+
+    // Close sidebar when close-sidebar event is dispatched
+    useEffect(() => {
+        const handleCloseSidebar = () => {
+            setIsSidebarOpen(false);
+        };
+
+        window.addEventListener('close-sidebar', handleCloseSidebar);
+
+        return () => {
+            window.removeEventListener('close-sidebar', handleCloseSidebar);
+        };
+    }, []);
 
     return (
         <div className="flex h-screen bg-gray-100">

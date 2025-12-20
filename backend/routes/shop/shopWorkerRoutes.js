@@ -3,6 +3,7 @@ const router = express.Router();
 const { 
   addWorker, 
   getWorkers, 
+  getWorkerById,
   deleteWorker, 
   updateWorker,
   generateRFIDForWorker,
@@ -12,6 +13,7 @@ const { shopAuth } = require('../../middleware/auth');
 
 router.post('/', shopAuth, addWorker);
 router.get('/', shopAuth, getWorkers);
+router.get('/:id', shopAuth, getWorkerById);
 router.delete('/:id', shopAuth, deleteWorker);
 router.put('/:id', shopAuth, updateWorker);
 router.get('/:id/salary-report', shopAuth, getWorkerSalaryReport);

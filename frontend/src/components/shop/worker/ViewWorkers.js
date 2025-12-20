@@ -3,7 +3,8 @@ import axios from '../../../api/axios';
 import CustomModal from '../../../components/CustomModal'; // Import CustomModal
 import Webcam from 'react-webcam'; // Import Webcam for face enrollment
 import { LuCamera, LuUpload, LuUserPlus, LuCheck, LuX } from 'react-icons/lu'; // Import icons
-import { useNavigate } from 'react-router-dom'; // Import useNavigate for navigation
+import { useNavigate, useLocation } from 'react-router-dom'; // Import useNavigate and useLocation for navigation and route change detection
+import faceRecognitionService from '../../../services/faceRecognitionService';
 
 // Utility function to format time in 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
@@ -18,6 +19,7 @@ const formatTimeTo12Hour = (time24) => {
 const WORKER_URL = '/shop/workers';
 
 const ViewWorkers = () => {
+  const location = useLocation(); // Initialize location hook for route change detection
   const navigate = useNavigate(); // Initialize navigate hook
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +27,7 @@ const ViewWorkers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const webcamRef = useRef(null);
 
-  // State for modal
+  // State for modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState(null);
   const [editedWorkerData, setEditedWorkerData] = useState({});
@@ -38,30 +40,35 @@ const ViewWorkers = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  
+  // State for delete confirmation modal
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [workerToDelete, setWorkerToDelete] = useState(null);
+
+  // Create a function to fetch data that can be called externally
+  const fetchData = async () => {
+      try {
+          const [workersResponse, departmentsResponse] = await Promise.all([
+              axios.get(WORKER_URL, { withCredentials: true }),
+              axios.get('/shop/departments', { withCredentials: true })
+          ]);
+          setWorkers(workersResponse.data);
+          setDepartments(departmentsResponse.data);
+      } catch (err) {
+          setError('Failed to fetch data.');
+          console.error(err);
+      } finally {
+          setLoading(false);
+      }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-        try {
-            const [workersResponse, departmentsResponse] = await Promise.all([
-                axios.get(WORKER_URL, { withCredentials: true }),
-                axios.get('/shop/departments', { withCredentials: true })
-            ]);
-            setWorkers(workersResponse.data);
-            setDepartments(departmentsResponse.data);
-        } catch (err) {
-            setError('Failed to fetch data.');
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
     fetchData();
-  }, []);
+  }, [location.key]); // Add location.key as dependency to refresh when route changes
 
   // Filter workers based on search term
   const filteredWorkers = workers.filter(worker =>
-    worker.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    worker.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (worker.name && worker.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (worker.department?.name && worker.department.name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -108,8 +115,19 @@ const ViewWorkers = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-        const response = await axios.put(`${WORKER_URL}/${editingWorker._id}`, editedWorkerData, { withCredentials: true });
-        setWorkers(workers.map(w => w._id === editingWorker._id ? response.data : w));
+        // Preserve face enrollment data during worker update
+        const updateData = { ...editedWorkerData };
+        
+        // If the worker already has face data, preserve it during the update
+        if (editingWorker && editingWorker.faceEncodings) {
+          updateData.faceEncodings = editingWorker.faceEncodings;
+        }
+        if (editingWorker && editingWorker.faceImages) {
+          updateData.faceImages = editingWorker.faceImages;
+        }
+        
+        const response = await axios.put(`${WORKER_URL}/${editingWorker._id}`, updateData, { withCredentials: true });
+        setWorkers(workers.map(w => w._id === editingWorker._id ? response.data.worker : w));
         handleCloseEditModal();
     } catch (err) {
         setError('Failed to update worker.');
@@ -198,11 +216,40 @@ const ViewWorkers = () => {
     setMessage({ type: '', text: '' });
 
     try {
+      // Initialize face recognition service
+      await faceRecognitionService.initialize();
+
+      // Process images to extract face descriptors
+      const faceDescriptors = [];
+      
+      for (const imageData of images) {
+        try {
+          const img = await faceRecognitionService.loadImageFromDataURL(imageData.preview);
+          const detection = await faceRecognitionService.detectFaceFromImage(img);
+          
+          if (detection && detection.descriptor) {
+            faceDescriptors.push(Array.from(detection.descriptor));
+          }
+        } catch (faceError) {
+          console.warn('Failed to detect face in one image:', faceError);
+        }
+      }
+
+      if (faceDescriptors.length === 0) {
+        setMessage({ type: 'error', text: 'No faces detected in the uploaded images. Please ensure faces are clearly visible.' });
+        setIsLoading(false);
+        return;
+      }
+
+      // Enroll in local service for instant recognition
+      await faceRecognitionService.enrollFace(faceEnrollmentWorker._id, faceDescriptors.map(desc => new Float32Array(desc)));
+
       // Create FormData for backend storage
       const formData = new FormData();
       formData.append('workerId', faceEnrollmentWorker._id);
+      formData.append('faceDescriptors', JSON.stringify(faceDescriptors));
       
-      // Add image files
+      // Add image files for display purposes
       images.forEach(image => {
         formData.append('faces', image.file);
       });
@@ -213,16 +260,60 @@ const ViewWorkers = () => {
       setMessage({ type: 'success', text: 'Face enrollment successful!' });
       
       // Refresh workers data to show updated face enrollment status
-      const fetchData = async () => {
-        try {
-          const workersResponse = await axios.get(WORKER_URL, { withCredentials: true });
-          setWorkers(workersResponse.data);
-        } catch (err) {
-          setError('Failed to refresh worker data.');
-          console.error(err);
+      await fetchData();
+      
+      // Update the editingWorker state to reflect the new face enrollment
+      // Fetch the updated worker data to get the latest faceImages
+      try {
+        // Add a small delay to ensure the database update is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const updatedWorkerResponse = await axios.get(`${WORKER_URL}/${faceEnrollmentWorker._id}`, { withCredentials: true });
+        // Update the editingWorker state if it matches the enrolled worker
+        if (editingWorker && editingWorker._id === faceEnrollmentWorker._id) {
+          setEditingWorker(updatedWorkerResponse.data);
         }
-      };
-      fetchData();
+      } catch (error) {
+        console.error('Error fetching updated worker data:', error);
+        // Fallback to updating locally
+        if (editingWorker && editingWorker._id === faceEnrollmentWorker._id) {
+          setEditingWorker(prev => ({
+            ...prev,
+            faceImages: [...(prev.faceImages || []), ...images],
+            faceEncodings: faceDescriptors // Add the face encodings as well
+          }));
+        }
+      }      
+      // Update the face recognition service with the new face data
+      try {
+        // Convert descriptors to Float32Array format for the service
+        const float32Descriptors = faceDescriptors.map(desc => new Float32Array(desc));
+        faceRecognitionService.addEnrolledFace(faceEnrollmentWorker._id, float32Descriptors);
+        
+        // Small delay to ensure the face data is properly stored
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Reload enrolled faces to ensure consistency
+        const enrolledCount = await faceRecognitionService._loadEnrolledFaces();
+        console.log('Reloaded enrolled faces. Total enrolled workers:', enrolledCount);
+        
+        // Notify that face attendance records should be updated
+        // This could trigger a refresh of any attendance tracking components
+        window.dispatchEvent(new CustomEvent('faceEnrollmentUpdated', { 
+          detail: { workerId: faceEnrollmentWorker._id, timestamp: Date.now() } 
+        }));        
+        // Also dispatch a custom event with more detailed information
+        window.dispatchEvent(new CustomEvent('faceEnrollmentCompleted', { 
+          detail: { 
+            workerId: faceEnrollmentWorker._id, 
+            workerName: faceEnrollmentWorker.name,
+            descriptorsCount: float32Descriptors.length,
+            timestamp: Date.now() 
+          } 
+        }));
+      } catch (serviceError) {
+        console.warn('Failed to update face recognition service:', serviceError);
+      }
       
       // Close the modal after a delay
       setTimeout(() => {
@@ -238,16 +329,29 @@ const ViewWorkers = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this worker?')) {
-        try {
-            await axios.delete(`${WORKER_URL}/${id}`, { withCredentials: true });
-            setWorkers(workers.filter((w) => w._id !== id));
-        } catch (err) {
-            setError('Failed to delete worker.');
-            console.error(err);
-        }
+  // Handle delete with confirmation modal
+  const handleDeleteClick = (worker) => {
+    setWorkerToDelete(worker);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!workerToDelete) return;
+    
+    try {
+      await axios.delete(`${WORKER_URL}/${workerToDelete._id}`, { withCredentials: true });
+      setWorkers(workers.filter((w) => w._id !== workerToDelete._id));
+      setIsDeleteModalOpen(false);
+      setWorkerToDelete(null);
+    } catch (err) {
+      setError('Failed to delete worker.');
+      console.error(err);
     }
+  };
+
+  const cancelDelete = () => {
+    setIsDeleteModalOpen(false);
+    setWorkerToDelete(null);
   };
 
   if (loading) {
@@ -281,13 +385,10 @@ const ViewWorkers = () => {
     <thead className="bg-gray-50">
         <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salary</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Working Hours</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lunch Break</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch Details</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RFID</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Face Enrolled</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
         </tr>
     </thead>
@@ -295,38 +396,42 @@ const ViewWorkers = () => {
         {filteredWorkers.map((worker) => (
             <tr key={worker._id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{worker.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.username}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.department?.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.salary}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.workingHours?.from && worker.workingHours?.to 
-                    ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
-                    : 'Not set'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.lunchBreak?.from && worker.lunchBreak?.to 
-                    ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
-                    : 'Not set'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.rfid || 'Not Assigned'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.faceImages && worker.faceImages.length > 0 ? (
-                    <div className="flex items-center">
-                      <LuCheck className="text-green-500 mr-2" size={20} />
-                      <span className="text-green-600 font-medium">Yes</span>
+                  {worker.batchId ? (
+                    <div>
+                      <div>
+                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
+                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
+                          : 'Not set'}
+                      </div>
+                      <div>
+                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
+                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
+                          : 'Not set'}
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex items-center">
-                      <LuX className="text-red-500 mr-2" size={20} />
-                      <span className="text-red-600 font-medium">No</span>
+                    <div>
+                      <div>
+                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
+                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
+                          : 'Not set'}
+                      </div>
+                      <div>
+                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
+                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
+                          : 'Not set'}
+                      </div>
                     </div>
                   )}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.rfid || 'Not Assigned'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button onClick={() => handleEdit(worker)} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
-                    <button onClick={() => handleDelete(worker._id)} className="text-red-600 hover:text-red-900">Delete</button>
+                    <button onClick={() => handleDeleteClick(worker)} className="text-red-600 hover:text-red-900">Delete</button>
                 </td>
-
             </tr>
         ))}
     </tbody>
@@ -348,17 +453,6 @@ const ViewWorkers = () => {
                 type="text"
                 value={editedWorkerData.name || ''}
                 onChange={(e) => handleInputChange(e, 'name')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-              <input
-                type="text"
-                value={editedWorkerData.username || ''}
-                onChange={(e) => handleInputChange(e, 'username')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               />
@@ -398,50 +492,6 @@ const ViewWorkers = () => {
               />
             </div>
             
-            {/* Working Hours */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Working Hours (From)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.workingHours?.from || ''}
-                  onChange={(e) => handleInputChange(e, 'workingHours.from')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Working Hours (To)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.workingHours?.to || ''}
-                  onChange={(e) => handleInputChange(e, 'workingHours.to')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-            
-            {/* Lunch Break */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lunch Break (From)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.lunchBreak?.from || ''}
-                  onChange={(e) => handleInputChange(e, 'lunchBreak.from')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lunch Break (To)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.lunchBreak?.to || ''}
-                  onChange={(e) => handleInputChange(e, 'lunchBreak.to')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-            
             {/* Face Enrollment Section */}
             <div className="border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center">
@@ -464,8 +514,9 @@ const ViewWorkers = () => {
               <button
                 type="button"
                 onClick={() => handleOpenFaceEnrollment(editingWorker)}
-                className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
+                <LuUserPlus className="mr-1" size={16} />
                 {editingWorker.faceImages && editingWorker.faceImages.length > 0 
                   ? 'Update Face Enrollment' 
                   : 'Enroll Face'}
@@ -509,14 +560,13 @@ const ViewWorkers = () => {
               <ul className="text-xs text-blue-700 list-disc pl-5 space-y-1">
                 <li>Position the worker's face clearly in the camera frame</li>
                 <li>Capture multiple images from different angles for better recognition</li>
-                <li>Ensure good lighting and avoid shadows on the face</li>
-                <li>Remove glasses or hats that might obstruct facial features</li>
-                <li>Click "Capture Image" to take a photo, or upload existing images</li>
+                <li>Ensure good lighting and avoid glare or shadows on the face</li>
               </ul>
             </div>
             
+            {/* Status Message */}
             {message.text && (
-              <div className={`p-3 rounded ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+              <div className={`p-3 rounded-md ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                 {message.text}
               </div>
             )}
@@ -530,7 +580,8 @@ const ViewWorkers = () => {
                         audio={false}
                         ref={webcamRef}
                         screenshotFormat="image/jpeg"
-                        className="w-full rounded-md"
+                        className="w-full max-w-xs mx-auto rounded-md"
+                        videoConstraints={{ width: 320, height: 240 }}
                       />
                       <button
                         type="button"
@@ -561,13 +612,13 @@ const ViewWorkers = () => {
                   )}
                 </div>
                 
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-gray-700">Image Previews ({images.length}/5)</h3>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2">Preview ({images.length}/5)</h3>
                   {images.length > 0 ? (
                     <div className="grid grid-cols-3 gap-2">
                       {images.map((image, index) => (
                         <div key={index} className="relative group">
-                          <img src={image.preview} alt={`preview ${index}`} className="w-full h-24 object-cover rounded-md" />
+                          <img src={image.preview} alt={`preview ${index}`} className="w-full h-20 object-cover rounded-md" />
                           <button
                             type="button"
                             onClick={() => removeImage(index)}
@@ -590,7 +641,7 @@ const ViewWorkers = () => {
                 <button
                   type="button"
                   onClick={handleCloseFaceEnrollment}
-                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   disabled={isLoading}
                 >
                   Cancel
@@ -619,6 +670,45 @@ const ViewWorkers = () => {
           </div>
         )}
       </CustomModal>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mt-4">
+                Delete Worker
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  Are you sure you want to delete <span className="font-semibold">{workerToDelete?.name}</span>? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={cancelDelete}
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

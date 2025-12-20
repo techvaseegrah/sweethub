@@ -90,71 +90,6 @@ const Sidebar = () => {
     const [materialStockAlerts, setMaterialStockAlerts] = useState(0);
     const [sweetItems, setSweetItems] = useState([]);
 
-    // Initialize sweet items
-    useEffect(() => {
-        const initialItems = [];
-        const types = ['cake', 'cookie', 'donut', 'icecream', 'candy'];
-        const colors = ['pink', 'yellow', 'purple', 'blue'];
-        
-        // Create fewer items for sidebar (10 instead of 15)
-        for (let i = 0; i < 10; i++) {
-            initialItems.push({
-                id: i + 1,
-                type: types[Math.floor(Math.random() * types.length)],
-                x: `${Math.random() * 100}%`,
-                y: `${Math.random() * 100}%`,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                vx: (Math.random() - 0.5) * 0.3,
-                vy: (Math.random() - 0.5) * 0.3,
-                rotation: Math.random() * 360,
-                rotationSpeed: (Math.random() - 0.5) * 1
-            });
-        }
-        
-        setSweetItems(initialItems);
-    }, []);
-
-    // Animate sweet items
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setSweetItems(prevItems => 
-                prevItems.map(item => {
-                    // Update position
-                    let newX = parseFloat(item.x) + item.vx;
-                    let newY = parseFloat(item.y) + item.vy;
-                    
-                    // Bounce off edges
-                    let newVx = item.vx;
-                    let newVy = item.vy;
-                    
-                    if (newX <= 0 || newX >= 100) {
-                        newVx = -newVx;
-                        newX = newX <= 0 ? 0 : 100;
-                    }
-                    
-                    if (newY <= 0 || newY >= 100) {
-                        newVy = -newVy;
-                        newY = newY <= 0 ? 0 : 100;
-                    }
-                    
-                    // Update rotation
-                    const newRotation = item.rotation + item.rotationSpeed;
-                    
-                    return {
-                        ...item,
-                        x: `${newX}%`,
-                        y: `${newY}%`,
-                        vx: newVx,
-                        vy: newVy,
-                        rotation: newRotation
-                    };
-                })
-            );
-        }, 50);
-
-        return () => clearInterval(interval);
-    }, []);
-
     useEffect(() => {
         const fetchTotalStockAlerts = async () => {
             try {
@@ -217,26 +152,9 @@ const Sidebar = () => {
 
     return (
         <div className={`h-screen w-64 ${sidebarBg} ${textPrimary} flex flex-col border-r ${borderColor} overflow-hidden shadow-sm relative`}>
-            {/* Animated Sweet Elements Background */}
+            {/* Removed Animated Sweet Elements Background to eliminate emoji elements */}
             <div className="absolute inset-0 z-0 pointer-events-none">
-                {sweetItems.map((item) => (
-                    <div 
-                        key={item.id}
-                        className="absolute"
-                        style={{ 
-                            left: item.x, 
-                            top: item.y, 
-                            transform: `translate(-50%, -50%) rotate(${item.rotation}deg)`,
-                            transition: 'transform 0.1s linear'
-                        }}
-                    >
-                        {item.type === 'cake' && <CakeSVG size="w-8 h-8" color={item.color} />}
-                        {item.type === 'cookie' && <CookieSVG size="w-6 h-6" color={item.color} />}
-                        {item.type === 'donut' && <DonutSVG size="w-7 h-7" color={item.color} />}
-                        {item.type === 'icecream' && <IceCreamSVG size="w-6 h-6" color={item.color} />}
-                        {item.type === 'candy' && <CandySVG size="w-5 h-5" color={item.color} />}
-                    </div>
-                ))}
+                {/* Sweet elements removed */}
             </div>
             
             {/* Header */}
@@ -283,6 +201,16 @@ const Sidebar = () => {
                         </div>
                     </div>
                 </div>
+                
+                {/* Close button for mobile - only visible on mobile */}
+                <button 
+                    className="lg:hidden absolute top-4 right-4 text-gray-500 hover:text-gray-700 focus:outline-none"
+                    onClick={() => window.dispatchEvent(new CustomEvent('close-sidebar'))}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
 
             <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
@@ -290,12 +218,18 @@ const Sidebar = () => {
                 <NavLink
                     to="/admin/dashboard"
                     className={({ isActive }) =>
-                        `flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                        `flex items-center px-3 py-2.5 rounded-lg ${
                             isActive 
                                 ? activeRed
                                 : `${textPrimary} ${hoverBg}`
                         }`
                     }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
                 >
                     {({ isActive }) => (
                         <>
@@ -307,61 +241,91 @@ const Sidebar = () => {
 
                 {/* Worker Management */}
                 <details className="group">
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuUsers className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">Workers</span>
                         </div>
-                        <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                        <LuChevronRight className="w-4 h-4 text-gray-400" />
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
                             to="/admin/workers/add"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Add Worker</span>
                         </NavLink>
                         <NavLink
                             to="/admin/workers/view"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">View Workers</span>
                         </NavLink>
                         <NavLink
                             to="/admin/workers/attendance"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Attendance</span>
                         </NavLink>
                         <NavLink
                             to="/admin/workers/salary"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Salary Report</span>
                         </NavLink>
                         <NavLink
                             to="/admin/workers/holidays"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Holidays</span>
                         </NavLink>
@@ -371,31 +335,43 @@ const Sidebar = () => {
 
                 {/* Department Management */}
                 <details className="group">
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuBuilding className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">Departments</span>
                         </div>
-                        <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                        <LuChevronRight className="w-4 h-4 text-gray-400" />
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
                             to="/admin/departments/create"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Create Department</span>
                         </NavLink>
                         <NavLink
                             to="/admin/departments/view"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">View Departments</span>
                         </NavLink>
@@ -404,7 +380,7 @@ const Sidebar = () => {
 
                 {/* Product Management */}
                 <details className="group" open={isProductMenuOpen} onToggle={toggleProductMenu}>
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuBoxes className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">Products</span>
@@ -415,57 +391,87 @@ const Sidebar = () => {
                                     {totalStockAlerts}
                                 </span>
                             )}
-                            <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                            <LuChevronRight className="w-4 h-4 text-gray-400" />
                         </div>
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                     <NavLink
                         to="/admin/products/add-category"
                         className={({ isActive }) =>
-                            `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                            `flex items-center px-3 py-2 text-sm rounded-lg ${
                                 isActive ? activeRed : `${textSecondary} ${hoverBg}`
                             }`
                         }
+                        onClick={() => {
+                            // Close sidebar on mobile when link is clicked
+                            if (window.innerWidth < 1024) {
+                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                            }
+                        }}
                     >
                         <span className="font-medium">Add Category</span>
                     </NavLink>
                         <NavLink
                             to="/admin/products/add"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Add Product</span>
                         </NavLink>
                         <NavLink
                             to="/admin/products/view"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">View Products</span>
                         </NavLink>
                         <NavLink
                             to="/admin/warehouse/track-stock"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Track Stock</span>
                         </NavLink>
                         <NavLink
                             to="/admin/warehouse/stock-alerts"
                             className={({ isActive }) =>
-                                `flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center justify-between px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Stock Alerts</span>
                             {isProductMenuOpen && totalStockAlerts > 0 && (
@@ -479,7 +485,7 @@ const Sidebar = () => {
 
                 {/* Warehouse Management */}
                 <details className="group" open={isWarehouseMenuOpen} onToggle={toggleWarehouseMenu}>
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuArchive className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">Warehouse</span>
@@ -490,17 +496,23 @@ const Sidebar = () => {
                                     {materialStockAlerts}
                                 </span>
                             )}
-                            <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                            <LuChevronRight className="w-4 h-4 text-gray-400" />
                         </div>
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
                             to="/admin/warehouse/store-room"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Store Room</span>
                         </NavLink>
@@ -512,10 +524,16 @@ const Sidebar = () => {
                         <NavLink
                             to="/admin/warehouse/packing-materials/view"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 } ml-4`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">- View Materials</span>
                         </NavLink>
@@ -523,10 +541,16 @@ const Sidebar = () => {
                         <NavLink
                             to="/admin/warehouse/packing-materials/outgoing"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 } ml-4`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">- Outgoing Materials</span>
                         </NavLink>
@@ -534,10 +558,16 @@ const Sidebar = () => {
                         <NavLink
                             to="/admin/warehouse/packing-materials/alerts"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 } ml-4`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">- Alert Materials</span>
                         </NavLink>
@@ -545,30 +575,48 @@ const Sidebar = () => {
                         <NavLink
                             to="/admin/warehouse/raw-materials"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Raw Materials</span>
                         </NavLink>
                         <NavLink
                             to="/admin/warehouse/manufacturing"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Manufacturing</span>
                         </NavLink>
                         <NavLink
                             to="/admin/warehouse/daily-schedule"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             {({ isActive }) => (
                                 <>
@@ -580,20 +628,32 @@ const Sidebar = () => {
                         <NavLink
                             to="/admin/warehouse/outgoing-materials"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Outgoing Materials</span>
                         </NavLink>
                         <NavLink
                             to="/admin/warehouse/material-stock-alerts"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Material Stock Alerts</span>
                         </NavLink>
@@ -602,31 +662,43 @@ const Sidebar = () => {
 
                 {/* Shop Management */}
                 <details className="group">
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuStore className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">Shops</span>
                         </div>
-                        <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                        <LuChevronRight className="w-4 h-4 text-gray-400" />
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
                             to="/admin/shops/add"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Add Shop</span>
                         </NavLink>
                         <NavLink
                             to="/admin/shops/view"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">View Shops</span>
                         </NavLink>
@@ -635,31 +707,43 @@ const Sidebar = () => {
 
                 {/* Task Management */}
                 <details className="group">
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuClipboardCheck className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">Tasks</span>
                         </div>
-                        <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                        <LuChevronRight className="w-4 h-4 text-gray-400" />
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
                             to="/admin/tasks/daily"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Daily Tasks</span>
                         </NavLink>
                         <NavLink
                             to="/admin/tasks/completed"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Completed Tasks</span>
                         </NavLink>
@@ -668,31 +752,43 @@ const Sidebar = () => {
 
                 {/* Billing Management */}
                 <details className="group">
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuFileText className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">Billing</span>
                         </div>
-                        <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                        <LuChevronRight className="w-4 h-4 text-gray-400" />
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
                             to="/admin/billing/create"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Create Bill</span>
                         </NavLink>
                         <NavLink
                             to="/admin/billing/view"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">View Bills</span>
                         </NavLink>
@@ -701,31 +797,43 @@ const Sidebar = () => {
 
                 {/* E-Way Bill Management */}
                 <details className="group">
-                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200 ${hoverBg} ${textPrimary} list-none`}>
+                    <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
                             <LuTruck className={`mr-3 text-lg ${iconColor}`} />
                             <span className="font-medium">E-Way Bills</span>
                         </div>
-                        <LuChevronRight className="w-4 h-4 transition-transform duration-200 group-open:rotate-90 text-gray-400" />
+                        <LuChevronRight className="w-4 h-4 text-gray-400" />
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
                             to="/admin/eway-bills/create"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">Create E-Way Bill</span>
                         </NavLink>
                         <NavLink
                             to="/admin/eway-bills/history"
                             className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg transition-all duration-200 ${
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
                                 }`
                             }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
                         >
                             <span className="font-medium">E-Way Bills History</span>
                         </NavLink>
@@ -736,12 +844,18 @@ const Sidebar = () => {
                 <NavLink
                     to="/admin/invoices/history"
                     className={({ isActive }) =>
-                        `flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                        `flex items-center px-3 py-2.5 rounded-lg ${
                             isActive 
                                 ? activeRed
                                 : `${textPrimary} ${hoverBg}`
                         }`
                     }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
                 >
                     {({ isActive }) => (
                         <>
@@ -755,12 +869,18 @@ const Sidebar = () => {
                 <NavLink
                     to="/admin/warehouse/return-products"
                     className={({ isActive }) =>
-                        `flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                        `flex items-center px-3 py-2.5 rounded-lg ${
                             isActive 
                                 ? activeRed
                                 : `${textPrimary} ${hoverBg}`
                         }`
                     }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
                 >
                     {({ isActive }) => (
                         <>
@@ -774,12 +894,18 @@ const Sidebar = () => {
                 <NavLink
                     to="/admin/expenses"
                     className={({ isActive }) =>
-                        `flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                        `flex items-center px-3 py-2.5 rounded-lg ${
                             isActive 
                                 ? activeRed
                                 : `${textPrimary} ${hoverBg}`
                         }`
                     }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
                 >
                     {({ isActive }) => (
                         <>
@@ -795,12 +921,18 @@ const Sidebar = () => {
                 <NavLink
                     to="/admin/profit-loss"
                     className={({ isActive }) =>
-                        `flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                        `flex items-center px-3 py-2.5 rounded-lg ${
                             isActive 
                                 ? activeRed
                                 : `${textPrimary} ${hoverBg}`
                         }`
                     }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
                 >
                     {({ isActive }) => (
                         <>
@@ -814,12 +946,18 @@ const Sidebar = () => {
                 <NavLink
                     to="/admin/settings"
                     className={({ isActive }) =>
-                        `flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                        `flex items-center px-3 py-2.5 rounded-lg ${
                             isActive 
                                 ? activeRed
                                 : `${textPrimary} ${hoverBg}`
                         }`
                     }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
                 >
                     {({ isActive }) => (
                         <>
@@ -834,7 +972,7 @@ const Sidebar = () => {
             <div className="px-4 py-6 border-t border-gray-200 relative z-10">
                 <button
                     onClick={handleLogout}
-                    className={`flex items-center w-full px-3 py-2.5 rounded-lg transition-all duration-200 ${textPrimary} ${hoverBg} font-medium`}
+                    className={`flex items-center w-full px-3 py-2.5 rounded-lg ${textPrimary} ${hoverBg} font-medium`}
                 >
                     <LuLogOut className={`mr-3 text-lg ${iconColor}`} />
                     <span>Logout</span>

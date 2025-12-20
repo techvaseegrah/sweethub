@@ -6,11 +6,11 @@ const {
   getBatchSettings,
   updateBatchSettings,
   deleteBatchSettings
-} = require('../../controllers/admin/settingsController');
-const { adminAuth } = require('../../middleware/auth');
+} = require('../../controllers/shop/shopSettingsController');
+const { shopAuth } = require('../../middleware/auth');
 
-// Apply admin authentication middleware to all routes
-router.use(adminAuth);
+// Apply shop authentication middleware to all routes
+router.use(shopAuth);
 
 // GST Settings Routes
 router.get('/gst', getGstSettings);

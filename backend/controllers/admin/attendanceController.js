@@ -350,7 +350,7 @@ const handleAttendancePunch = async (workerId) => {
         await worker.save();
 
         return {
-            message: `Punch Out successful for ${worker.name}.`,
+            message: `Punch Out successful for ${worker.name}. Next punch must be IN.`,
             worker: worker.name,
             attendance: savedRecord,
             type: 'checkout'
@@ -366,7 +366,7 @@ const handleAttendancePunch = async (workerId) => {
         await worker.save();
 
         return {
-            message: `Punch In successful for ${worker.name}.`,
+            message: `Punch In successful for ${worker.name}. Next punch must be OUT.`,
             worker: worker.name,
             attendance: savedRecord,
             type: 'checkin'

@@ -90,13 +90,14 @@ class FaceRecognitionService {
     async _loadEnrolledFaces() {
         try {
             // First load from localStorage (for immediate access)
+            console.log('Loading from localStorage...');
             this._loadFromStorage();
+            console.log('Current enrolled faces after localStorage load:', this.enrolledFaces.size);
             
             // Then fetch from backend to ensure we have the latest data
             console.log('Fetching enrolled faces from backend...');
             
             // Check if we're in shop context or admin context
-            // We'll determine this by checking if there's a shop-specific endpoint available
             let workersEndpoint = '/admin/workers';
             
             try {
@@ -109,36 +110,61 @@ class FaceRecognitionService {
                     }
                 }
             } catch (e) {
-                console.warn('Could not determine user role from token');
+                console.warn('Could not determine user role from token, checking current URL...');
+                // Fallback: check current URL to determine context
+                if (window.location.pathname.startsWith('/shop')) {
+                    workersEndpoint = '/shop/workers';
+                }
             }
+            
+            console.log('Using workers endpoint:', workersEndpoint);
             
             const response = await axios.get(workersEndpoint);
             const workers = response.data;
             
-            // Add any enrolled workers from backend that aren't already in localStorage
+            console.log('Fetched workers from backend:', workers.length);
+            
+            // Clear existing enrolled faces to ensure we start fresh
+            this.enrolledFaces.clear();
+            
+            // Add any enrolled workers from backend
+            console.log('Processing workers for face enrollment:', workers.length);
             for (const worker of workers) {
+                console.log(`Checking worker ${worker.name} (${worker._id}):`, {
+                    hasFaceEncodings: !!worker.faceEncodings,
+                    faceEncodingsLength: worker.faceEncodings ? worker.faceEncodings.length : 0,
+                    faceEncodingsType: worker.faceEncodings ? typeof worker.faceEncodings : 'undefined'
+                });
+                
                 if (worker.faceEncodings && worker.faceEncodings.length > 0) {
                     // Convert the encodings to Float32Array
                     const descriptors = worker.faceEncodings.map(encoding => new Float32Array(encoding));
                     
-                    // Only add if not already in enrolledFaces (localStorage data takes precedence)
-                    if (!this.enrolledFaces.has(worker._id)) {
-                        this.enrolledFaces.set(worker._id, descriptors);
-                        console.log(`Loaded face data for worker: ${worker.name}`);
-                    }
+                    // Add to enrolled faces
+                    this.enrolledFaces.set(worker._id, descriptors);
+                    console.log(`Loaded face data for worker: ${worker.name}, encodings: ${descriptors.length}`);
+                    
+                    // Log detailed information about the loaded encodings
+                    descriptors.forEach((descriptor, index) => {
+                        console.log(`  Descriptor ${index}: length=${descriptor.length}, sample=${Array.from(descriptor.slice(0, 5))}`);
+                    });
+                } else {
+                    console.log(`Worker ${worker.name} has no face encodings or empty face encodings`);
                 }
             }
             
-            // Save updated data to localStorage
+            // Save updated data to localStorage to ensure consistency
             this._saveToStorage();
             
             console.log('Successfully loaded enrolled faces. Total enrolled workers:', this.enrolledFaces.size);
+            return this.enrolledFaces.size;
         } catch (error) {
             console.error('Error loading enrolled faces from backend:', error);
+            console.error('Error stack:', error.stack);
             // Continue with localStorage data if backend fetch fails
+            return this.enrolledFaces.size;
         }
     }
-
     async detectFaceFromImage(imageElement) {
         if (!this.isModelLoaded) {
             await this.initialize();
@@ -235,14 +261,49 @@ class FaceRecognitionService {
         let bestDistance = Infinity;
         const threshold = 0.5; // Similarity threshold
 
+        console.log('Comparing with enrolled faces. Total enrolled workers:', this.enrolledFaces.size);
+        
+        // Log all enrolled workers for debugging
+        for (const [workerId] of this.enrolledFaces.entries()) {
+            console.log('Enrolled worker ID:', workerId);
+        }
+        
+        // Log the detection descriptor for debugging
+        console.log('Detection descriptor length:', detection.descriptor.length);
+        console.log('Sample detection data (first 5 values):', detection.descriptor.slice(0, 5));
+
         // Compare with all enrolled faces
         for (const [workerId, descriptors] of this.enrolledFaces.entries()) {
-            for (const enrolledDescriptor of descriptors) {
+            console.log(`Checking worker ${workerId} with ${descriptors.length} descriptors`);
+            for (let i = 0; i < descriptors.length; i++) {
+                const enrolledDescriptor = descriptors[i];
                 const distance = faceapi.euclideanDistance(detection.descriptor, enrolledDescriptor);
+                
+                console.log(`Comparing with worker ${workerId}, descriptor ${i}: distance=${distance}`);
                 
                 if (distance < threshold && distance < bestDistance) {
                     bestDistance = distance;
                     bestMatch = workerId;
+                    console.log(`New best match: worker ${workerId}, distance=${distance}`);
+                }
+            }
+        }
+        
+        console.log('Best match result:', { bestMatch, bestDistance, threshold });
+        
+        // If no match found, log additional debugging information
+        if (!bestMatch) {
+            console.log('No match found. Detailed comparison info:');
+            console.log('Threshold:', threshold);
+            console.log('Best distance found:', bestDistance);
+            
+            // Log all distances for debugging
+            for (const [workerId, descriptors] of this.enrolledFaces.entries()) {
+                console.log(`Worker ${workerId} distances:`);
+                for (let i = 0; i < descriptors.length; i++) {
+                    const enrolledDescriptor = descriptors[i];
+                    const distance = faceapi.euclideanDistance(detection.descriptor, enrolledDescriptor);
+                    console.log(`  Descriptor ${i}: ${distance}`);
                 }
             }
         }
@@ -324,6 +385,22 @@ class FaceRecognitionService {
     isReady() {
         return this.isModelLoaded;
     }
+
+    // Add a new method to manually add enrolled faces
+    addEnrolledFace(workerId, descriptors) {
+        // Convert descriptors to Float32Array if needed
+        const float32Descriptors = descriptors.map(desc => 
+            desc instanceof Float32Array ? desc : new Float32Array(desc)
+        );
+        
+        this.enrolledFaces.set(workerId, float32Descriptors);
+        this._saveToStorage();
+        console.log(`Added enrolled face for worker: ${workerId}`, {
+            descriptorsCount: float32Descriptors.length,
+            sampleDescriptor: float32Descriptors.length > 0 ? 
+                Array.from(float32Descriptors[0].slice(0, 5)) : null
+        });
+    }
 }
 
 // Create singleton instance
@@ -332,4 +409,15 @@ const faceRecognitionService = new FaceRecognitionService();
 // Load stored data on initialization
 faceRecognitionService._loadFromStorage();
 
+// Listen for face enrollment updates
+window.addEventListener('faceEnrollmentUpdated', async (event) => {
+  console.log('Face enrollment updated event received:', event.detail);
+  // Reload enrolled faces to ensure consistency
+  try {
+    const enrolledCount = await faceRecognitionService._loadEnrolledFaces();
+    console.log('Reloaded enrolled faces after update event. Total enrolled workers:', enrolledCount);
+  } catch (error) {
+    console.error('Error reloading enrolled faces after update event:', error);
+  }
+});
 export default faceRecognitionService;

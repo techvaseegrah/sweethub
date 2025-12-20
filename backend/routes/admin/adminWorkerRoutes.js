@@ -3,6 +3,7 @@ const router = express.Router();
 const { 
   addWorker, 
   getWorkers,
+  getWorkerById,
   deleteWorker, 
   updateWorker,
   generateRFIDForWorker,
@@ -12,6 +13,7 @@ const { adminAuth } = require('../../middleware/auth');
 
 router.post('/', adminAuth, addWorker);
 router.get('/', adminAuth, getWorkers);
+router.get('/:id', adminAuth, getWorkerById);
 router.delete('/:id', adminAuth, deleteWorker);
 router.put('/:id', adminAuth, updateWorker);
 router.get('/:id/salary-report', adminAuth, getWorkerSalaryReport);

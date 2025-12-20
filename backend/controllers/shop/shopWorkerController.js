@@ -21,6 +21,28 @@ const generateUniqueRFID = async () => {
     return rfid;
 };
 
+// @desc    Get a specific worker by ID for the logged-in shop
+// @route   GET /api/shop/workers/:id
+// @access  Private (Shop)
+exports.getWorkerById = async (req, res) => {
+    try {
+        const worker = await Worker.findOne({ _id: req.params.id, shop: req.shopId })
+            .populate('user', 'username')
+            .populate('department', 'name')
+            .populate('shop', 'name')
+            .select('+faceImages +faceEncodings'); // Include faceImages and faceEncodings for face enrollment
+            
+        if (!worker) {
+            return res.status(404).json({ message: 'Worker not found in this shop' });
+        }
+        
+        res.status(200).json(worker);
+    } catch (error) {
+        console.error("Error fetching worker:", error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 // @desc    Add a new worker for the logged-in shop
 // @route   POST /api/shop/workers
 // @access  Private (Shop)
@@ -33,10 +55,10 @@ exports.addWorker = async (req, res) => {
 
     try {
         // Validate required fields
-        if (!name || !username || !department || !workingHours || !salary) {
+        if (!name || !department || !workingHours || !salary) {
             await session.abortTransaction();
             session.endSession();
-            return res.status(400).json({ message: 'Please fill all required fields' });
+            return res.status(400).json({ message: 'Please fill all required fields: name, department, working hours, and salary.' });
         }
         
         // Validate workingHours structure
@@ -60,6 +82,11 @@ exports.addWorker = async (req, res) => {
             return res.status(400).json({ message: 'Invalid department ID' });
         }
 
+        // Generate username if not provided
+        if (!username) {
+            username = name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+        }
+        
         const userExists = await User.findOne({ username }).session(session);
         if (userExists) {
             await session.abortTransaction();
@@ -79,7 +106,7 @@ exports.addWorker = async (req, res) => {
         if (!workerRole) {
             await session.abortTransaction();
             session.endSession();
-            return res.status(500).json({ message: 'Worker role not found' });
+            return res.status(500).json({ message: 'Worker role not found. Please contact administrator.' });
         }
         
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
@@ -134,6 +161,8 @@ exports.addWorker = async (req, res) => {
         // Provide more specific error messages
         if (error.name === 'ValidationError') {
             return res.status(400).json({ message: 'Validation error: ' + error.message });
+        } else if (error.code === 11000) {
+            return res.status(400).json({ message: 'Duplicate key error. A worker with this information already exists.' });
         }
         res.status(500).json({ message: 'Server error: ' + error.message });
     }
@@ -149,6 +178,15 @@ exports.getWorkers = async (req, res) => {
             .populate('department', 'name')
             .populate('shop', 'name')
             .select('+faceImages +faceEncodings'); // Include faceImages and faceEncodings for face enrollment
+            
+        // Log face enrollment information for debugging
+        console.log('Workers fetched for shop:', req.shopId, 'Count:', workers.length);
+        workers.forEach(worker => {
+            console.log(`Worker ${worker.name}: faceEncodings = ${worker.faceEncodings ? worker.faceEncodings.length : 0}, faceImages = ${worker.faceImages ? worker.faceImages.length : 0}`);
+            if (worker.faceEncodings && worker.faceEncodings.length > 0) {
+                console.log(`  Sample faceEncoding data (first 5 values):`, worker.faceEncodings[0].slice(0, 5));
+            }
+        });
             
         res.status(200).json(workers);
     } catch (error) {
@@ -198,7 +236,8 @@ exports.updateWorker = async (req, res) => {
 
     try {
         const filter = { _id: id, shop: req.shopId };
-        const updatedWorker = await Worker.findOneAndUpdate(filter, updateData, { new: true });
+        const updatedWorker = await Worker.findOneAndUpdate(filter, updateData, { new: true })
+            .select('+faceImages +faceEncodings'); // Include face data in the response
 
         if (!updatedWorker) {
             return res.status(404).json({ message: 'Worker not found in this shop' });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import ShopSidebar from '../components/shop/ShopSidebar';
@@ -23,8 +23,11 @@ import ViewInvoice from '../components/shop/invoice/ViewInvoice';
 import ShopCreateBill from '../components/shop/billing/ShopCreateBill';
 import ShopViewBills from '../components/shop/billing/ShopViewBills';
 
-// Face Enrollment component import removed as per user request
-// import FaceEnrollment from '../components/shop/worker/FaceEnrollment';
+// Import shop settings component
+import ShopSettings from '../components/shop/ShopSettings';
+
+// Import Face Enrollment component
+import FaceEnrollment from '../components/shop/worker/FaceEnrollment';
 
 // Expense module imports
 import ExpenseDashboard from '../components/shop/expense/ExpenseDashboard';
@@ -48,23 +51,39 @@ const ShopPage = () => {
         setIsSidebarOpen(!isSidebarOpen);
     };
 
+    // Close sidebar when close-sidebar event is dispatched
+    useEffect(() => {
+        const handleCloseSidebar = () => {
+            setIsSidebarOpen(false);
+        };
+
+        window.addEventListener('close-sidebar', handleCloseSidebar);
+
+        return () => {
+            window.removeEventListener('close-sidebar', handleCloseSidebar);
+        };
+    }, []);
+
     return (
         <div className="flex h-screen bg-background">
             {/* Overlay for mobile */}
             {isSidebarOpen && (
                 <div
-                    className="fixed inset-0 bg-black opacity-50 z-30 md:hidden"
+                    className="fixed inset-0 bg-black opacity-50 z-30 lg:hidden"
                     onClick={toggleSidebar}
                 ></div>
             )}
 
             {/* Sidebar */}
-            <ShopSidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+            <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+                             lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-40`}>
+                <ShopSidebar />
+            </div>
 
             {/* Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Mobile header */}
-                <header className="md:hidden bg-white shadow-sm p-4 flex items-center justify-between">
+                <header className="lg:hidden bg-white shadow-sm p-4 flex items-center justify-between">
                     <button
                         onClick={toggleSidebar}
                         className="text-gray-500 hover:text-gray-700 focus:outline-none"
@@ -74,10 +93,13 @@ const ShopPage = () => {
                     <h1 className="text-xl font-semibold text-gray-800">SweetHub</h1>
                 </header>
 
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background p-4 md:p-6">
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background p-4 lg:p-6">
                     <Routes>
                         {/* Dashboard Route */}
                         <Route path="dashboard" element={<ShopDashboard />} />
+
+                        {/* Settings Route */}
+                        <Route path="settings" element={<ShopSettings />} />
 
                         {/* Department Routes */}
                         <Route path="departments/create" element={<CreateDepartment baseUrl="/shop" />} />
@@ -89,8 +111,7 @@ const ShopPage = () => {
                         <Route path="workers/attendance" element={<ShopAttendanceTracking baseUrl="/shop" />} />
                         <Route path="workers/salary-report" element={<SalaryReport />} />
                         <Route path="workers/holidays" element={<HolidayManagement />} />
-                        {/* Face enrollment route removed as per user request */}
-                        {/* <Route path="face-enrollment" element={<FaceEnrollment />} /> */}
+                        <Route path="face-enrollment" element={<FaceEnrollment />} />
 
                         {/* Product Routes */}
                         <Route path="products/add" element={<AddProduct baseUrl="/shop" />} />

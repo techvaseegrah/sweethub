@@ -1,11 +1,12 @@
 const Setting = require('../../models/settingModel');
 
-// Get GST settings for admin
+// Get GST settings for a specific shop
 const getGstSettings = async (req, res) => {
   try {
     const setting = await Setting.findOne({ 
-      key: 'gstPercentage',
-      type: 'admin' // Only get admin settings
+      key: 'gstPercentage', 
+      type: 'shop',
+      shop: req.shopId 
     });
     
     if (!setting) {
@@ -19,7 +20,7 @@ const getGstSettings = async (req, res) => {
   }
 };
 
-// Update GST settings for admin
+// Update GST settings for a specific shop
 const updateGstSettings = async (req, res) => {
   try {
     const { gstPercentage } = req.body;
@@ -34,12 +35,13 @@ const updateGstSettings = async (req, res) => {
       return res.status(400).json({ message: 'GST percentage must be between 0 and 100' });
     }
     
-    // Update or create the setting for admin only
+    // Update or create the setting for this specific shop
     const setting = await Setting.findOneAndUpdate(
-      { key: 'gstPercentage', type: 'admin' },
+      { key: 'gstPercentage', type: 'shop', shop: req.shopId },
       { 
         value: numericGst,
-        type: 'admin'
+        type: 'shop',
+        shop: req.shopId
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
@@ -51,12 +53,13 @@ const updateGstSettings = async (req, res) => {
   }
 };
 
-// Get batch settings for admin
+// Get batch settings for a specific shop
 const getBatchSettings = async (req, res) => {
   try {
     const settings = await Setting.find({ 
       key: { $regex: /^batch_/ },
-      type: 'admin' // Only get admin settings
+      type: 'shop',
+      shop: req.shopId
     });
     
     // Transform the settings into the expected format
@@ -72,7 +75,7 @@ const getBatchSettings = async (req, res) => {
   }
 };
 
-// Update/Create batch settings for admin
+// Update/Create batch settings for a specific shop
 const updateBatchSettings = async (req, res) => {
   try {
     const { batchId, name, workingHours, lunchBreak, breakTime } = req.body;
@@ -90,12 +93,13 @@ const updateBatchSettings = async (req, res) => {
       breakTime: breakTime || { from: '', to: '', included: true }
     };
     
-    // Update or create the setting for admin only
+    // Update or create the setting for this specific shop
     const setting = await Setting.findOneAndUpdate(
-      { key: `batch_${batchId}`, type: 'admin' },
+      { key: `batch_${batchId}`, type: 'shop', shop: req.shopId },
       { 
         value: batchData,
-        type: 'admin'
+        type: 'shop',
+        shop: req.shopId
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
@@ -107,15 +111,16 @@ const updateBatchSettings = async (req, res) => {
   }
 };
 
-// Delete batch settings for admin
+// Delete batch settings for a specific shop
 const deleteBatchSettings = async (req, res) => {
   try {
     const { batchId } = req.params;
     
-    // Delete the setting for admin only
+    // Delete the setting for this specific shop
     const result = await Setting.deleteOne({ 
       key: `batch_${batchId}`,
-      type: 'admin'
+      type: 'shop',
+      shop: req.shopId
     });
     
     if (result.deletedCount === 0) {

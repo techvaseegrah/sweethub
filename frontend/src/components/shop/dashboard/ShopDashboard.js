@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
-import { LuBuilding, LuUsers, LuBoxes, LuFileText, LuDollarSign } from 'react-icons/lu';
+import { LuBuilding, LuUsers, LuBoxes, LuFileText, LuDollarSign, LuSettings } from 'react-icons/lu';
 import { useNavigate } from 'react-router-dom';
 
 const SHOP_URL = '/shop';
@@ -79,6 +79,11 @@ function ShopDashboard() {
     navigate('/shop/billing/view');
   };
 
+  // Add handler for settings
+  const handleSettingsClick = () => {
+    navigate('/shop/settings');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -88,7 +93,7 @@ function ShopDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {/* Departments Card */}
         <div 
           className="bg-white rounded-xl shadow-lg p-6 cursor-pointer hover:shadow-xl transition-shadow duration-300"
@@ -149,6 +154,22 @@ function ShopDashboard() {
             <div className="ml-4">
               <h3 className="text-sm font-medium text-gray-500">Invoices</h3>
               <p className="text-2xl font-bold text-gray-900">{dashboardData.invoiceCount || 0}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Settings Card */}
+        <div 
+          className="bg-white rounded-xl shadow-lg p-6 cursor-pointer hover:shadow-xl transition-shadow duration-300"
+          onClick={handleSettingsClick}
+        >
+          <div className="flex items-center">
+            <div className="p-3 rounded-lg bg-indigo-100">
+              <LuSettings className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div className="ml-4">
+              <h3 className="text-sm font-medium text-gray-500">Settings</h3>
+              <p className="text-2xl font-bold text-gray-900">Manage</p>
             </div>
           </div>
         </div>

@@ -16,6 +16,7 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
     const [notificationMessage, setNotificationMessage] = useState('');
     const [workerName, setWorkerName] = useState('');
     const [workerCooldowns, setWorkerCooldowns] = useState({}); // Track cooldowns for workers
+    const [attendanceMarked, setAttendanceMarked] = useState(false); // Track if attendance has been marked
     const scanIntervalRef = useRef(null);
 
     // Check service status on component mount
@@ -26,6 +27,9 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                 console.log('Initializing face recognition service...');
                 await faceRecognitionService.initialize();
                 console.log('Face recognition service initialized successfully');
+                
+                // Force reload enrolled faces to ensure we have the latest data
+                await faceRecognitionService._loadEnrolledFaces();
                 
                 // Check backend service status
                 const response = await axios.get('/shop/attendance/face-status');
@@ -54,6 +58,74 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
         };
         
         checkServiceStatus();
+    }, []);
+    
+    // Listen for face enrollment updates
+    useEffect(() => {
+        const handleFaceEnrollmentUpdate = async () => {
+            try {
+                // Reload enrolled faces to ensure we have the latest data
+                await faceRecognitionService._loadEnrolledFaces();
+                
+                // Update status to reflect that we have the latest data
+                setStatus({ 
+                    type: 'success', 
+                    text: 'Face recognition service updated with latest enrollment data!' 
+                });
+                
+                // Clear the success message after 3 seconds
+                setTimeout(() => {
+                    setStatus({ 
+                        type: 'success', 
+                        text: 'Face recognition service is ready!' 
+                    });
+                }, 3000);
+            } catch (error) {
+                console.error('Failed to update face recognition service:', error);
+                setStatus({ 
+                    type: 'error', 
+                    text: 'Failed to update face recognition data. Please refresh the page.' 
+                });
+            }
+        };
+        
+        const handleFaceEnrollmentCompleted = async (event) => {
+            try {
+                const { workerName, descriptorsCount } = event.detail;
+                console.log(`Face enrollment completed for worker: ${workerName}, descriptors: ${descriptorsCount}`);
+                
+                // Reload enrolled faces to ensure we have the latest data
+                await faceRecognitionService._loadEnrolledFaces();
+                
+                // Update status to reflect that we have the latest data
+                setStatus({ 
+                    type: 'success', 
+                    text: `Face enrollment completed for ${workerName}! Ready for recognition.` 
+                });
+                
+                // Clear the success message after 3 seconds
+                setTimeout(() => {
+                    setStatus({ 
+                        type: 'success', 
+                        text: 'Face recognition service is ready!' 
+                    });
+                }, 3000);
+            } catch (error) {
+                console.error('Failed to handle face enrollment completion:', error);
+                setStatus({ 
+                    type: 'error', 
+                    text: 'Failed to update face recognition data. Please refresh the page.' 
+                });
+            }
+        };
+        
+        window.addEventListener('faceEnrollmentUpdated', handleFaceEnrollmentUpdate);
+        window.addEventListener('faceEnrollmentCompleted', handleFaceEnrollmentCompleted);
+        
+        return () => {
+            window.removeEventListener('faceEnrollmentUpdated', handleFaceEnrollmentUpdate);
+            window.removeEventListener('faceEnrollmentCompleted', handleFaceEnrollmentCompleted);
+        };
     }, []);
 
     // Clean up cooldowns periodically to prevent memory leaks
@@ -110,17 +182,21 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
             // Load image from data URL
             const img = await faceRecognitionService.loadImageFromDataURL(imageSrc);
             
+            console.log('Attempting face recognition...');
+            
             // Recognize face using React service
             const result = await faceRecognitionService.recognizeFace(img);
             
+            console.log('Face recognition result:', result);
+            
             if (result.success) {
-                // Check if worker is in cooldown period
+                // Check if worker is in cooldown period (2 minutes)
                 const now = Date.now();
                 if (workerCooldowns[result.workerId] && workerCooldowns[result.workerId] > now) {
                     const remainingTime = Math.ceil((workerCooldowns[result.workerId] - now) / 1000);
                     setStatus({ 
                         type: 'error', 
-                        text: `Please wait ${remainingTime} seconds before marking attendance again.` 
+                        text: `Please wait ${remainingTime} seconds before marking attendance again. Attendance must alternate between IN and OUT punches.` 
                     });
                     
                     // Reset processing state to allow retry
@@ -132,11 +208,17 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                 }
                 
                 // Send recognition result to backend
-                const response = await axios.post('/shop/attendance/recognize-face', {
+                const requestData = {
                     faceDescriptor: Array.from(result.descriptor || []),
                     workerId: result.workerId,
                     confidence: result.confidence
-                });
+                };
+                
+                console.log('Sending recognition data to backend:', requestData);
+                
+                const response = await axios.post('/shop/attendance/recognize-face', requestData);
+                
+                console.log('Backend response:', response.data);
                 
                 setStatus({ type: 'success', text: response.data.message });
                 setRetryCount(0); // Reset retry count on success
@@ -151,6 +233,12 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                 setWorkerName(response.data.worker);
                 setNotificationMessage(response.data.message);
                 setShowNotification(true);
+                setAttendanceMarked(true); // Mark that attendance has been recorded
+                
+                // Clear any existing scan intervals
+                if (scanIntervalRef.current) {
+                    clearInterval(scanIntervalRef.current);
+                }
                 
                 // Hide notification after 2 seconds and then reset processing state
                 setTimeout(() => {
@@ -201,165 +289,233 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
             
             setStatus({ type: 'error', text: errorMsg });
             
-            // Reset processing state to allow retry
+            // Implement exponential backoff for retries
+            const newRetryCount = retryCount + 1;
+            setRetryCount(newRetryCount);
+            
+            // Calculate delay with exponential backoff (2^retryCount * 1000ms, max 30s)
+            const baseDelay = 3000; // 3 second base delay
+            const backoffDelay = Math.min(baseDelay * Math.pow(2, Math.min(newRetryCount - 1, 4)), 30000);
+            
             setTimeout(() => {
                 setIsProcessing(false);
                 if (status.type !== 'success') {
                    setStatus({ type: 'info', text: 'Scanning for face...' });
                 }
-            }, 3000);
+            }, backoffDelay);
         }
-    }, [isProcessing, isCameraReady, serviceStatus, workerCooldowns, onAttendanceRecorded, status.type]);
+    }, [isProcessing, isCameraReady, status.type, serviceStatus, retryCount, onAttendanceRecorded, workerCooldowns]);
 
-    // Auto-scan functionality
+    // This effect creates a loop to automatically scan for a face (only if enabled)
     useEffect(() => {
-        if (autoScanEnabled && isCameraReady && !isProcessing && status.type !== 'success') {
-            scanIntervalRef.current = setInterval(() => {
-                captureAndRecognize();
-            }, 3000); // Scan every 3 seconds
+        // Clear any existing interval
+        if (scanIntervalRef.current) {
+            clearInterval(scanIntervalRef.current);
         }
         
+        if (isCameraReady && autoScanEnabled && !attendanceMarked) {
+            // Immediately start scanning when camera is ready
+            captureAndRecognize();
+            
+            // Set up interval for continuous scanning
+            scanIntervalRef.current = setInterval(() => {
+                captureAndRecognize();
+            }, 2000); // Try to recognize a face every 2 seconds for more responsive detection
+        }
+        
+        // Cleanup function to clear interval when component unmounts or dependencies change
         return () => {
             if (scanIntervalRef.current) {
                 clearInterval(scanIntervalRef.current);
             }
         };
-    }, [autoScanEnabled, isCameraReady, isProcessing, status.type, captureAndRecognize]);
+    }, [isCameraReady, captureAndRecognize, autoScanEnabled, attendanceMarked]);
+    
+    // This helper function determines what UI to show
+    const getStatusUI = () => {
+        let icon = <LuLoaderCircle className="animate-spin text-4xl text-gray-500" />;
+        let color = "border-gray-400";
 
-    const handleUserCapture = () => {
-        if (scanIntervalRef.current) {
-            clearInterval(scanIntervalRef.current);
+        if (isCameraReady) {
+            if (isProcessing) {
+                icon = <LuLoaderCircle className="animate-spin text-4xl text-blue-500" />;
+                color = "border-blue-500";
+            } else if (status.type === 'success') {
+                icon = <LuCircleCheck className="text-4xl text-green-500" />;
+                color = "border-green-500";
+            } else if (status.type === 'error') {
+                icon = <LuTriangleAlert className="text-4xl text-red-500" />;
+                color = "border-red-500";
+            } else {
+                icon = <LuCamera className="text-4xl text-gray-500" />;
+                color = "border-gray-400";
+            }
         }
-        captureAndRecognize();
+        return { icon, color };
     };
 
-    const handleCameraError = () => {
-        setStatus({ type: 'error', text: 'Camera access denied or not available.' });
-        setIsCameraReady(false);
-    };
-
-    const handleCameraLoad = () => {
-        setIsCameraReady(true);
-        setStatus({ type: 'info', text: 'Scanning for face...' });
-    };
+    const uiStatus = getStatusUI();
 
     return (
-        <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">Face Recognition Attendance</h3>
-                <div className="flex items-center space-x-2">
-                    <span className="text-sm font-medium text-gray-600">Auto-scan</span>
-                    <button
-                        onClick={() => setAutoScanEnabled(!autoScanEnabled)}
-                        className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
-                            autoScanEnabled ? 'bg-red-600' : 'bg-gray-200'
-                        }`}
-                    >
-                        <span
-                            aria-hidden="true"
-                            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${
-                                autoScanEnabled ? 'translate-x-5' : 'translate-x-0'
-                            }`}
-                        ></span>
-                    </button>
-                </div>
-            </div>
-
-            {/* Service Status Indicator */}
-            {serviceStatus && (
-                <div className={`mb-4 p-3 rounded-lg ${
-                    serviceStatus.serviceReady 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                    <div className="text-sm font-medium">
-                        {serviceStatus.serviceReady 
-                            ? '✅ React Face Recognition: Ready (High Accuracy)' 
-                            : '⚠️ Face Recognition Service: Unavailable'
-                        }
+        <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg max-w-2xl mx-auto">
+            {/* Notification Popup */}
+            {showNotification && (
+                <div className="fixed inset-0 flex items-center justify-center z-50 p-2">
+                    <div className="absolute inset-0 bg-black opacity-50"></div>
+                    <div className="relative bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-2 shadow-xl">
+                        <div className="text-center">
+                            <LuCircleCheck className="text-3xl sm:text-4xl text-green-500 mx-auto mb-3 sm:mb-4" />
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 sm:mb-4">Attendance Recorded</h3>
+                            <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">{notificationMessage}</p>
+                            <div className="bg-gray-100 rounded-lg p-3 sm:p-4 mb-4">
+                                <p className="font-medium text-gray-800 text-sm">Worker:</p>
+                                <p className="text-base sm:text-lg font-bold text-blue-600">{workerName}</p>
+                            </div>
+                        </div>
                     </div>
-                    {serviceStatus.currentMode && (
-                        <div className="text-xs mt-1">
-                            <strong>Current Mode:</strong> {serviceStatus.currentMode}
-                        </div>
-                    )}
-                    {serviceStatus.features && serviceStatus.serviceReady && (
-                        <div className="text-xs mt-1 space-y-1">
-                            <div><strong>Features:</strong></div>
-                            <ul className="text-xs text-green-700 ml-4 space-y-1">
-                                <li>• Real-time face detection and recognition</li>
-                                <li>• High accuracy with neural networks</li>
-                                <li>• Works entirely in the browser</li>
-                                <li>• No server dependencies required</li>
-                            </ul>
-                        </div>
-                    )}
                 </div>
             )}
 
-            {/* Status Message */}
-            <div className={`p-3 mb-4 rounded-lg text-center ${
-                status.type === 'success' ? 'bg-green-100 text-green-800' :
-                status.type === 'error' ? 'bg-red-100 text-red-800' :
-                'bg-blue-100 text-blue-800'
-            }`}>
-                {status.text}
-            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3 sm:mb-4 text-center">Automatic Face Attendance</h2>
+            <p className="text-center text-gray-600 mb-4 sm:mb-6 text-sm sm:text-base">
+                Position your face in the camera frame. The system will automatically mark your attendance.
+            </p>
 
-            {/* Camera and Capture */}
-            <div className="relative">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden bg-gray-100">
+            <div className={`relative w-full aspect-square bg-gray-900 rounded-lg overflow-hidden border-4 ${uiStatus.color} transition-colors duration-500 mb-4 sm:mb-6`}>
+                {!attendanceMarked ? (
                     <Webcam
                         audio={false}
                         ref={webcamRef}
                         screenshotFormat="image/jpeg"
-                        className="w-full h-64 object-cover"
-                        onUserMedia={handleCameraLoad}
-                        onUserMediaError={handleCameraError}
+                        videoConstraints={{ facingMode: 'user', width: 720, height: 720 }}
+                        onUserMedia={() => {
+                            setIsCameraReady(true);
+                            setStatus({ type: 'info', text: 'Scanning for face...' });
+                            // Immediately start scanning when camera is ready
+                            if (autoScanEnabled) {
+                                captureAndRecognize();
+                            }
+                        }}
+                        className="absolute top-0 left-0 w-full h-full object-cover"
                     />
-                </div>
-                
-                {isProcessing && (
-                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                        <LuLoaderCircle className="animate-spin text-white text-4xl" />
+                ) : (
+                    <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800">
+                        <LuCircleCheck className="text-6xl text-green-500" />
                     </div>
                 )}
+                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
+                   <div className="w-3/4 h-3/4 border-4 border-dashed border-white rounded-full opacity-30" />
+                </div>
             </div>
 
-            {/* Manual Capture Button */}
-            <div className="mt-4">
-                <button
-                    onClick={handleUserCapture}
-                    disabled={isProcessing || !isCameraReady}
-                    className="w-full flex items-center justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
-                >
-                    <LuCamera className="mr-2" />
-                    Capture & Recognize Face
-                </button>
-            </div>
-
-            {/* Notification Popup */}
-            {showNotification && (
-                <div className="fixed top-4 right-4 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg z-50 animate-fade-in-down">
-                    <div className="flex items-center">
-                        <LuCircleCheck className="mr-2 text-xl" />
-                        <div>
-                            <p className="font-medium">{workerName}</p>
-                            <p className="text-sm">{notificationMessage}</p>
+            <div className="text-center p-3 sm:p-4 rounded-lg bg-gray-50">
+                {/* Service Status Indicator */}
+                {serviceStatus && (
+                    <div className={`mb-3 sm:mb-4 p-3 rounded-lg ${
+                        serviceStatus.serviceReady 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                        <div className="text-xs sm:text-sm font-medium">
+                            {serviceStatus.serviceReady 
+                                ? '✅ React Face Recognition: Ready (High Accuracy)' 
+                                : '⚠️ Face Recognition Service: Unavailable'
+                            }
                         </div>
+                        {serviceStatus.currentMode && (
+                            <div className="text-xs mt-1">
+                                <strong>Mode:</strong> {serviceStatus.currentMode}
+                            </div>
+                        )}
+                        {serviceStatus.features && serviceStatus.serviceReady && (
+                            <div className="text-xs mt-1">
+                                <strong>Features:</strong> Real-time detection, Neural networks, Browser-based
+                            </div>
+                        )}
+                        {!serviceStatus.serviceReady && serviceStatus.alternatives && (
+                            <div className="text-xs mt-1">
+                                Available alternatives: {serviceStatus.alternatives.map(alt => alt.name).join(', ')}
+                            </div>
+                        )}
                     </div>
-                </div>
-            )}
-
-            {/* Retry Logic */}
-            {retryCount > 2 && (
-                <div className="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
-                    <p className="text-sm">
-                        Having trouble? Make sure your face is clearly visible and well-lit.
-                        If problems persist, please use RFID attendance instead.
-                    </p>
-                </div>
-            )}
+                )}
+                
+                {attendanceMarked ? (
+                    <div className="flex flex-col items-center">
+                        <p className="text-green-600 font-medium mb-2">Attendance marked successfully!</p>
+                        <button 
+                            onClick={() => {
+                                setAttendanceMarked(false);
+                                setIsCameraReady(false);
+                                setStatus({ type: 'info', text: 'Restarting Camera...' });
+                            }}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        >
+                            Mark Another Attendance
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <p className="text-gray-600 text-sm sm:text-base mb-2">
+                            Position your face in the camera frame. The system will automatically mark your attendance.
+                        </p>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                            <div className="flex items-center justify-center">
+                                {uiStatus.icon}
+                            </div>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">{status.text}</span>
+                        </div>
+                        
+                        {/* Manual Controls - Removed Scan Face Now button */}
+                        <div className="flex flex-col items-center gap-3">
+                            {/* Removed Scan Face Now button */}
+                            
+                            <label className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                                <input
+                                    type="checkbox"
+                                    checked={autoScanEnabled}
+                                    onChange={(e) => setAutoScanEnabled(e.target.checked)}
+                                    disabled={serviceStatus && !serviceStatus.serviceReady}
+                                    className="w-4 h-4"
+                                />
+                                Enable auto-scan (every 2 seconds)
+                            </label>
+                            
+                            {/* Alternative Options */}
+                            {serviceStatus && !serviceStatus.serviceReady && (
+                                <div className="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
+                                    <p className="text-xs sm:text-sm font-medium text-blue-800 mb-2 sm:mb-3">Face Recognition Setup Required:</p>
+                                    
+                                    {serviceStatus.setupInstructions && (
+                                        <div className="text-xs text-blue-700 mb-2 sm:mb-3">
+                                            <div className="mb-1 sm:mb-2">
+                                                <strong>Missing:</strong> {serviceStatus.missingDependencies?.join(', ')}
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div>1. {serviceStatus.setupInstructions.step1}</div>
+                                                <div>2. {serviceStatus.setupInstructions.step2}</div>
+                                                <div>3. {serviceStatus.setupInstructions.step3}</div>
+                                                {serviceStatus.setupInstructions.note && (
+                                                    <div className="text-yellow-700 mt-1 sm:mt-2 text-xs">
+                                                        ⚠️ {serviceStatus.setupInstructions.note}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="text-xs text-blue-600 border-t border-blue-200 pt-2">
+                                        <strong>Alternative Methods (Available Now):</strong><br/>
+                                        • Use RFID card scanner for quick check-in/out<br/>
+                                        • Manual attendance tracking is available<br/>
+                                        • Contact admin to configure face recognition
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
     );
 };

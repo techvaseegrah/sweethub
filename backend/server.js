@@ -1,29 +1,31 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
+const connectDB = require('./config/db');
+require('dotenv').config();
 
-// Load environment variables first
-dotenv.config();
+const app = express();
 
-// --- Import Models ---
-const User = require('./models/User');
-const Role = require('./models/Role');
+// Connect Database
+connectDB();
 
-// --- Import Routes ---
-const authRoutes = require('./routes/authRoutes');
+// Init Middleware
+app.use(express.json({ extended: false }));
+
+// Enable CORS for all routes
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true
+}));
+
+// Define Routes
+app.use('/api/auth', require('./routes/authRoutes'));
 
 // ADMIN ROUTES
-// We use adminBillRoutes (Make sure the file is named exactly this)
-const adminBillRoutes = require('./routes/admin/adminBillRoutes'); 
-const departmentRoutes = require('./routes/admin/adminDepartmentRoutes');
-const workerRoutes = require('./routes/admin/adminWorkerRoutes');
-const productRoutes = require('./routes/admin/adminProductRoutes');
-const productHistoryRoutes = require('./routes/admin/adminProductHistoryRoutes');
+const adminBillRoutes = require('./routes/admin/adminBillRoutes');
+const adminProductRoutes = require('./routes/admin/adminProductRoutes');
+const adminWorkerRoutes = require('./routes/admin/adminWorkerRoutes');
+const adminDepartmentRoutes = require('./routes/admin/adminDepartmentRoutes');
+const adminShopRoutes = require('./routes/admin/adminShopRoutes');
 const salaryRoutes = require('./routes/admin/salaryRoutes');
 const shopAdminRoutes = require('./routes/admin/adminShopRoutes');
 const categoryRoutes = require('./routes/admin/categoryRoutes');
@@ -52,106 +54,16 @@ const shopAttendanceRoutes = require('./routes/shop/shopAttendanceRoutes');
 const shopInvoiceRoutes = require('./routes/shop/invoiceRoutes');
 const shopExpenseRoutes = require('./routes/shop/shopExpenseRoutes');
 const shopReturnProductRoutes = require('./routes/shop/shopReturnProductRoutes');
+// Import shop settings routes
+const shopSettingsRoutes = require('./routes/shop/shopSettingsRoutes');
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, 'uploads', 'faces');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'), false);
-    }
-  }
-});
-
-const app = express();
-const PORT = process.env.PORT || 5001;
-
-// --- CREATE REQUIRED DIRECTORIES ---
-const uploadsDir = path.join(__dirname, 'uploads');
-const knownFacesDir = path.join(__dirname, 'known_faces');
-const facesDir = path.join(__dirname, 'uploads', 'faces');
-const expenseAttachmentsDir = path.join(__dirname, 'uploads', 'expense-attachments');
-const modelsDir = path.join(__dirname, 'models');
-
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-if (!fs.existsSync(knownFacesDir)) fs.mkdirSync(knownFacesDir, { recursive: true });
-if (!fs.existsSync(facesDir)) fs.mkdirSync(facesDir, { recursive: true });
-if (!fs.existsSync(expenseAttachmentsDir)) fs.mkdirSync(expenseAttachmentsDir, { recursive: true });
-if (!fs.existsSync(modelsDir)) fs.mkdirSync(modelsDir, { recursive: true });
-
-const corsOptions = {
-    origin: 'http://localhost:3000',
-    credentials: true,
-    optionsSuccessStatus: 200
-};
-
-app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use('/uploads', express.static(uploadsDir));
-app.use('/models', express.static(modelsDir));
-
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => {
-        console.log('MongoDB connected...');
-        initializeRolesAndAdmin();
-    })
-    .catch(err => console.error('MongoDB connection error:', err));
-
-const initializeRolesAndAdmin = async () => {
-    try {
-        for (const roleName of ['admin', 'worker', 'shop']) {
-            if (!(await Role.findOne({ name: roleName }))) {
-                await new Role({ name: roleName }).save();
-            }
-        }
-        const adminRole = await Role.findOne({ name: 'admin' });
-        const adminExists = await User.findOne({ role: adminRole._id });
-
-        if (!adminExists) {
-            const salt = await bcrypt.genSalt(10);
-            const hashedPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, salt);
-            await new User({
-                name: 'Admin',
-                username: 'admin',
-                password: hashedPassword,
-                role: adminRole._id,
-                isVerified: true
-            }).save();
-            console.log('Default admin user created.');
-        }
-    } catch (error) {
-        console.error('Error initializing roles:', error);
-    }
-};
-
-// --- ROUTES MOUNTING ---
-app.use('/api/auth', authRoutes);
+const PORT = process.env.PORT || 5000;
 
 // ADMIN
-// === FIX: CHANGED PATH TO INCLUDE /api ===
-app.use('/api/admin', adminBillRoutes); 
-app.use('/api/admin/departments', departmentRoutes);
-app.use('/api/admin/workers', workerRoutes);
-app.use('/api/admin/products', productRoutes);
-app.use('/api/admin/product-history', productHistoryRoutes);
+app.use('/api/admin/bills', adminBillRoutes);
+app.use('/api/admin/products', adminProductRoutes);
+app.use('/api/admin/workers', adminWorkerRoutes);
+app.use('/api/admin/departments', adminDepartmentRoutes);
 app.use('/api/admin/salary', salaryRoutes);
 app.use('/api/admin/shops', shopAdminRoutes);
 app.use('/api/admin/categories', categoryRoutes);
@@ -180,6 +92,8 @@ app.use('/api/shop/attendance', shopAttendanceRoutes);
 app.use('/api/shop/invoices', shopInvoiceRoutes);
 app.use('/api/shop/expenses', shopExpenseRoutes);
 app.use('/api/shop/returns', shopReturnProductRoutes);
+// Register shop settings routes
+app.use('/api/shop/settings', shopSettingsRoutes);
 
 app.get('/', (req, res) => res.send('API is running...'));
 

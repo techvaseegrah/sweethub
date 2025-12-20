@@ -272,6 +272,21 @@ const FaceEnrollment = () => {
             const response = await axios.get('/shop/workers');
             const unenrolled = response.data.filter(w => !w.faceImages || w.faceImages.length === 0);
             setWorkers(unenrolled);
+            
+            // Notify that face attendance records should be updated
+            window.dispatchEvent(new CustomEvent('faceEnrollmentUpdated', { 
+              detail: { workerId: selectedWorker, timestamp: Date.now() } 
+            }));
+            
+            // Also dispatch a custom event with more detailed information
+            window.dispatchEvent(new CustomEvent('faceEnrollmentCompleted', { 
+              detail: { 
+                workerId: selectedWorker, 
+                workerName: selectedWorker ? workers.find(w => w._id === selectedWorker)?.name : 'Unknown',
+                descriptorsCount: faceDescriptors.length,
+                timestamp: Date.now() 
+              } 
+            }));
 
         } catch (error) {
             console.error('Error enrolling face:', error);

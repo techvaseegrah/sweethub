@@ -40,6 +40,13 @@ exports.addWorker = async (req, res) => {
     session.startTransaction();
 
     try {
+        // Validate required fields
+        if (!name || !department || !salary) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: 'Please fill all required fields: name, department, and salary.' });
+        }
+        
         const workerExists = await Worker.findOne({ username }).session(session);
         if (workerExists) {
             await session.abortTransaction();
@@ -51,7 +58,7 @@ exports.addWorker = async (req, res) => {
         if (!workerRole) {
             await session.abortTransaction();
             session.endSession();
-            return res.status(500).json({ message: 'Worker role not found.' });
+            return res.status(500).json({ message: 'Worker role not found. Please contact administrator.' });
         }
         
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
@@ -69,7 +76,7 @@ exports.addWorker = async (req, res) => {
         // Prepare worker data
         const workerData = {
             name,
-            username,
+            username: username || name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now(),
             email,
             department,
             salary,
@@ -80,41 +87,47 @@ exports.addWorker = async (req, res) => {
         
         // If batchId is provided, fetch batch settings and apply them
         if (batchId) {
-            // Fetch batch settings
-            const batchSettings = await Setting.find({ key: { $regex: `^batch_${batchId}_` } });
-            
-            // Process batch settings
-            batchSettings.forEach(setting => {
-                const settingType = setting.key.replace(`batch_${batchId}_`, '');
-                let value = setting.value;
+            try {
+                // Fetch batch settings
+                const batchSettings = await Setting.find({ key: { $regex: `^batch_${batchId}_` } });
                 
-                // Parse JSON values
-                if (typeof setting.value === 'string' && setting.value.startsWith('{')) {
-                    try {
-                        value = JSON.parse(setting.value);
-                    } catch (e) {
-                        // If parsing fails, keep the original value
+                // Process batch settings
+                batchSettings.forEach(setting => {
+                    const settingType = setting.key.replace(`batch_${batchId}_`, '');
+                    let value = setting.value;
+                    
+                    // Parse JSON values
+                    if (typeof setting.value === 'string' && setting.value.startsWith('{')) {
+                        try {
+                            value = JSON.parse(setting.value);
+                        } catch (e) {
+                            // If parsing fails, keep the original value
+                            console.warn(`Failed to parse batch setting value for ${setting.key}:`, e.message);
+                        }
                     }
-                }
-                
-                // Apply settings based on type
-                switch (settingType) {
-                    case 'workingHours':
-                        workerData.workingHours = value;
-                        break;
-                    case 'lunchBreak':
-                        workerData.lunchBreak = value;
-                        break;
-                    case 'breakTime':
-                        workerData.breakTime = value;
-                        break;
-                }
-            });
+                    
+                    // Apply settings based on type
+                    switch (settingType) {
+                        case 'workingHours':
+                            workerData.workingHours = value;
+                            break;
+                        case 'lunchBreak':
+                            workerData.lunchBreak = value;
+                            break;
+                        case 'breakTime':
+                            workerData.breakTime = value;
+                            break;
+                    }
+                });
+            } catch (batchError) {
+                console.warn('Error processing batch settings:', batchError.message);
+                // Continue without batch settings rather than failing
+            }
         }
         
         const newUser = new User({
             name,
-            username,
+            username: workerData.username,
             ...(email && { email }),
             password: hashedPassword,
             role: workerRole._id,
@@ -147,7 +160,13 @@ exports.addWorker = async (req, res) => {
         await session.abortTransaction();
         session.endSession();
         console.error('Error adding worker:', error);
-        res.status(500).json({ message: 'Server Error' });
+        // Provide more specific error messages
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ message: 'Validation error: ' + error.message });
+        } else if (error.code === 11000) {
+            return res.status(400).json({ message: 'Duplicate key error. A worker with this information already exists.' });
+        }
+        res.status(500).json({ message: 'Server Error: ' + error.message });
     }
 };
 
@@ -322,7 +341,10 @@ exports.updateWorker = async (req, res) => {
         // Remove batchId from updateData as it's now a field in the Worker model
         // No need to delete it anymore since we're storing it directly
         
-        const updatedWorker = await Worker.findOneAndUpdate(filter, updateData, { new: true });
+        const updatedWorker = await Worker.findOneAndUpdate(filter, updateData, { new: true })
+            .populate('department', 'name')
+            .populate('user', 'username email')
+            .select('+faceImages +faceEncodings');
 
         if (!updatedWorker) {
             return res.status(404).json({ message: 'Worker not found or not authorized to update.' });
@@ -331,6 +353,29 @@ exports.updateWorker = async (req, res) => {
         res.status(200).json({ message: 'Worker updated successfully!', worker: updatedWorker });
     } catch (error) {
         console.error('Error updating worker:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+exports.getWorkerById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Ensure we're only fetching admin workers (no shop association)
+        const filter = { _id: id, shop: { $exists: false } };
+        
+        const worker = await Worker.findOne(filter)
+            .populate('department', 'name')
+            .populate('user', 'username email')
+            .select('+faceImages +faceEncodings');
+            
+        if (!worker) {
+            return res.status(404).json({ message: 'Worker not found or not authorized to view.' });
+        }
+        
+        res.status(200).json(worker);
+    } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

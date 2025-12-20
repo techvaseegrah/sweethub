@@ -3,6 +3,8 @@ import axios from '../../../api/axios';
 import CustomModal from '../../../components/CustomModal'; // Import CustomModal
 import Webcam from 'react-webcam'; // Import Webcam for face enrollment
 import { LuCamera, LuUpload, LuUserPlus, LuCheck, LuX } from 'react-icons/lu'; // Import icons
+import faceRecognitionService from '../../../services/faceRecognitionService';
+import { useLocation } from 'react-router-dom'; // Import useLocation
 
 // Utility function to format time in 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
@@ -17,16 +19,17 @@ const formatTimeTo12Hour = (time24) => {
 const WORKER_URL = '/admin/workers';
 
 function ViewWorkers() {
+  const location = useLocation(); // Get location to detect route changes
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // State for modal
+  // State for modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState(null);
   const [editedWorkerData, setEditedWorkerData] = useState({});
   const [departments, setDepartments] = useState([]);
-
+  
   // State for face enrollment
   const [isFaceEnrollmentOpen, setIsFaceEnrollmentOpen] = useState(false);
   const [faceEnrollmentWorker, setFaceEnrollmentWorker] = useState(null);
@@ -35,187 +38,260 @@ function ViewWorkers() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const webcamRef = React.useRef(null);
+  
+  // State for delete confirmation modal
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [workerToDelete, setWorkerToDelete] = useState(null);
+
+  // Create a function to fetch data that can be called externally
+  const fetchData = async () => {
+    try {
+      const [workersResponse, departmentsResponse] = await Promise.all([
+        axios.get(WORKER_URL, { withCredentials: true }),
+        axios.get('/admin/departments', { withCredentials: true })
+      ]);
+      setWorkers(workersResponse.data);
+      setDepartments(departmentsResponse.data);
+    } catch (err) {
+      setError('Failed to fetch data.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-        try {
-            const [workersResponse, departmentsResponse] = await Promise.all([
-                axios.get(WORKER_URL, { withCredentials: true }),
-                axios.get('/admin/departments', { withCredentials: true })
-            ]);
-            setWorkers(workersResponse.data);
-            setDepartments(departmentsResponse.data);
-        } catch (err) {
-            setError('Failed to fetch data.');
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
-    };
     fetchData();
-}, []);
+  }, [location.key]); // Add location.key as dependency to refresh when route changes
 
-// Open edit modal
-const handleEdit = (worker) => {
-  setEditingWorker(worker);
-  setEditedWorkerData({ 
-    ...worker, 
-    department: worker.department?._id || worker.department || '' 
-  });
-  setIsEditModalOpen(true);
-};
+  // Open edit modal
+  const handleEdit = (worker) => {
+    setEditingWorker(worker);
+    setEditedWorkerData({ 
+      ...worker, 
+      department: worker.department?._id || worker.department || '' 
+    });
+    setIsEditModalOpen(true);
+  };
 
-// Close edit modal
-const handleCloseEditModal = () => {
-  setIsEditModalOpen(false);
-  setEditingWorker(null);
-  setEditedWorkerData({});
-};
+  // Close edit modal
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingWorker(null);
+    setEditedWorkerData({});
+  };
 
-// Handle input changes in the edit form
-const handleInputChange = (e, field) => {
-  setEditedWorkerData({ ...editedWorkerData, [field]: e.target.value });
-};
+  // Handle input changes in the edit form
+  const handleInputChange = (e, field) => {
+    setEditedWorkerData({ ...editedWorkerData, [field]: e.target.value });
+  };
 
-// Handle department change
-const handleDepartmentChange = (e) => {
-  setEditedWorkerData({ ...editedWorkerData, department: e.target.value });
-};
+  // Handle department change
+  const handleDepartmentChange = (e) => {
+    setEditedWorkerData({ ...editedWorkerData, department: e.target.value });
+  };
 
-// Update worker
-const handleUpdate = async (e) => {
-  e.preventDefault();
-  try {
-      const response = await axios.put(`${WORKER_URL}/${editingWorker._id}`, editedWorkerData, { withCredentials: true });
-      setWorkers(workers.map(w => w._id === editingWorker._id ? response.data : w));
+  // Update worker
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    try {
+      // Preserve face enrollment data during worker update
+      const updateData = { ...editedWorkerData };
+      
+      // If the worker already has face data, preserve it during the update
+      if (editingWorker && editingWorker.faceEncodings) {
+        updateData.faceEncodings = editingWorker.faceEncodings;
+      }
+      if (editingWorker && editingWorker.faceImages) {
+        updateData.faceImages = editingWorker.faceImages;
+      }
+      
+      const response = await axios.put(`${WORKER_URL}/${editingWorker._id}`, updateData, { withCredentials: true });
+      setWorkers(workers.map(w => w._id === editingWorker._id ? response.data.worker : w));
       handleCloseEditModal();
-  } catch (err) {
+    } catch (err) {
       setError('Failed to update worker.');
       console.error(err);
-  }
-};
-
-// Open face enrollment modal
-const handleOpenFaceEnrollment = (worker) => {
-  setFaceEnrollmentWorker(worker);
-  setImages([]);
-  setIsCapturing(true); // Automatically open camera
-  setMessage({ type: '', text: '' });
-  setIsFaceEnrollmentOpen(true);
-};
-
-// Close face enrollment modal
-const handleCloseFaceEnrollment = () => {
-  setIsFaceEnrollmentOpen(false);
-  setFaceEnrollmentWorker(null);
-  setImages([]);
-  setIsCapturing(false);
-  setMessage({ type: '', text: '' });
-};
-
-// Handle file change for face enrollment
-const handleFileChange = (e) => {
-  if (e.target.files) {
-    const filesArray = Array.from(e.target.files).slice(0, 5 - images.length);
-    const newImages = filesArray.map(file => ({
-      file: file,
-      preview: URL.createObjectURL(file)
-    }));
-    setImages(prev => [...prev, ...newImages]);
-  }
-};
-
-// Capture image from webcam
-const captureImage = () => {
-  if (webcamRef.current && images.length < 5) {
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (imageSrc) {
-      const byteString = atob(imageSrc.split(',')[1]);
-      const mimeString = imageSrc.split(',')[0].split(':')[1].split(';')[0];
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-      }
-      const blob = new Blob([ab], { type: mimeString });
-      const file = new File([blob], `capture-${Date.now()}.jpeg`, { type: mimeString });
-
-      setImages(prev => [...prev, { file: file, preview: imageSrc }]);
     }
-  } else {
-    setMessage({ type: 'error', text: 'You can only add up to 5 images.' });
-  }
-};
+  };
 
-// Remove image from face enrollment
-const removeImage = (index) => {
-  setImages(images.filter((_, i) => i !== index));
-};
+  // Open face enrollment modal
+  const handleOpenFaceEnrollment = (worker) => {
+    setFaceEnrollmentWorker(worker);
+    setImages([]);
+    setIsCapturing(true); // Automatically open camera
+    setMessage({ type: '', text: '' });
+    setIsFaceEnrollmentOpen(true);
+  };
 
-// Submit face enrollment
-const handleSubmitFaceEnrollment = async (e) => {
-  e.preventDefault();
-  
-  if (!faceEnrollmentWorker || images.length === 0) {
-    setMessage({ type: 'error', text: 'Please select a worker and provide at least one image.' });
-    return;
-  }
+  // Close face enrollment modal
+  const handleCloseFaceEnrollment = () => {
+    setIsFaceEnrollmentOpen(false);
+    setFaceEnrollmentWorker(null);
+    setImages([]);
+    setIsCapturing(false);
+    setMessage({ type: '', text: '' });
+  };
 
-  setIsLoading(true);
-  setMessage({ type: '', text: '' });
+  // Handle file change for face enrollment
+  const handleFileChange = (e) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files).slice(0, 5 - images.length);
+      const newImages = filesArray.map(file => ({
+        file: file,
+        preview: URL.createObjectURL(file)
+      }));
+      setImages(prev => [...prev, ...newImages]);
+    }
+  };
 
-  try {
-    // Create FormData for backend storage
-    const formData = new FormData();
-    formData.append('workerId', faceEnrollmentWorker._id);
-    
-    // Add image files
-    images.forEach(image => {
-      formData.append('faces', image.file);
-    });
+  // Capture image from webcam
+  const captureImage = () => {
+    if (webcamRef.current && images.length < 5) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        const byteString = atob(imageSrc.split(',')[1]);
+        const mimeString = imageSrc.split(',')[0].split(':')[1].split(';')[0];
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteString.length; i++) {
+          ia[i] = byteString.charCodeAt(i);
+        }
+        const blob = new Blob([ab], { type: mimeString });
+        const file = new File([blob], `capture-${Date.now()}.jpeg`, { type: mimeString });
 
-    // Send to backend
-    await axios.post('/admin/attendance/enroll-face', formData);
-
-    setMessage({ type: 'success', text: 'Face enrollment successful!' });
-    
-    // Refresh workers data to show updated face enrollment status
-    const fetchData = async () => {
-      try {
-        const workersResponse = await axios.get(WORKER_URL, { withCredentials: true });
-        setWorkers(workersResponse.data);
-      } catch (err) {
-        setError('Failed to refresh worker data.');
-        console.error(err);
+        setImages(prev => [...prev, { file: file, preview: imageSrc }]);
       }
-    };
-    fetchData();
-    
-    // Close the modal after a delay
-    setTimeout(() => {
-      handleCloseFaceEnrollment();
-    }, 2000);
-    
-  } catch (error) {
-    console.error('Error enrolling face:', error);
-    const errorMsg = error.response?.data?.message || error.message || 'An error occurred during enrollment.';
-    setMessage({ type: 'error', text: errorMsg });
-  } finally {
-    setIsLoading(false);
-  }
-};
+    } else {
+      setMessage({ type: 'error', text: 'You can only add up to 5 images.' });
+    }
+  };
 
-const handleDelete = async (id) => {
-  if (window.confirm('Are you sure you want to delete this worker?')) {
-      try {
-          await axios.delete(`${WORKER_URL}/${id}`, { withCredentials: true });
-          setWorkers(workers.filter((w) => w._id !== id));
-      } catch (err) {
-          setError('Failed to delete worker.');
-          console.error(err);
+  // Remove image from face enrollment
+  const removeImage = (index) => {
+    setImages(images.filter((_, i) => i !== index));
+  };
+
+  // Submit face enrollment
+  const handleSubmitFaceEnrollment = async (e) => {
+    e.preventDefault();
+    
+    if (!faceEnrollmentWorker || images.length === 0) {
+      setMessage({ type: 'error', text: 'Please select a worker and provide at least one image.' });
+      return;
+    }
+
+    setIsLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      // Initialize face recognition service
+      await faceRecognitionService.initialize();
+
+      // Process images to extract face descriptors
+      const faceDescriptors = [];
+      
+      for (const imageData of images) {
+        try {
+          const img = await faceRecognitionService.loadImageFromDataURL(imageData.preview);
+          const detection = await faceRecognitionService.detectFaceFromImage(img);
+          
+          if (detection && detection.descriptor) {
+            faceDescriptors.push(Array.from(detection.descriptor));
+          }
+        } catch (faceError) {
+          console.warn('Failed to detect face in one image:', faceError);
+        }
       }
-  }
-};
+
+      if (faceDescriptors.length === 0) {
+        setMessage({ type: 'error', text: 'No faces detected in the uploaded images. Please ensure faces are clearly visible.' });
+        setIsLoading(false);
+        return;
+      }
+
+      // Create FormData for backend storage
+      const formData = new FormData();
+      formData.append('workerId', faceEnrollmentWorker._id);
+      formData.append('faceDescriptors', JSON.stringify(faceDescriptors));
+      
+      // Add image files for display purposes
+      images.forEach(image => {
+        formData.append('faces', image.file);
+      });
+
+      // Send to backend
+      await axios.post('/admin/attendance/enroll-face', formData);
+
+      setMessage({ type: 'success', text: 'Face enrollment successful!' });
+      
+      // Refresh workers data to show updated face enrollment status
+      await fetchData();
+      
+      // Also update the local editingWorker state if it matches the enrolled worker
+      if (editingWorker && editingWorker._id === faceEnrollmentWorker._id) {
+        // Fetch the updated worker data to get the latest faceImages
+        try {
+          const updatedWorkerResponse = await axios.get(`${WORKER_URL}/${editingWorker._id}`, { withCredentials: true });
+          // Fix: Access the worker data correctly from the response
+          setEditingWorker(updatedWorkerResponse.data);
+        } catch (error) {
+          console.error('Error fetching updated worker data:', error);
+          // Fallback to updating locally
+          setEditingWorker(prev => ({
+            ...prev,
+            faceImages: [...(prev.faceImages || []), ...images]
+          }));
+        }
+      }
+      
+      // Update the face recognition service with the new face data
+      try {
+        // Convert descriptors to Float32Array format for the service
+        const float32Descriptors = faceDescriptors.map(desc => new Float32Array(desc));
+        faceRecognitionService.addEnrolledFace(faceEnrollmentWorker._id, float32Descriptors);
+      } catch (serviceError) {
+        console.warn('Failed to update face recognition service:', serviceError);
+      }
+      
+      // Close the modal after a delay
+      setTimeout(() => {
+        handleCloseFaceEnrollment();
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error enrolling face:', error);
+      const errorMsg = error.response?.data?.message || error.message || 'An error occurred during enrollment.';
+      setMessage({ type: 'error', text: errorMsg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle delete with confirmation modal
+  const handleDeleteClick = (worker) => {
+    setWorkerToDelete(worker);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!workerToDelete) return;
+    
+    try {
+      await axios.delete(`${WORKER_URL}/${workerToDelete._id}`, { withCredentials: true });
+      setWorkers(workers.filter((w) => w._id !== workerToDelete._id));
+      setIsDeleteModalOpen(false);
+      setWorkerToDelete(null);
+    } catch (err) {
+      setError('Failed to delete worker.');
+      console.error(err);
+    }
+  };
+
+  const cancelDelete = () => {
+    setIsDeleteModalOpen(false);
+    setWorkerToDelete(null);
+  };
 
   if (loading) {
     return <div className="p-6 text-center">Loading workers...</div>;
@@ -236,14 +312,10 @@ const handleDelete = async (id) => {
     <thead className="bg-gray-50">
         <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salary</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Working Hours</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lunch Break</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch Details</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RFID</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Face Enrolled</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
         </tr>
     </thead>
@@ -251,37 +323,41 @@ const handleDelete = async (id) => {
         {workers.map((worker) => (
             <tr key={worker._id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{worker.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.username}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.user?.email}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.department?.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.salary}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.workingHours?.from && worker.workingHours?.to 
-                    ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
-                    : 'Not set'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.lunchBreak?.from && worker.lunchBreak?.to 
-                    ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
-                    : 'Not set'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.rfid || 'Not Assigned'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.faceImages && worker.faceImages.length > 0 ? (
-                    <div className="flex items-center">
-                      <LuCheck className="text-green-500 mr-2" size={20} />
-                      <span className="text-green-600 font-medium">Yes</span>
+                  {worker.batchId ? (
+                    <div>
+                      <div>
+                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
+                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
+                          : 'Not set'}
+                      </div>
+                      <div>
+                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
+                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
+                          : 'Not set'}
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex items-center">
-                      <LuX className="text-red-500 mr-2" size={20} />
-                      <span className="text-red-600 font-medium">No</span>
+                    <div>
+                      <div>
+                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
+                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
+                          : 'Not set'}
+                      </div>
+                      <div>
+                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
+                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
+                          : 'Not set'}
+                      </div>
                     </div>
                   )}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.rfid || 'Not Assigned'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button onClick={() => handleEdit(worker)} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
-                    <button onClick={() => handleDelete(worker._id)} className="text-red-600 hover:text-red-900">Delete</button>
+                    <button onClick={() => handleDeleteClick(worker)} className="text-red-600 hover:text-red-900">Delete</button>
                 </td>
             </tr>
         ))}
@@ -310,28 +386,6 @@ const handleDelete = async (id) => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-              <input
-                type="text"
-                value={editedWorkerData.username || ''}
-                onChange={(e) => handleInputChange(e, 'username')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={editedWorkerData.email || ''}
-                onChange={(e) => handleInputChange(e, 'email')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-            
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
               <select
                 value={editedWorkerData.department || ''}
@@ -348,7 +402,7 @@ const handleDelete = async (id) => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Salary</label>
               <input
-                type="number"
+                type="text"
                 value={editedWorkerData.salary || ''}
                 onChange={(e) => handleInputChange(e, 'salary')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -363,50 +417,6 @@ const handleDelete = async (id) => {
                 onChange={(e) => handleInputChange(e, 'rfid')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
-            </div>
-            
-            {/* Working Hours */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Working Hours (From)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.workingHours?.from || ''}
-                  onChange={(e) => handleInputChange(e, 'workingHours.from')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Working Hours (To)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.workingHours?.to || ''}
-                  onChange={(e) => handleInputChange(e, 'workingHours.to')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-            
-            {/* Lunch Break */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lunch Break (From)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.lunchBreak?.from || ''}
-                  onChange={(e) => handleInputChange(e, 'lunchBreak.from')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lunch Break (To)</label>
-                <input
-                  type="time"
-                  value={editedWorkerData.lunchBreak?.to || ''}
-                  onChange={(e) => handleInputChange(e, 'lunchBreak.to')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
             </div>
             
             {/* Face Enrollment Section */}
@@ -431,25 +441,26 @@ const handleDelete = async (id) => {
               <button
                 type="button"
                 onClick={() => handleOpenFaceEnrollment(editingWorker)}
-                className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
+                <LuUserPlus className="mr-1" size={16} />
                 {editingWorker.faceImages && editingWorker.faceImages.length > 0 
                   ? 'Update Face Enrollment' 
                   : 'Enroll Face'}
               </button>
             </div>
-            
+
             <div className="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
                 onClick={handleCloseEditModal}
-                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 rounded-md shadow-sm text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Update Worker
               </button>
@@ -476,88 +487,88 @@ const handleDelete = async (id) => {
               <ul className="text-xs text-blue-700 list-disc pl-5 space-y-1">
                 <li>Position the worker's face clearly in the camera frame</li>
                 <li>Capture multiple images from different angles for better recognition</li>
-                <li>Ensure good lighting and avoid shadows on the face</li>
-                <li>Remove glasses or hats that might obstruct facial features</li>
-                <li>Click "Capture Image" to take a photo, or upload existing images</li>
+                <li>Ensure good lighting and avoid glare or shadows on the face</li>
               </ul>
             </div>
             
+            {/* Status Message */}
             {message.text && (
-              <div className={`p-3 rounded ${message.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+              <div className={`p-3 rounded-md ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                 {message.text}
               </div>
             )}
             
-            <form onSubmit={handleSubmitFaceEnrollment} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  {isCapturing ? (
-                    <div>
-                      <Webcam
-                        audio={false}
-                        ref={webcamRef}
-                        screenshotFormat="image/jpeg"
-                        className="w-full rounded-md"
-                      />
-                      <button
-                        type="button"
-                        onClick={captureImage}
-                        disabled={isLoading || images.length >= 5}
-                        className="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                      >
-                        <LuCamera className="mr-2" /> Capture Image
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full">
-                      <LuUpload className="text-4xl text-gray-400 mb-2" />
-                      <label htmlFor="file-upload" className="cursor-pointer text-sm font-medium text-red-600 hover:text-red-500">
-                        Upload up to 5 images
-                      </label>
-                      <input id="file-upload" type="file" multiple accept="image/*" onChange={handleFileChange} className="sr-only" disabled={isLoading || images.length >= 5} />
-                      <p className="text-xs text-gray-500 mt-1">or</p>
-                      <button type="button" onClick={() => setIsCapturing(true)} className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-500">
-                        Use Camera
-                      </button>
-                    </div>
-                  )}
-                  {isCapturing && (
-                    <button type="button" onClick={() => setIsCapturing(false)} className="mt-2 text-sm text-gray-600 hover:text-gray-800">
-                      Close Camera
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                {isCapturing ? (
+                  <div>
+                    <Webcam
+                      audio={false}
+                      ref={webcamRef}
+                      screenshotFormat="image/jpeg"
+                      className="w-full max-w-xs mx-auto rounded-md"
+                      videoConstraints={{ width: 320, height: 240 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={captureImage}
+                      disabled={isLoading || images.length >= 5}
+                      className="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      <LuCamera className="mr-2" /> Capture Image
                     </button>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium text-gray-700">Image Previews ({images.length}/5)</h3>
-                  {images.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-2">
-                      {images.map((image, index) => (
-                        <div key={index} className="relative group">
-                          <img src={image.preview} alt={`preview ${index}`} className="w-full h-24 object-cover rounded-md" />
-                          <button
-                            type="button"
-                            onClick={() => removeImage(index)}
-                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            &#x2715;
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-24 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                      <p className="text-sm text-gray-500">No images selected</p>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <LuUpload className="text-4xl text-gray-400 mb-2" />
+                    <label htmlFor="file-upload" className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-500">
+                      Upload up to 5 images
+                    </label>
+                    <input id="file-upload" type="file" multiple accept="image/*" onChange={handleFileChange} className="sr-only" disabled={isLoading || images.length >= 5} />
+                    <p className="text-xs text-gray-500 mt-1">or</p>
+                    <button type="button" onClick={() => setIsCapturing(true)} className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-500">
+                      Use Camera
+                    </button>
+                  </div>
+                )}
+                {isCapturing && (
+                  <button type="button" onClick={() => setIsCapturing(false)} className="mt-2 text-sm text-gray-600 hover:text-gray-800">
+                    Close Camera
+                  </button>
+                )}
               </div>
               
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Preview ({images.length}/5)</h3>
+                {images.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {images.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img src={image.preview} alt={`preview ${index}`} className="w-full h-20 object-cover rounded-md" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          &#x2715;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-24 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <p className="text-sm text-gray-500">No images selected</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <form onSubmit={handleSubmitFaceEnrollment} className="mt-4">
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
                   onClick={handleCloseFaceEnrollment}
-                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   disabled={isLoading}
                 >
                   Cancel
@@ -586,6 +597,45 @@ const handleDelete = async (id) => {
           </div>
         )}
       </CustomModal>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mt-4">
+                Delete Worker
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  Are you sure you want to delete <span className="font-semibold">{workerToDelete?.name}</span>? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={cancelDelete}
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

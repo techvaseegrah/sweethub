@@ -16,6 +16,7 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
     const [notificationMessage, setNotificationMessage] = useState('');
     const [workerName, setWorkerName] = useState('');
     const [workerCooldowns, setWorkerCooldowns] = useState({}); // Track cooldowns for workers
+    const [attendanceMarked, setAttendanceMarked] = useState(false); // Track if attendance has been marked
     const scanIntervalRef = useRef(null);
 
     // Check service status on component mount
@@ -26,6 +27,9 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                 console.log('Initializing face recognition service...');
                 await faceRecognitionService.initialize();
                 console.log('Face recognition service initialized successfully');
+                
+                // Force reload enrolled faces to ensure we have the latest data
+                await faceRecognitionService._loadEnrolledFaces();
                 
                 // Check backend service status
                 const response = await axios.get('/admin/attendance/face-status');
@@ -114,13 +118,13 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
             const result = await faceRecognitionService.recognizeFace(img);
             
             if (result.success) {
-                // Check if worker is in cooldown period
+                // Check if worker is in cooldown period (2 minutes)
                 const now = Date.now();
                 if (workerCooldowns[result.workerId] && workerCooldowns[result.workerId] > now) {
                     const remainingTime = Math.ceil((workerCooldowns[result.workerId] - now) / 1000);
                     setStatus({ 
                         type: 'error', 
-                        text: `Please wait ${remainingTime} seconds before marking attendance again.` 
+                        text: `Please wait ${remainingTime} seconds before marking attendance again. Attendance must alternate between IN and OUT punches.` 
                     });
                     
                     // Reset processing state to allow retry
@@ -151,6 +155,12 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                 setWorkerName(response.data.worker);
                 setNotificationMessage(response.data.message);
                 setShowNotification(true);
+                setAttendanceMarked(true); // Mark that attendance has been recorded
+                
+                // Clear any existing scan intervals
+                if (scanIntervalRef.current) {
+                    clearInterval(scanIntervalRef.current);
+                }
                 
                 // Hide notification after 2 seconds and then reset processing state
                 setTimeout(() => {
@@ -225,7 +235,7 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
             clearInterval(scanIntervalRef.current);
         }
         
-        if (isCameraReady && autoScanEnabled) {
+        if (isCameraReady && autoScanEnabled && !attendanceMarked) {
             // Immediately start scanning when camera is ready
             captureAndRecognize();
             
@@ -241,7 +251,7 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                 clearInterval(scanIntervalRef.current);
             }
         };
-    }, [isCameraReady, captureAndRecognize, autoScanEnabled]);
+    }, [isCameraReady, captureAndRecognize, autoScanEnabled, attendanceMarked]);
     
     // This helper function determines what UI to show
     const getStatusUI = () => {
@@ -277,7 +287,7 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                     <div className="relative bg-white rounded-lg p-4 sm:p-6 max-w-md w-full mx-2 shadow-xl">
                         <div className="text-center">
                             <LuCircleCheck className="text-3xl sm:text-4xl text-green-500 mx-auto mb-3 sm:mb-4" />
-                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">Attendance Recorded</h3>
+                            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 sm:mb-4">Attendance Recorded</h3>
                             <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">{notificationMessage}</p>
                             <div className="bg-gray-100 rounded-lg p-3 sm:p-4 mb-4">
                                 <p className="font-medium text-gray-800 text-sm">Worker:</p>
@@ -294,21 +304,27 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
             </p>
 
             <div className={`relative w-full aspect-square bg-gray-900 rounded-lg overflow-hidden border-4 ${uiStatus.color} transition-colors duration-500 mb-4 sm:mb-6`}>
-                <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    videoConstraints={{ facingMode: 'user', width: 720, height: 720 }}
-                    onUserMedia={() => {
-                        setIsCameraReady(true);
-                        setStatus({ type: 'info', text: 'Scanning for face...' });
-                        // Immediately start scanning when camera is ready
-                        if (autoScanEnabled) {
-                            captureAndRecognize();
-                        }
-                    }}
-                    className="absolute top-0 left-0 w-full h-full object-cover"
-                />
+                {!attendanceMarked ? (
+                    <Webcam
+                        audio={false}
+                        ref={webcamRef}
+                        screenshotFormat="image/jpeg"
+                        videoConstraints={{ facingMode: 'user', width: 720, height: 720 }}
+                        onUserMedia={() => {
+                            setIsCameraReady(true);
+                            setStatus({ type: 'info', text: 'Scanning for face...' });
+                            // Immediately start scanning when camera is ready
+                            if (autoScanEnabled) {
+                                captureAndRecognize();
+                            }
+                        }}
+                        className="absolute top-0 left-0 w-full h-full object-cover"
+                    />
+                ) : (
+                    <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-gray-800">
+                        <LuCircleCheck className="text-6xl text-green-500" />
+                    </div>
+                )}
                 <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
                    <div className="w-3/4 h-3/4 border-4 border-dashed border-white rounded-full opacity-30" />
                 </div>
@@ -346,60 +362,79 @@ const FaceAttendance = ({ onAttendanceRecorded }) => {
                     </div>
                 )}
                 
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                    <div className="flex items-center justify-center">
-                        {uiStatus.icon}
+                {attendanceMarked ? (
+                    <div className="flex flex-col items-center">
+                        <p className="text-green-600 font-medium mb-2">Attendance marked successfully!</p>
+                        <button 
+                            onClick={() => {
+                                setAttendanceMarked(false);
+                                setIsCameraReady(false);
+                                setStatus({ type: 'info', text: 'Restarting Camera...' });
+                            }}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        >
+                            Mark Another Attendance
+                        </button>
                     </div>
-                    <span className="text-sm sm:text-base font-medium text-gray-700">{status.text}</span>
-                </div>
-                
-                {/* Manual Controls - Removed Scan Face Now button */}
-                <div className="flex flex-col items-center gap-3">
-                    {/* Removed Scan Face Now button */}
-                    
-                    <label className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
-                        <input
-                            type="checkbox"
-                            checked={autoScanEnabled}
-                            onChange={(e) => setAutoScanEnabled(e.target.checked)}
-                            disabled={serviceStatus && !serviceStatus.serviceReady}
-                            className="w-4 h-4"
-                        />
-                        Enable auto-scan (every 2 seconds)
-                    </label>
-                    
-                    {/* Alternative Options */}
-                    {serviceStatus && !serviceStatus.serviceReady && (
-                        <div className="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
-                            <p className="text-xs sm:text-sm font-medium text-blue-800 mb-2 sm:mb-3">Face Recognition Setup Required:</p>
+                ) : (
+                    <>
+                        <p className="text-gray-600 text-sm sm:text-base mb-2">
+                            Position your face in the camera frame. The system will automatically mark your attendance.
+                        </p>
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                            <div className="flex items-center justify-center">
+                                {uiStatus.icon}
+                            </div>
+                            <span className="text-sm sm:text-base font-medium text-gray-700">{status.text}</span>
+                        </div>
+                        
+                        {/* Manual Controls */}
+                        <div className="flex flex-col items-center gap-3">
+                            <label className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
+                                <input
+                                    type="checkbox"
+                                    checked={autoScanEnabled}
+                                    onChange={(e) => setAutoScanEnabled(e.target.checked)}
+                                    disabled={serviceStatus && !serviceStatus.serviceReady}
+                                    className="w-4 h-4"
+                                />
+                                Enable auto-scan (every 2 seconds)
+                            </label>
                             
-                            {serviceStatus.setupInstructions && (
-                                <div className="text-xs text-blue-700 mb-2 sm:mb-3">
-                                    <div className="mb-1 sm:mb-2">
-                                        <strong>Missing:</strong> {serviceStatus.missingDependencies?.join(', ')}
-                                    </div>
-                                    <div className="space-y-1">
-                                        <div>1. {serviceStatus.setupInstructions.step1}</div>
-                                        <div>2. {serviceStatus.setupInstructions.step2}</div>
-                                        <div>3. {serviceStatus.setupInstructions.step3}</div>
-                                        {serviceStatus.setupInstructions.note && (
-                                            <div className="text-yellow-700 mt-1 sm:mt-2 text-xs">
-                                                ⚠️ {serviceStatus.setupInstructions.note}
+                            {/* Alternative Options */}
+                            {serviceStatus && !serviceStatus.serviceReady && (
+                                <div className="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
+                                    <p className="text-xs sm:text-sm font-medium text-blue-800 mb-2 sm:mb-3">Face Recognition Setup Required:</p>
+                                    
+                                    {serviceStatus.setupInstructions && (
+                                        <div className="text-xs text-blue-700 mb-2 sm:mb-3">
+                                            <div className="mb-1 sm:mb-2">
+                                                <strong>Missing:</strong> {serviceStatus.missingDependencies?.join(', ')}
                                             </div>
-                                        )}
+                                            <div className="space-y-1">
+                                                <div>1. {serviceStatus.setupInstructions.step1}</div>
+                                                <div>2. {serviceStatus.setupInstructions.step2}</div>
+                                                <div>3. {serviceStatus.setupInstructions.step3}</div>
+                                                {serviceStatus.setupInstructions.note && (
+                                                    <div className="text-yellow-700 mt-1 sm:mt-2 text-xs">
+                                                        ⚠️ {serviceStatus.setupInstructions.note}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="text-xs text-blue-600 border-t border-blue-200 pt-2">
+                                        <strong>Alternative Methods (Available Now):</strong><br/>
+                                        • Use RFID card scanner for quick check-in/out<br/>
+                                        • Manual attendance tracking is available<br/>
+                                        • Contact admin to configure face recognition
                                     </div>
                                 </div>
                             )}
-                            
-                            <div className="text-xs text-blue-600 border-t border-blue-200 pt-2">
-                                <strong>Alternative Methods (Available Now):</strong><br/>
-                                • Use RFID card scanner for quick check-in/out<br/>
-                                • Manual attendance tracking is available<br/>
-                                • Contact admin to configure face recognition
-                            </div>
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
             </div>
         </div>
     );

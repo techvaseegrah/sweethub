@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from '../../../api/axios';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { LuUserPlus, LuCircleAlert, LuCamera, LuUpload, LuLoaderCircle, LuUserCheck } from 'react-icons/lu';
+import { LuUserPlus, LuCircleAlert, LuCamera, LuUpload, LuLoaderCircle, LuUserCheck, LuX } from 'react-icons/lu';
 import faceRecognitionService from '../../../services/faceRecognitionService';
 
 // Utility functions for time conversion
@@ -36,22 +36,19 @@ const AddWorker = () => {
     const webcamRef = useRef(null);
     const [formData, setFormData] = useState({
         name: '',
-        username: '',
         department: '',
-        workingHoursFrom: '9:00 AM',
-        workingHoursTo: '5:00 PM',
-        lunchBreakFrom: '12:00 PM',
-        lunchBreakTo: '1:00 PM',
         salary: '',
+        selectedBatch: '',
     });
     const [departments, setDepartments] = useState([]);
+    const [batches, setBatches] = useState([]);
     const [message, setMessage] = useState('');
     const [isError, setIsError] = useState(false);
     const [tempPassword, setTempPassword] = useState('');
-    const [rfid, setRfid] = useState(''); // Add RFID state
+    const [rfid, setRfid] = useState('');
     
     // RFID states
-    const [createRFID, setCreateRFID] = useState(true); // Default to true
+    const [createRFID, setCreateRFID] = useState(true);
     const [generatedRFID, setGeneratedRFID] = useState('');
     
     // Face Enrollment states
@@ -61,6 +58,11 @@ const AddWorker = () => {
     const [isEnrolling, setIsEnrolling] = useState(false);
     const [newlyCreatedWorkerId, setNewlyCreatedWorkerId] = useState(null);
     const [serviceStatus, setServiceStatus] = useState(null);
+    const [workerAdded, setWorkerAdded] = useState(false);
+    const [addedWorkerData, setAddedWorkerData] = useState(null);
+    const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+    // Add new state for enabling/disabling face enrollment
+    const [enableFaceEnrollment, setEnableFaceEnrollment] = useState(true);
 
     // Function to generate a random RFID in the frontend (for display purposes)
     const generateRandomRFID = () => {
@@ -94,49 +96,36 @@ const AddWorker = () => {
     }, [createRFID]);
 
     useEffect(() => {
-        const fetchDepartments = async () => {
+        const fetchData = async () => {
             try {
-                // Fetch departments available for the specific shop
-                const response = await axios.get('/shop/departments');
-                setDepartments(response.data);
+                // Fetch departments
+                const departmentsResponse = await axios.get('/shop/departments', { withCredentials: true });
+                setDepartments(departmentsResponse.data);
+                
+                // Fetch batches
+                const batchesResponse = await axios.get('/shop/settings/batches');
+                setBatches(batchesResponse.data);
+                
                 // Set the first department as default if available
-                if (response.data.length > 0) {
+                if (departmentsResponse.data.length > 0) {
                     setFormData(prev => ({
                         ...prev,
-                        department: response.data[0]._id
+                        department: departmentsResponse.data[0]._id
                     }));
                 }
             } catch (err) {
-                console.error('Failed to fetch departments:', err);
+                console.error('Failed to fetch data:', err);
                 setIsError(true);
-                setMessage('Failed to load departments. Please try again later.');
-            }
-        };
-        fetchDepartments();
-        
-        // Check service status on component mount
-        const checkServiceStatus = async () => {
-            try {
-                // Initialize face recognition service first
-                console.log('Initializing face recognition service...');
-                await faceRecognitionService.initialize();
-                console.log('Face recognition service initialized successfully');
-                
-                // Check backend service status
-                const response = await axios.get('/shop/attendance/face-status');
-                console.log('Service status response:', response.data);
-                setServiceStatus(response.data);
-            } catch (error) {
-                console.error('Failed to check service status:', error);
-                setServiceStatus({ serviceReady: false });
+                setMessage('Failed to load data. Please try again later.');
             }
         };
         
-        checkServiceStatus();
+        fetchData();
     }, []);
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
     };
 
     const handleSubmit = async (e) => {
@@ -145,31 +134,41 @@ const AddWorker = () => {
         setIsError(false);
         setTempPassword('');
         setRfid('');
+        setWorkerAdded(false);
 
+        if (!formData.name.trim()) {
+            setIsError(true);
+            setMessage('Please enter a name for the worker.');
+            return;
+        }
+        
         if (!formData.department) {
             setIsError(true);
             setMessage('Please select a department.');
             return;
         }
 
-        // Convert 12-hour format to 24-hour format for backend
-        const workingHoursFrom24 = formatTimeTo24Hour(formData.workingHoursFrom);
-        const workingHoursTo24 = formatTimeTo24Hour(formData.workingHoursTo);
+        // Prepare working hours and lunch break data
+        // For now, we'll use default values or get them from the selected batch
+        let workingHours = { from: '09:00', to: '18:00' };
+        let lunchBreak = { from: '13:00', to: '14:00' };
         
-        // Only include lunchBreak if both from and to times are set
-        let lunchBreakData = undefined;
-        if (formData.lunchBreakFrom && formData.lunchBreakTo) {
-            const lunchBreakFrom24 = formatTimeTo24Hour(formData.lunchBreakFrom);
-            const lunchBreakTo24 = formatTimeTo24Hour(formData.lunchBreakTo);
-            lunchBreakData = { from: lunchBreakFrom24, to: lunchBreakTo24 };
+        // If a batch is selected, get the working hours and lunch break from it
+        if (formData.selectedBatch) {
+            const selectedBatch = batches.find(batch => batch.id === formData.selectedBatch);
+            if (selectedBatch) {
+                workingHours = selectedBatch.workingHours || workingHours;
+                lunchBreak = selectedBatch.lunchBreak || lunchBreak;
+            }
         }
 
         const submitData = {
             ...formData,
-            workingHours: { from: workingHoursFrom24, to: workingHoursTo24 },
-            ...(lunchBreakData && { lunchBreak: lunchBreakData }),
+            workingHours, // Include working hours
+            lunchBreak,   // Include lunch break
             createRFID, // Include the createRFID flag
-            ...(createRFID && { rfid: generatedRFID }) // Include the generated RFID in the payload
+            ...(createRFID && { rfid: generatedRFID }), // Include the generated RFID in the payload
+            batchId: formData.selectedBatch // Include batch ID
         };
 
         try {
@@ -182,74 +181,56 @@ const AddWorker = () => {
                 setRfid(response.data.rfid);
             }
             
-            // Store the newly created worker ID for face enrollment
+            // Store the newly created worker ID and data for face enrollment
             if (response.data.workerId) {
                 setNewlyCreatedWorkerId(response.data.workerId);
+                // Create worker data object to pass to ViewWorkers
+                const workerData = {
+                    _id: response.data.workerId,
+                    name: formData.name,
+                    department: departments.find(dept => dept._id === formData.department)?.name || '',
+                    salary: formData.salary,
+                    rfid: response.data.rfid || generatedRFID
+                };
+                
+                setAddedWorkerData(workerData);
+                
+                // Show success notification
+                setShowSuccessNotification(true);
+                setTimeout(() => {
+                    setShowSuccessNotification(false);
+                }, 5000);
+                
+                // If face images are captured AND face enrollment is enabled, enroll the face automatically
+                if (enableFaceEnrollment && faceImages.length > 0) {
+                    await enrollFaceAutomatically(response.data.workerId);
+                } else {
+                    // If no face enrollment, navigate to ViewWorkers
+                    setTimeout(() => {
+                        navigate('/shop/workers/view');
+                    }, 2000);
+                }
             }
             
-            // Reset form
-            setFormData({
-                name: '',
-                username: '',
-                department: '',
-                workingHoursFrom: '9:00 AM',
-                workingHoursTo: '5:00 PM',
-                lunchBreakFrom: '12:00 PM',
-                lunchBreakTo: '1:00 PM',
-                salary: '',
-            });
+            setWorkerAdded(true);
             
-            // Reset RFID generation
-            setCreateRFID(true); // Reset to default
-            setGeneratedRFID('');
         } catch (err) {
             setIsError(true);
-            setMessage(err.response?.data?.message || 'An error occurred while adding the worker.');
+            // Provide more specific error messages based on the error type
+            if (err.response?.status === 400) {
+                setMessage(err.response.data.message || 'Validation error. Please check your inputs.');
+            } else if (err.response?.status === 500) {
+                setMessage('Server error. Please try again later.');
+            } else {
+                setMessage(err.response?.data?.message || 'An error occurred while adding the worker.');
+            }
             console.error('Error adding worker:', err);
         }
     };
-    
-    const handleFileChange = (e) => {
-        if (e.target.files) {
-            const filesArray = Array.from(e.target.files).slice(0, 5 - faceImages.length);
-            const newImages = filesArray.map(file => ({
-                file: file,
-                preview: URL.createObjectURL(file)
-            }));
-            setFaceImages(prev => [...prev, ...newImages]);
-        }
-    };
 
-    const captureImage = () => {
-        if (webcamRef.current && faceImages.length < 5) {
-            const imageSrc = webcamRef.current.getScreenshot();
-            if (imageSrc) {
-                const byteString = atob(imageSrc.split(',')[1]);
-                const mimeString = imageSrc.split(',')[0].split(':')[1].split(';')[0];
-                const ab = new ArrayBuffer(byteString.length);
-                const ia = new Uint8Array(ab);
-                for (let i = 0; i < byteString.length; i++) {
-                    ia[i] = byteString.charCodeAt(i);
-                }
-                const blob = new Blob([ab], { type: mimeString });
-                const file = new File([blob], `capture-${Date.now()}.jpeg`, { type: mimeString });
-
-                setFaceImages(prev => [...prev, { file: file, preview: imageSrc }]);
-            }
-        } else {
-            setFaceEnrollmentStatus({ type: 'error', text: 'You can only add up to 5 images.' });
-        }
-    };
-
-    const removeImage = (index) => {
-        setFaceImages(faceImages.filter((_, i) => i !== index));
-    };
-
-    const handleFaceEnrollment = async () => {
-        if (!newlyCreatedWorkerId || faceImages.length === 0) {
-            setFaceEnrollmentStatus({ type: 'error', text: 'Please select a worker and provide at least one image.' });
-            return;
-        }
+    // New function to automatically enroll face after worker creation
+    const enrollFaceAutomatically = async (workerId) => {
+        if (!workerId || faceImages.length === 0) return;
 
         setIsEnrolling(true);
         setFaceEnrollmentStatus({ type: '', text: '' });
@@ -275,51 +256,30 @@ const AddWorker = () => {
             }
 
             if (faceDescriptors.length === 0) {
-                setFaceEnrollmentStatus({ type: 'error', text: 'No faces detected in the uploaded images. Please ensure faces are clearly visible.' });
+                setFaceEnrollmentStatus({ type: 'error', text: 'No faces detected in the captured images. Please try again.' });
                 setIsEnrolling(false);
                 return;
             }
 
-            // Enroll in local service for instant recognition
-            await faceRecognitionService.enrollFace(newlyCreatedWorkerId, faceDescriptors.map(desc => new Float32Array(desc)));
-
             // Create FormData for backend storage
             const formData = new FormData();
-            formData.append('workerId', newlyCreatedWorkerId);
-            
-            // Convert Float32Array descriptors to regular arrays for JSON serialization
-            const serializableDescriptors = faceDescriptors.map(desc => Array.from(desc));
-            formData.append('faceDescriptors', JSON.stringify(serializableDescriptors));
+            formData.append('workerId', workerId);
+            formData.append('faceDescriptors', JSON.stringify(faceDescriptors));
             
             // Add image files for display purposes
-            faceImages.forEach((image, index) => {
+            faceImages.forEach(image => {
                 formData.append('faces', image.file);
             });
-
-            // Log the data being sent for debugging
-            console.log('Sending face enrollment data:', {
-                workerId: newlyCreatedWorkerId,
-                faceDescriptorsCount: serializableDescriptors.length,
-                faceImagesCount: faceImages.length,
-                faceDescriptorsSample: serializableDescriptors.length > 0 ? serializableDescriptors[0] : null
-            });
-
-            // Log FormData contents
-            console.log('FormData contents:');
-            for (let [key, value] of formData.entries()) {
-                console.log(key, value);
-            }
 
             // Send to backend
             const response = await axios.post('/shop/attendance/enroll-face', formData);
             
-            console.log('Face enrollment response:', response.data);
-
             setFaceEnrollmentStatus({ type: 'success', text: 'Face enrolled successfully!' });
             
-            // Clear face images
-            setFaceImages([]);
-            setIsCapturing(false);
+            // Navigate to ViewWorkers page after successful face enrollment
+            setTimeout(() => {
+                navigate('/shop/workers/view');
+            }, 2000);
             
         } catch (error) {
             console.error('Error enrolling face:', error);
@@ -328,14 +288,42 @@ const AddWorker = () => {
             setFaceEnrollmentStatus({ type: 'error', text: errorMsg });
         } finally {
             setIsEnrolling(false);
+            // Clear face images
+            setFaceImages([]);
+            setIsCapturing(false);
         }
     };
-    
-    // Style constants
-    const inputStyle = "w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 transition-shadow";
+
+    const captureImage = () => {
+        if (webcamRef.current && faceImages.length < 5) {
+            const imageSrc = webcamRef.current.getScreenshot();
+            if (imageSrc) {
+                const byteString = atob(imageSrc.split(',')[1]);
+                const mimeString = imageSrc.split(',')[0].split(':')[1].split(';')[0];
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                const blob = new Blob([ab], { type: mimeString });
+                const file = new File([blob], `capture-${Date.now()}.jpeg`, { type: mimeString });
+
+                setFaceImages(prev => [...prev, { file: file, preview: imageSrc }]);
+            }
+        }
+    };
+
+    const removeImage = (index) => {
+        setFaceImages(prev => prev.filter((_, i) => i !== index));
+    };
+
+    // Style constants - Modified to remove hover effects
+    const inputStyle = "w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400";
     const labelStyle = "block text-sm font-semibold text-gray-600 mb-1";
-    const buttonStyle = "w-full bg-red-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-transform transform hover:scale-105 shadow-md";
-    const selectStyle = "w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 transition-shadow appearance-none";
+    const buttonStyle = "w-full bg-red-500 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-md"; // Removed hover and transform effects
+    const selectStyle = "w-full px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 appearance-none";
+    // Small button styles without hover effects
+    const smallButtonStyle = "inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"; // Removed hover and transform effects
 
     // Function to generate time options for select dropdowns
     const generateTimeOptions = () => {
@@ -354,6 +342,34 @@ const AddWorker = () => {
 
     return (
         <div className="container mx-auto p-6 bg-white rounded-2xl shadow-xl h-full max-h-[calc(100vh-2rem)] overflow-y-auto">
+            {/* Success Notification */}
+            {showSuccessNotification && addedWorkerData && (
+                <div className="fixed top-4 right-4 bg-green-500 text-white py-3 px-6 rounded-lg shadow-lg z-50 animate-fade-in-down">
+                    <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                            <LuUserCheck className="h-6 w-6 text-white" />
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-sm font-medium text-white">Worker Added Successfully!</h3>
+                            <div className="mt-2 text-sm text-white">
+                                <p>Name: {addedWorkerData.name}</p>
+                                <p>Department: {addedWorkerData.department}</p>
+                                {enableFaceEnrollment && faceImages.length > 0 && <p>Face enrolled with {faceImages.length} images</p>}
+                            </div>
+                        </div>
+                        <div className="ml-4 flex">
+                            <button
+                                type="button"
+                                onClick={() => setShowSuccessNotification(false)}
+                                className="inline-flex rounded-md bg-green-500 text-white hover:text-gray-200 focus:outline-none"
+                            >
+                                <LuX className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex items-center mb-6 text-gray-800">
                 <LuUserPlus className="text-3xl text-red-500" />
                 <h1 className="text-3xl font-bold ml-3">Add New Worker</h1>
@@ -388,20 +404,6 @@ const AddWorker = () => {
                             required
                         />
                     </div>
-                    {/* Username */}
-                    <div>
-                        <label htmlFor="username" className={labelStyle}>Username</label>
-                        <input
-                            type="text"
-                            name="username"
-                            id="username"
-                            value={formData.username}
-                            onChange={handleChange}
-                            className={inputStyle}
-                            placeholder="Create a unique username"
-                            required
-                        />
-                    </div>
                     {/* Department */}
                     <div>
                         <label htmlFor="department" className={labelStyle}>Department</label>
@@ -421,6 +423,36 @@ const AddWorker = () => {
                             ))}
                         </select>
                     </div>
+                    {/* Batch Selection */}
+                    <div>
+                        <label htmlFor="selectedBatch" className={labelStyle}>Batch (Optional)</label>
+                        <select
+                            name="selectedBatch"
+                            id="selectedBatch"
+                            value={formData.selectedBatch}
+                            onChange={handleChange}
+                            className={selectStyle}
+                        >
+                            <option value="">Select Batch</option>
+                            {batches.map(batch => <option key={batch.id} value={batch.id}>{batch.name}</option>)}
+                        </select>
+                        
+                        {/* Display selected batch details */}
+                        {formData.selectedBatch && (
+                            <div className="mt-2 p-2 bg-gray-100 rounded text-sm">
+                                <p className="font-medium">Batch Details:</p>
+                                {(() => {
+                                    const batch = batches.find(b => b.id === formData.selectedBatch);
+                                    return batch ? (
+                                        <div>
+                                            <p>Working Hours: {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}</p>
+                                            <p>Lunch Break: {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}</p>
+                                        </div>
+                                    ) : null;
+                                })()}
+                            </div>
+                        )}
+                    </div>
                     {/* Salary */}
                     <div>
                         <label htmlFor="salary" className={labelStyle}>Salary (per month)</label>
@@ -434,78 +466,6 @@ const AddWorker = () => {
                             placeholder="Enter monthly salary amount"
                             required
                         />
-                    </div>
-                    {/* Working Hours From */}
-                    <div>
-                        <label htmlFor="workingHoursFrom" className={labelStyle}>Working Hours (From)</label>
-                        <select
-                            name="workingHoursFrom"
-                            id="workingHoursFrom"
-                            value={formData.workingHoursFrom}
-                            onChange={handleChange}
-                            className={selectStyle}
-                            required
-                        >
-                            {generateTimeOptions().map((option) => (
-                                <option key={option.value24} value={option.value}>
-                                    {option.value}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    {/* Working Hours To */}
-                    <div>
-                        <label htmlFor="workingHoursTo" className={labelStyle}>Working Hours (To)</label>
-                        <select
-                            name="workingHoursTo"
-                            id="workingHoursTo"
-                            value={formData.workingHoursTo}
-                            onChange={handleChange}
-                            className={selectStyle}
-                            required
-                        >
-                            {generateTimeOptions().map((option) => (
-                                <option key={option.value24} value={option.value}>
-                                    {option.value}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    {/* Lunch Break From */}
-                    <div>
-                        <label htmlFor="lunchBreakFrom" className={labelStyle}>Lunch Break (From)</label>
-                        <select
-                            name="lunchBreakFrom"
-                            id="lunchBreakFrom"
-                            value={formData.lunchBreakFrom}
-                            onChange={handleChange}
-                            className={selectStyle}
-                            required
-                        >
-                            {generateTimeOptions().map((option) => (
-                                <option key={option.value24} value={option.value}>
-                                    {option.value}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    {/* Lunch Break To */}
-                    <div>
-                        <label htmlFor="lunchBreakTo" className={labelStyle}>Lunch Break (To)</label>
-                        <select
-                            name="lunchBreakTo"
-                            id="lunchBreakTo"
-                            value={formData.lunchBreakTo}
-                            onChange={handleChange}
-                            className={selectStyle}
-                            required
-                        >
-                            {generateTimeOptions().map((option) => (
-                                <option key={option.value24} value={option.value}>
-                                    {option.value}
-                                </option>
-                            ))}
-                        </select>
                     </div>
                 </div>
                 
@@ -556,21 +516,33 @@ const AddWorker = () => {
                 <div className="border-t pt-6 mt-6">
                     <h3 className="text-xl font-semibold mb-4 text-gray-800">Face Enrollment</h3>
                     
-                    {/* Service Status Indicator */}
-                    {serviceStatus && (
-                        <div className={`mb-4 p-3 rounded-lg ${
-                            serviceStatus.serviceReady 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                            <div className="text-sm font-medium">
-                                {serviceStatus.serviceReady 
-                                    ? '✅ React Face Recognition: Ready (High Accuracy)' 
-                                    : '⚠️ Face Recognition Service: Unavailable'
-                                }
-                            </div>
+                    {/* Toggle for enabling/disabling face enrollment */}
+                    <div className="mb-4">
+                        <div className="flex items-center justify-between">
+                            <label className="block text-sm font-semibold text-gray-700">
+                                Enable Face Enrollment for this worker
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => setEnableFaceEnrollment(!enableFaceEnrollment)}
+                                className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
+                                    enableFaceEnrollment ? 'bg-red-600' : 'bg-gray-200'
+                                }`}
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${
+                                        enableFaceEnrollment ? 'translate-x-5' : 'translate-x-0'
+                                    }`}
+                                ></span>
+                            </button>
                         </div>
-                    )}
+                        <p className="text-xs text-gray-500 mt-1">
+                            {enableFaceEnrollment 
+                                ? "Face enrollment is enabled. Capture images below to enroll worker's face." 
+                                : "Face enrollment is disabled. Worker will be added without face enrollment."}
+                        </p>
+                    </div>
                     
                     {/* Face Enrollment Status Message */}
                     {faceEnrollmentStatus.text && (
@@ -581,92 +553,88 @@ const AddWorker = () => {
                         </div>
                     )}
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                            {isCapturing ? (
-                                <div>
-                                    <Webcam
-                                        audio={false}
-                                        ref={webcamRef}
-                                        screenshotFormat="image/jpeg"
-                                        className="w-full rounded-md"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={captureImage}
-                                        disabled={isEnrolling || faceImages.length >= 5}
-                                        className="mt-4 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    {/* Only show camera/capture options if face enrollment is enabled */}
+                    {enableFaceEnrollment && (
+                        <div className="grid grid-cols-1 gap-6">
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                                {isCapturing ? (
+                                    <div>
+                                        <Webcam
+                                            audio={false}
+                                            ref={webcamRef}
+                                            screenshotFormat="image/jpeg"
+                                            className="w-full max-w-xs mx-auto rounded-md"
+                                            videoConstraints={{ width: 320, height: 240 }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={captureImage}
+                                            disabled={isEnrolling || faceImages.length >= 5}
+                                            className={`${smallButtonStyle} bg-red-600 text-white ${isEnrolling || faceImages.length >= 5 ? 'opacity-50' : 'hover:bg-red-700'}`}
+                                        >
+                                            <LuCamera className="mr-1" /> Capture Image
+                                        </button>
+                                        <p className="text-xs text-gray-500 mt-1">Captured: {faceImages.length}/5 images</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center h-full">
+                                        <LuCamera className="text-4xl text-gray-400 mb-2" />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setIsCapturing(true)} 
+                                            className={`${smallButtonStyle} text-red-600`}
+                                        >
+                                            Use Camera
+                                        </button>
+                                    </div>
+                                )}
+                                {isCapturing && (
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setIsCapturing(false)} 
+                                        className={`${smallButtonStyle} text-gray-600 mt-2`}
                                     >
-                                        <LuCamera className="mr-2" /> Capture Image
+                                        Close Camera
                                     </button>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center h-full">
-                                    <LuUpload className="text-4xl text-gray-400 mb-2" />
-                                    <label htmlFor="face-upload" className="cursor-pointer text-sm font-medium text-red-600 hover:text-red-500">
-                                        Upload up to 5 images
-                                    </label>
-                                    <input id="face-upload" type="file" multiple accept="image/*" onChange={handleFileChange} className="sr-only" disabled={isEnrolling || faceImages.length >= 5} />
-                                    <p className="text-xs text-gray-500 mt-1">or</p>
-                                    <button type="button" onClick={() => setIsCapturing(true)} className="mt-2 text-sm font-medium text-blue-600 hover:text-blue-500">
-                                        Use Camera
-                                    </button>
-                                </div>
-                            )}
-                            {isCapturing && (
-                                <button type="button" onClick={() => setIsCapturing(false)} className="mt-2 text-sm text-gray-600 hover:text-gray-800">
-                                    Close Camera
-                                </button>
-                            )}
-                        </div>
-                        
-                        <div className="space-y-2">
-                            <h3 className="text-sm font-medium text-gray-700">Image Previews ({faceImages.length}/5)</h3>
-                            {faceImages.length > 0 ? (
-                                <div className="grid grid-cols-3 gap-2">
-                                    {faceImages.map((image, index) => (
-                                        <div key={index} className="relative group">
-                                            <img src={image.preview} alt={`preview ${index}`} className="w-full h-24 object-cover rounded-md" />
-                                            <button
-                                                type="button"
-                                                onClick={() => removeImage(index)}
-                                                className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                &#x2715;
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-center h-24 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                                    <p className="text-sm text-gray-500">No images selected</p>
+                                )}
+                            </div>
+                            
+                            {faceImages.length > 0 && (
+                                <div className="space-y-2">
+                                    <h3 className="text-sm font-medium text-gray-700">Captured Images ({faceImages.length}/5)</h3>
+                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                                        {faceImages.map((image, index) => (
+                                            <div key={index} className="relative group">
+                                                <img src={image.preview} alt={`Captured face ${index + 1}`} className="w-full h-20 object-cover rounded-md" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeImage(index)}
+                                                    className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full p-1 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <LuX size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
-                    </div>
-                    
-                    <div className="mt-4">
-                        <button
-                            type="button"
-                            onClick={handleFaceEnrollment}
-                            disabled={isEnrolling || !newlyCreatedWorkerId || faceImages.length === 0}
-                            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-red-300"
-                        >
-                            {isEnrolling ? (
-                                <>
-                                    <LuLoaderCircle className="animate-spin mr-2" /> Enrolling...
-                                </>
-                            ) : (
-                                <>
-                                    <LuUserCheck className="mr-2"/> Enroll Face
-                                </>
-                            )}
-                        </button>
-                    </div>
+                    )}
                 </div>
                 
-                <button type="submit" className={buttonStyle}>
-                    Add Worker
+                <button 
+                    type="submit" 
+                    className={buttonStyle}
+                    disabled={isEnrolling}
+                >
+                    {isEnrolling ? (
+                        <>
+                            <LuLoaderCircle className="animate-spin mr-2" />
+                            Adding Worker...
+                        </>
+                    ) : (
+                        'Add Worker'
+                    )}
                 </button>
             </form>
         </div>
