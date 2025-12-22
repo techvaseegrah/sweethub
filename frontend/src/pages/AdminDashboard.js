@@ -128,8 +128,8 @@ const AdminDashboardPage = () => {
                         <Route path="settings" element={<Settings />} />
                         <Route path="tasks/daily" element={<DailyTasks />} />
                         <Route path="tasks/completed" element={<TaskCompleted />} />
-                        <Route path="billing/create" element={<AdminCreateBill />} />
-                        <Route path="billing/view" element={<AdminViewBills />} />
+                        <Route path="bills/create" element={<AdminCreateBill />} />
+                        <Route path="bills/view" element={<AdminViewBills />} />
                         <Route path="invoices/history" element={<InvoiceHistory />} />
                         <Route path="profit-loss" element={<ProfitLossPage />} />
                         {/* Expense module routes */}

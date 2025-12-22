@@ -761,7 +761,7 @@ const Sidebar = () => {
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
                         <NavLink
-                            to="/admin/billing/create"
+                            to="/admin/bills/create"
                             className={({ isActive }) =>
                                 `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`
@@ -777,7 +777,7 @@ const Sidebar = () => {
                             <span className="font-medium">Create Bill</span>
                         </NavLink>
                         <NavLink
-                            to="/admin/billing/view"
+                            to="/admin/bills/view"
                             className={({ isActive }) =>
                                 `flex items-center px-3 py-2 text-sm rounded-lg ${
                                     isActive ? activeRed : `${textSecondary} ${hoverBg}`

@@ -431,7 +431,7 @@ function CreateBill({ baseUrl = '/admin' }) {
       return;
     }
     
-    const BILL_URL = `${baseUrl}/billing`;
+    const BILL_URL = `${baseUrl}/bills`;
 
     try {
       const payload = {

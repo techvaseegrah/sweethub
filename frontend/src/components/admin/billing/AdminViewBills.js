@@ -3,7 +3,7 @@ import axios from '../../../api/axios';
 import { generateBillPdf } from '../../../utils/generateBillPdf';
 import BillDetailView from './BillDetailView';
 
-const BILLS_URL = '/admin/billing';
+const BILLS_URL = '/admin/bills';
 const SHOPS_URL = '/admin/shops';
 
 function AdminViewBills({ baseUrl = '/admin' }) {
@@ -31,7 +31,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
         params = { shopId: selectedShop };
       }
       
-      const response = await axios.get(`${baseUrl}/billing`, {
+      const response = await axios.get(`${baseUrl}/bills`, {
         params,
         headers: { 'Content-Type': 'application/json' },
         withCredentials: true,

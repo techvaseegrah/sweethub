@@ -66,12 +66,18 @@ function LoginPage() {
       >
         <div className="flex justify-center mb-6">
           <div className="relative flex items-center justify-center">
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
-            className="h-16 sm:h-20 w-auto"
-          />
-            {/* Removed orbiting dots */}
+            <img 
+              src="/sweethub-logo.png" 
+              alt="Sweet Hub Logo" 
+              className="h-16 sm:h-20 w-auto animate-cottonCandy"
+            />
+            {/* Orbiting dots */}
+            <div className="absolute h-20 w-20 sm:h-24 sm:w-24 rounded-full animate-[orbit_4s_linear_infinite]">
+              <span className="absolute top-0 left-1/2 -ml-1 w-2 h-2 bg-primary rounded-full"></span>
+              <span className="absolute left-0 top-1/2 -mt-1 w-2 h-2 bg-accent-cyan rounded-full"></span>
+              <span className="absolute bottom-0 left-1/2 -ml-1 w-2 h-2 bg-accent-green rounded-full"></span>
+              <span className="absolute right-0 top-1/2 -mt-1 w-2 h-2 bg-accent-orange rounded-full"></span>
+            </div>
           </div>
         </div>
 
