@@ -32,6 +32,14 @@ db.once('open', async () => {
       console.log('Created worker role');
     }
     
+    // Check if shop role exists, create if not
+    let shopRole = await Role.findOne({ name: 'shop' });
+    if (!shopRole) {
+      shopRole = new Role({ name: 'shop' });
+      await shopRole.save();
+      console.log('Created shop role');
+    }
+    
     // Check if admin user exists
     const adminUser = await User.findOne({ username: process.env.ADMIN_USERNAME });
     
