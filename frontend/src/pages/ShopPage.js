@@ -44,6 +44,9 @@ import HolidayManagement from '../components/shop/worker/HolidayManagement';
 // Import return products components
 import ReturnProductsPage from '../components/shop/returnproducts/ReturnProductsPage';
 
+// Import admin products view component
+import ViewAdminProducts from '../components/shop/admin-products/ViewAdminProducts';
+
 const ShopPage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -117,6 +120,7 @@ const ShopPage = () => {
                         <Route path="products/add" element={<AddProduct baseUrl="/shop" />} />
                         <Route path="products/category" element={<AddCategory baseUrl="/shop" />} />
                         <Route path="products/view" element={<ViewProducts baseUrl="/shop" />} />
+                        <Route path="products/admin" element={<ViewAdminProducts />} />
                         <Route path="warehouse/stock" element={<TrackStock baseUrl="/shop" />} />
                         <Route path="warehouse/alerts" element={<StockAlerts baseUrl="/shop" />} />
                         {/* Removed packing materials route as per user request

@@ -9,4 +9,7 @@ router.get('/', shopAuth, getShopProducts);
 router.get('/units', shopAuth, getUnits);
 router.get('/units/in-use/:unitName', shopAuth, isUnitInUse);
 
+// Route to get all admin products for shop users to view (read-only)
+router.get('/admin-products', shopAuth, require('../../controllers/admin/productController').getAllAdminProducts);
+
 module.exports = router;

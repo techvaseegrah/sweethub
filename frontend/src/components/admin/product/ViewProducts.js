@@ -21,6 +21,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isProductHistoryModalOpen, setIsProductHistoryModalOpen] = useState(false); // Add this state
   const [selectedProductId, setSelectedProductId] = useState(null); // Add this state
+  const [isUpdateConfirmationOpen, setIsUpdateConfirmationOpen] = useState(false);
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
 
   const fetchProducts = async () => {
     try {
@@ -70,19 +73,29 @@ function ViewProducts({ baseUrl = '/admin' }) {
     setFilteredProducts(tempProducts);
   }, [products, selectedCategory, searchTerm]);
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-        try {
-            await axios.delete(`${PRODUCT_URL}/${id}`, {
-                withCredentials: true,
-            });
-            // Refresh products after deletion
-            fetchProducts();
-        } catch (err) {
-            setError('Failed to delete product.');
-            console.error(err);
-        }
+  const openDeleteConfirmation = (id) => {
+    setProductToDelete(id);
+    setIsDeleteConfirmationOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await axios.delete(`${PRODUCT_URL}/${productToDelete}`, {
+        withCredentials: true,
+      });
+      // Refresh products after deletion
+      fetchProducts();
+      setIsDeleteConfirmationOpen(false);
+      setProductToDelete(null);
+    } catch (err) {
+      setError('Failed to delete product.');
+      console.error(err);
     }
+  };
+
+  const cancelDelete = () => {
+    setIsDeleteConfirmationOpen(false);
+    setProductToDelete(null);
   };
 
   const handleCancelEdit = () => {
@@ -99,20 +112,27 @@ function ViewProducts({ baseUrl = '/admin' }) {
     setIsEditModalOpen(true);
   };
 
-  const handleModalUpdate = async () => {
-    if (window.confirm('Are you sure you want to update this product?')) {
-        try {
-            const { ...updatePayload } = editedProduct;
-            await axios.put(`${PRODUCT_URL}/${editedProduct._id}`, updatePayload, {
-                withCredentials: true,
-            });
-            fetchProducts();
-            handleCancelEdit();
-        } catch (err) {
-            setError('Failed to update product.');
-            console.error(err);
-        }
+  const handleModalUpdate = () => {
+    setIsUpdateConfirmationOpen(true);
+  };
+
+  const confirmUpdate = async () => {
+    try {
+      const { ...updatePayload } = editedProduct;
+      await axios.put(`${PRODUCT_URL}/${editedProduct._id}`, updatePayload, {
+        withCredentials: true,
+      });
+      fetchProducts();
+      handleCancelEdit();
+      setIsUpdateConfirmationOpen(false);
+    } catch (err) {
+      setError('Failed to update product.');
+      console.error(err);
     }
+  };
+
+  const cancelUpdate = () => {
+    setIsUpdateConfirmationOpen(false);
   };
 
   // Add this function to open product history modal
@@ -288,7 +308,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                       </button>
                     )}
                     <button
-                      onClick={() => handleDelete(product._id)}
+                      onClick={() => openDeleteConfirmation(product._id)}
                       className="text-red-600 hover:text-red-900"
                     >
                       Delete
@@ -301,6 +321,84 @@ function ViewProducts({ baseUrl = '/admin' }) {
           </div>
         )}
 
+        {/* Update Confirmation Modal */}
+        {isUpdateConfirmationOpen && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+            <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
+              <div className="text-center py-4">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100">
+                  <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      Are you sure you want to update this product? This action cannot be undone.
+                    </p>
+                  </div>
+                  <div className="mt-6 flex justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={cancelUpdate}
+                      className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmUpdate}
+                      className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      Update
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Delete Confirmation Modal */}
+        {isDeleteConfirmationOpen && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+            <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
+              <div className="text-center py-4">
+                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                      Are you sure you want to delete this product? This action cannot be undone.
+                    </p>
+                  </div>
+                  <div className="mt-6 flex justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={cancelDelete}
+                      className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmDelete}
+                      className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {isEditModalOpen && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
           <div className="relative m-4 p-4 sm:p-5 border w-full max-w-md shadow-lg rounded-md bg-white">

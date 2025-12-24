@@ -41,6 +41,7 @@ const adminSettingsRoutes = require('./routes/admin/adminSettingsRoutes');
 const incentiveRoutes = require('./routes/admin/incentiveRoutes');
 const holidayRoutes = require('./routes/admin/holidayRoutes');
 const adminExpenseRoutes = require('./routes/admin/adminExpenseRoutes');
+const adminProductHistoryRoutes = require('./routes/admin/adminProductHistoryRoutes');
 
 // SHOP ROUTES
 const shopRoutes = require('./routes/shop/shopRoutes');
@@ -79,6 +80,7 @@ app.use('/api/admin/settings', adminSettingsRoutes);
 app.use('/api/admin/incentives', incentiveRoutes);
 app.use('/api/admin/holidays', holidayRoutes);
 app.use('/api/admin/expenses', adminExpenseRoutes);
+app.use('/api/admin/product-history', adminProductHistoryRoutes);
 
 // SHOP
 app.use('/api/shop', shopRoutes);

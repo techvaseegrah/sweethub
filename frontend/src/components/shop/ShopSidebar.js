@@ -385,6 +385,9 @@ function ShopSidebar() {
             </div>
           </summary>
           <nav className="mt-1 ml-6 space-y-1">
+            <NavLink to="/shop/products/admin" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+              <span className="font-medium">Admin Products</span>
+            </NavLink>
             <NavLink to="/shop/products/view" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
               <span className="font-medium">View Products</span>
             </NavLink>

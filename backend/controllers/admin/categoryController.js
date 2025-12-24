@@ -45,3 +45,15 @@ exports.deleteCategory = async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 };
+
+// Get all categories for shop users to view admin products
+exports.getAllCategories = async (req, res) => {
+  try {
+    // Return all categories (admin categories) for shop users viewing admin products
+    const categories = await Category.find({}).populate('products');
+    res.json(categories);
+  } catch (error) {
+    console.error('Error fetching all categories:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};

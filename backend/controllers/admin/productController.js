@@ -286,3 +286,29 @@ exports.getTotalStockAlertCount = async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 };
+
+// Get all admin products for shop users to view (read-only)
+exports.getAllAdminProducts = async (req, res) => {
+  try {
+    // Fetch all products regardless of admin, but only return essential read-only information
+    const products = await Product.find({})
+      .populate('category', 'name')
+      .sort({ name: 1 });
+    
+    // Format the response to include only essential information
+    const formattedProducts = products.map(product => ({
+      _id: product._id,
+      name: product.name,
+      sku: product.sku,
+      category: product.category,
+      price: product.prices && product.prices.length > 0 ? product.prices[0].sellingPrice : 0,
+      stockLevel: product.stockLevel,
+      unit: product.prices && product.prices.length > 0 ? product.prices[0].unit : 'N/A'
+    }));
+    
+    res.json(formattedProducts);
+  } catch (error) {
+    console.error('Error fetching admin products:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
