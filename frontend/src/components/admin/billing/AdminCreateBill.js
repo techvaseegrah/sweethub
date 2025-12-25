@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from '../../../api/axios';
 import { generateBillPdf } from '../../../utils/generateBillPdf';
 import CustomModal from '../../CustomModal'; // Added import for CustomModal
+import KeyboardShortcutsGuide from './KeyboardShortcutsGuide'; // Import keyboard shortcuts guide
 
 function CreateBill({ baseUrl = '/admin' }) {
   const [products, setProducts] = useState([]);
@@ -98,6 +99,18 @@ function CreateBill({ baseUrl = '/admin' }) {
   const [showConfirmOutOfStockModal, setShowConfirmOutOfStockModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [stockQuantity, setStockQuantity] = useState(0);
+  
+  // Refs for keyboard navigation (keeping original refs)
+  const customerMobileRef = useRef(null);
+  const customerNameRef = useRef(null);
+  const shopSelectRef = useRef(null);
+  const productSearchRef = useRef(null);
+  const quantityRef = useRef(null);
+  const discountTypeRef = useRef(null);
+  const discountValueRef = useRef(null);
+  const paymentMethodRef = useRef(null);
+  const amountPaidRef = useRef(null);
+  const createBillButtonRef = useRef(null);
 
   // Fetch GST settings
   useEffect(() => {
@@ -250,6 +263,50 @@ function CreateBill({ baseUrl = '/admin' }) {
       document.removeEventListener('keydown', handleEscKey);
     };
   }, []);
+  
+  // Keyboard navigation for product dropdown
+  const [selectedProductIndex, setSelectedProductIndex] = useState(-1);
+  
+  useEffect(() => {
+    if (showDropdown && filteredProducts.length > 0) {
+      setSelectedProductIndex(0);
+    } else {
+      setSelectedProductIndex(-1);
+    }
+  }, [showDropdown, filteredProducts]);
+  
+  const handleProductKeyDown = (event) => {
+    if (!showDropdown || filteredProducts.length === 0) return;
+    
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        setSelectedProductIndex(prev => 
+          prev < filteredProducts.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        setSelectedProductIndex(prev => 
+          prev > 0 ? prev - 1 : filteredProducts.length - 1
+        );
+        break;
+      case 'Enter':
+        event.preventDefault();
+        if (selectedProductIndex >= 0 && filteredProducts[selectedProductIndex]) {
+          handleSelectProduct(filteredProducts[selectedProductIndex]);
+        }
+        break;
+      case 'Tab':
+        // Allow normal tab behavior
+        break;
+      default:
+        // For other keys, reset to first item if needed
+        if (selectedProductIndex === -1 && filteredProducts.length > 0) {
+          setSelectedProductIndex(0);
+        }
+    }
+  };
 
   const handleSelectProduct = (product) => {
     // Check if product is out of stock
@@ -458,7 +515,7 @@ function CreateBill({ baseUrl = '/admin' }) {
 
       const response = await axios.post(
         BILL_URL,
-        JSON.stringify(payload),
+        payload,
         {
           headers: { 'Content-Type': 'application/json' },
           withCredentials: true,
@@ -493,6 +550,154 @@ function CreateBill({ baseUrl = '/admin' }) {
       console.error(err);
     }
   };
+  
+  // Function to scroll element into view with smooth behavior
+  const scrollToElement = (element) => {
+    if (element && typeof element.scrollIntoView === 'function') {
+      element.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'nearest', 
+        inline: 'nearest' 
+      });
+    }
+  };
+  
+  // Keyboard navigation and shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Ctrl+N for new bill
+      if (event.ctrlKey && event.key === 'n') {
+        event.preventDefault();
+        setCustomerMobileNumber('');
+        setCustomerName('');
+        setBillItems([]);
+        setSubtotal(0);
+        setDiscountType('none');
+        setDiscountValue('');
+        setDiscountAmount(0);
+        setNetAmount(0);
+        setTotalAmount(0);
+        setAmountPaid('');
+        setSearchTerm('');
+        setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '' });
+        setMessage('');
+        setError('');
+        if (customerMobileRef.current) {
+          customerMobileRef.current.focus();
+          scrollToElement(customerMobileRef.current);
+        }
+      }
+      
+      // Ctrl+F for search products
+      if (event.ctrlKey && event.key === 'f') {
+        event.preventDefault();
+        if (productSearchRef.current) {
+          productSearchRef.current.focus();
+          scrollToElement(productSearchRef.current);
+        }
+      }
+      
+      // Alt+D for discount
+      if (event.altKey && event.key === 'd') {
+        event.preventDefault();
+        if (discountTypeRef.current) {
+          discountTypeRef.current.focus();
+          scrollToElement(discountTypeRef.current);
+        }
+      }
+      
+      // Ctrl+Enter to submit bill
+      if (event.ctrlKey && event.key === 'Enter') {
+        event.preventDefault();
+        handleSubmit(event);
+      }
+      
+      // F2 to edit quantity when an item is selected
+      if (event.key === 'F2' && currentItem.product) {
+        event.preventDefault();
+        if (quantityRef.current) {
+          quantityRef.current.focus();
+          quantityRef.current.select();
+          scrollToElement(quantityRef.current);
+        }
+      }
+      
+      // Ctrl+D to delete last item
+      if (event.ctrlKey && event.key === 'd') {
+        event.preventDefault();
+        if (billItems.length > 0) {
+          const lastItemIndex = billItems.length - 1;
+          handleRemoveItem(lastItemIndex);
+        }
+      }
+      
+      // Ctrl+Alt+F to focus on product search
+      if (event.ctrlKey && event.altKey && event.key === 'F') {
+        event.preventDefault();
+        if (productSearchRef.current) {
+          productSearchRef.current.focus();
+          productSearchRef.current.select();
+          scrollToElement(productSearchRef.current);
+        }
+      }
+      
+      // Enter on search field to add item if one is selected
+      if (event.key === 'Enter' && searchTerm && filteredProducts.length === 1) {
+        event.preventDefault();
+        handleSelectProduct(filteredProducts[0]);
+        // After adding item, return focus to product search field
+        setTimeout(() => {
+          if (productSearchRef.current) {
+            productSearchRef.current.focus();
+            productSearchRef.current.select();
+            scrollToElement(productSearchRef.current);
+          }
+        }, 10);
+      }
+      
+      // Enter on quantity field to add item
+      if (event.key === 'Enter' && currentItem.product && currentItem.quantity) {
+        event.preventDefault();
+        handleAddItem();
+        // After adding item, return focus to product search field
+        setTimeout(() => {
+          if (productSearchRef.current) {
+            productSearchRef.current.focus();
+            productSearchRef.current.select();
+            scrollToElement(productSearchRef.current);
+          }
+        }, 10);
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentItem, searchTerm, filteredProducts, billItems]);
+  
+  // Add focus event listener to automatically scroll focused elements into view
+  useEffect(() => {
+    const handleFocus = (event) => {
+      if (event.target && event.target.scrollIntoView) {
+        // Add a small delay to ensure the element is rendered
+        setTimeout(() => {
+          event.target.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'nearest', 
+            inline: 'nearest' 
+          });
+        }, 10);
+      }
+    };
+    
+    // Add focus event listener to all focusable elements
+    document.addEventListener('focusin', handleFocus);
+    
+    return () => {
+      document.removeEventListener('focusin', handleFocus);
+    };
+  }, []);
 
   const handleMobileNumberChange = (e) => {
     let value = e.target.value;
@@ -527,6 +732,7 @@ function CreateBill({ baseUrl = '/admin' }) {
   return (
     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md">
       <h3 className="text-xl sm:text-2xl font-semibold mb-4 text-text-primary">Create Bill</h3>
+      <KeyboardShortcutsGuide />
       
       {/* Out of Stock Modal */}
       <CustomModal
@@ -600,11 +806,20 @@ function CreateBill({ baseUrl = '/admin' }) {
             </label>
             <input
               type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
               id="mobileNumber"
+              ref={customerMobileRef}
               value={customerMobileNumber}
               onChange={handleMobileNumberChange}
               required
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (customerNameRef.current) {
+                    customerNameRef.current.focus();
+                  }
+                }
+              }}
             />
           </div>
           <div>
@@ -613,11 +828,31 @@ function CreateBill({ baseUrl = '/admin' }) {
             </label>
             <input
               type="text"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
               id="customerName"
+              ref={customerNameRef}
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
               required
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (baseUrl === '/admin') {
+                    if (shopSelectRef.current) {
+                      shopSelectRef.current.focus();
+                    }
+                  } else {
+                    if (productSearchRef.current) {
+                      productSearchRef.current.focus();
+                    }
+                  }
+                } else if (e.key === 'Tab' && e.shiftKey) {
+                  e.preventDefault();
+                  if (customerMobileRef.current) {
+                    customerMobileRef.current.focus();
+                  }
+                }
+              }}
             />
           </div>
         </div>
@@ -628,10 +863,24 @@ function CreateBill({ baseUrl = '/admin' }) {
         <div className="mb-6 p-4 border rounded-lg bg-gray-50">
           <h4 className="text-lg font-semibold text-text-primary mb-3">Select Shop</h4>
           <select
-            className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
             value={selectedShop}
             onChange={(e) => setSelectedShop(e.target.value)}
+            ref={shopSelectRef}
             required={baseUrl === '/admin'}
+            onKeyDown={(e) => {
+              if (e.key === 'Tab' && !e.shiftKey) {
+                e.preventDefault();
+                if (productSearchRef.current) {
+                  productSearchRef.current.focus();
+                }
+              } else if (e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault();
+                if (customerNameRef.current) {
+                  customerNameRef.current.focus();
+                }
+              }
+            }}
           >
             <option value="admin">Admin Bills</option>
             {shops.map(shop => (
@@ -676,7 +925,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={fromInfo.name}
                     onChange={(e) => setFromInfo({...fromInfo, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -685,7 +934,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={fromInfo.address}
                     onChange={(e) => setFromInfo({...fromInfo, address: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -694,7 +943,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={fromInfo.gstin}
                     onChange={(e) => setFromInfo({...fromInfo, gstin: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -703,7 +952,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={fromInfo.state}
                     onChange={(e) => setFromInfo({...fromInfo, state: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -712,7 +961,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={fromInfo.stateCode}
                     onChange={(e) => setFromInfo({...fromInfo, stateCode: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -721,7 +970,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={fromInfo.phone}
                     onChange={(e) => setFromInfo({...fromInfo, phone: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -730,7 +979,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="email"
                     value={fromInfo.email}
                     onChange={(e) => setFromInfo({...fromInfo, email: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
               </div>
@@ -762,7 +1011,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={toInfo.name}
                     onChange={(e) => setToInfo({...toInfo, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -771,7 +1020,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={toInfo.address}
                     onChange={(e) => setToInfo({...toInfo, address: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -780,7 +1029,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={toInfo.gstin}
                     onChange={(e) => setToInfo({...toInfo, gstin: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -789,7 +1038,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={toInfo.state}
                     onChange={(e) => setToInfo({...toInfo, state: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -798,7 +1047,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={toInfo.stateCode}
                     onChange={(e) => setToInfo({...toInfo, stateCode: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
                 <div>
@@ -807,7 +1056,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     type="text"
                     value={toInfo.phone}
                     onChange={(e) => setToInfo({...toInfo, phone: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
                   />
                 </div>
               </div>
@@ -829,8 +1078,65 @@ function CreateBill({ baseUrl = '/admin' }) {
                   value={searchTerm}
                   onChange={handleSearchChange}
                   placeholder="Search by name or SKU..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
+                  ref={productSearchRef}
                   onFocus={handleInputFocus}
+                  onKeyDown={(e) => {
+                    // Handle dropdown navigation keys
+                    if (showDropdown && filteredProducts.length > 0) {
+                      switch (e.key) {
+                        case 'ArrowDown':
+                          e.preventDefault();
+                          setSelectedProductIndex(prev => 
+                            prev < filteredProducts.length - 1 ? prev + 1 : 0
+                          );
+                          break;
+                        case 'ArrowUp':
+                          e.preventDefault();
+                          setSelectedProductIndex(prev => 
+                            prev > 0 ? prev - 1 : filteredProducts.length - 1
+                          );
+                          break;
+                        case 'Enter':
+                          e.preventDefault();
+                          if (selectedProductIndex >= 0 && filteredProducts[selectedProductIndex]) {
+                            handleSelectProduct(filteredProducts[selectedProductIndex]);
+                            // After adding item, return focus to product search field
+                            setTimeout(() => {
+                              if (productSearchRef.current) {
+                                productSearchRef.current.focus();
+                                productSearchRef.current.select();
+                              }
+                            }, 10);
+                          }
+                          break;
+                        case 'Escape':
+                          setShowDropdown(false);
+                          setSelectedProductIndex(-1);
+                          break;
+                        default:
+                          // For other keys, reset to first item if needed
+                          if (selectedProductIndex === -1 && filteredProducts.length > 0) {
+                            setSelectedProductIndex(0);
+                          }
+                      }
+                    }
+                    
+                    // Handle Tab key for navigation
+                    if (e.key === 'Tab' && !e.shiftKey) {
+                      // If there are already items in the bill AND search term is empty, allow skipping the add item section
+                      if (billItems.length > 0 && searchTerm.trim() === '') {
+                        e.preventDefault();
+                        // Skip to discount type field when Tab is pressed
+                        if (discountTypeRef.current) {
+                          discountTypeRef.current.focus();
+                          scrollToElement(discountTypeRef.current);
+                        }
+                        return; // Exit early to skip normal tab behavior
+                      }
+                    }
+                  }}
+                  tabIndex="0"
                 />
                 <button
                   type="button"
@@ -846,11 +1152,12 @@ function CreateBill({ baseUrl = '/admin' }) {
               {/* Dropdown for search suggestions */}
               {showDropdown && filteredProducts.length > 0 && (
                 <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-                  {filteredProducts.map((product) => (
+                  {filteredProducts.map((product, index) => (
                     <li
                       key={`${product._id}-${product.sku}`}
-                      className="relative cursor-default select-none py-2 pl-3 pr-9 hover:bg-indigo-600 hover:text-white"
+                      className={`relative cursor-default select-none py-2 pl-3 pr-9 ${selectedProductIndex === index ? 'bg-indigo-600 text-white' : 'hover:bg-indigo-600 hover:text-white'}`}
                       onClick={() => handleSelectProduct(product)}
+                      onMouseEnter={() => setSelectedProductIndex(index)}
                     >
                       <div className="flex justify-between">
                         <span className="font-normal truncate">{product.name}</span>
@@ -1017,6 +1324,21 @@ function CreateBill({ baseUrl = '/admin' }) {
               disabled={!currentItem.product}
               className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-200"
               min="1"
+              ref={quantityRef}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && currentItem.product) {
+                  e.preventDefault();
+                  handleAddItem();
+                } else if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  document.querySelector('button[type="button"][onClick*="handleAddItem"]').focus();
+                } else if (e.key === 'Tab' && e.shiftKey) {
+                  e.preventDefault();
+                  if (productSearchRef.current) {
+                    productSearchRef.current.focus();
+                  }
+                }
+              }}
             />
           </div>
         </div>
@@ -1038,6 +1360,15 @@ function CreateBill({ baseUrl = '/admin' }) {
               onClick={handleAddItem}
               disabled={!currentItem.product}
               className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  discountTypeRef.current?.focus();
+                } else if (e.key === 'Tab' && e.shiftKey) {
+                  e.preventDefault();
+                  quantityRef.current?.focus();
+                }
+              }}
             >
               Add Item
             </button>
@@ -1098,6 +1429,27 @@ function CreateBill({ baseUrl = '/admin' }) {
               value={discountType}
               onChange={(e) => setDiscountType(e.target.value)}
               className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              ref={discountTypeRef}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (discountType !== 'none') {
+                    if (discountValueRef.current) {
+                      discountValueRef.current.focus();
+                    }
+                  } else {
+                    if (paymentMethodRef.current) {
+                      paymentMethodRef.current.focus();
+                    }
+                  }
+                } else if (e.key === 'Tab' && e.shiftKey) {
+                  e.preventDefault();
+                  const button = document.querySelector('button[onClick*="handleAddItem"]');
+                  if (button) {
+                    button.focus();
+                  }
+                }
+              }}
             >
               <option value="none">No Discount</option>
               <option value="percentage">Percentage (%)</option>
@@ -1118,6 +1470,20 @@ function CreateBill({ baseUrl = '/admin' }) {
                 min="0"
                 step="0.01"
                 max={discountType === 'percentage' ? "100" : subtotal}
+                ref={discountValueRef}
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (paymentMethodRef.current) {
+                      paymentMethodRef.current.focus();
+                    }
+                  } else if (e.key === 'Tab' && e.shiftKey) {
+                    e.preventDefault();
+                    if (discountTypeRef.current) {
+                      discountTypeRef.current.focus();
+                    }
+                  }
+                }}
               />
             </div>
           )}
@@ -1186,7 +1552,27 @@ function CreateBill({ baseUrl = '/admin' }) {
                 id="paymentMethod"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline pr-8"
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline pr-8 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
+                ref={paymentMethodRef}
+                onKeyDown={(e) => {
+                  if (e.key === 'Tab' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (amountPaidRef.current) {
+                      amountPaidRef.current.focus();
+                    }
+                  } else if (e.key === 'Tab' && e.shiftKey) {
+                    e.preventDefault();
+                    if (discountType !== 'none') {
+                      if (discountValueRef.current) {
+                        discountValueRef.current.focus();
+                      }
+                    } else {
+                      if (discountTypeRef.current) {
+                        discountTypeRef.current.focus();
+                      }
+                    }
+                  }
+                }}
               >
                 <option value="Cash">Cash</option>
                 <option value="UPI">UPI</option>
@@ -1210,6 +1596,20 @@ function CreateBill({ baseUrl = '/admin' }) {
               value={amountPaid}
               onChange={(e) => setAmountPaid(e.target.value)}
               required
+              ref={amountPaidRef}
+              onKeyDown={(e) => {
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (createBillButtonRef.current) {
+                    createBillButtonRef.current.focus();
+                  }
+                } else if (e.key === 'Tab' && e.shiftKey) {
+                  e.preventDefault();
+                  if (paymentMethodRef.current) {
+                    paymentMethodRef.current.focus();
+                  }
+                }
+              }}
             />
           </div>
         </div>
@@ -1235,6 +1635,15 @@ function CreateBill({ baseUrl = '/admin' }) {
         type="submit"
         onClick={handleSubmit}
         className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline"
+        ref={createBillButtonRef}
+        onKeyDown={(e) => {
+          if (e.key === 'Tab' && e.shiftKey) {
+            e.preventDefault();
+            if (amountPaidRef.current) {
+              amountPaidRef.current.focus();
+            }
+          }
+        }}
       >
         Create Bill
       </button>

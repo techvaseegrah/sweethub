@@ -7,6 +7,19 @@ body {
   overflow: hidden;
 }
 
+/* Enhanced focus styles for better accessibility */
+input:focus,
+select:focus,
+textarea:focus,
+button:focus {
+  @apply outline-4 outline-blue-600 outline-offset-2 ring-2 ring-blue-300 !important;
+}
+
+/* Additional focus styles for elements with custom styling */
+[tabindex]:focus {
+  @apply outline-4 outline-blue-600 outline-offset-2 ring-2 ring-blue-300 !important;
+}
+
 /* Add animation classes for notifications */
 @keyframes fade-in-down {
   0% {

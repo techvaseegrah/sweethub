@@ -40,10 +40,21 @@ const generateShopCodeIfNeeded = async (shop) => {
  */
 const generateShopBillId = async (shopId) => {
   try {
+    console.log('Looking for shop with ID:', shopId);
+    
     // Get shop details to get the shop code
-    const shop = await Shop.findById(shopId);
+    let shop = await Shop.findById(shopId);
+    console.log('Found shop by ID:', !!shop);
+    
     if (!shop) {
-      throw new Error('Shop not found');
+      // If not found, try to find by user reference
+      console.log('Trying to find shop by user ID:', shopId);
+      shop = await Shop.findOne({ user: shopId });
+      console.log('Found shop by user reference:', !!shop);
+      
+      if (!shop) {
+        throw new Error('Shop not found');
+      }
     }
 
     // Generate shop code if not exists
@@ -51,7 +62,7 @@ const generateShopBillId = async (shopId) => {
 
     // Find the last bill for this shop (regardless of date)
     const lastBill = await Bill.findOne({
-      shop: shopId,
+      shop: shop._id,
       billId: { $regex: `^SHP-${shopCode}-` }
     }).sort({ createdAt: -1 });
     
