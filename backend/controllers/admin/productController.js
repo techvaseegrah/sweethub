@@ -295,14 +295,13 @@ exports.getAllAdminProducts = async (req, res) => {
       .populate('category', 'name')
       .sort({ name: 1 });
     
-    // Format the response to include only essential information
+    // Format the response to include only essential information (no admin details like stock)
     const formattedProducts = products.map(product => ({
       _id: product._id,
       name: product.name,
       sku: product.sku,
       category: product.category,
       price: product.prices && product.prices.length > 0 ? product.prices[0].sellingPrice : 0,
-      stockLevel: product.stockLevel,
       unit: product.prices && product.prices.length > 0 ? product.prices[0].unit : 'N/A'
     }));
     

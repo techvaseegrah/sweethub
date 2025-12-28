@@ -3,6 +3,7 @@ import axios from '../../../api/axios';
 import CreateInvoice from './CreateInvoice';
 import InvoiceHistory from './InvoiceHistory'; 
 import ProductHistory from './ProductHistory'; // Add this import
+import { generateProductReportPdf } from '../../../utils/generateProductReportPdf';
 
 function ViewProducts({ baseUrl = '/admin' }) {
   const PRODUCT_URL = `${baseUrl}/products`;
@@ -141,6 +142,10 @@ function ViewProducts({ baseUrl = '/admin' }) {
     setIsProductHistoryModalOpen(true);
   };
 
+  const downloadProductReport = () => {
+    generateProductReportPdf(filteredProducts, categories, selectedCategory);
+  };
+
   if (loading) {
     return (
       <div className="p-6 flex flex-col items-center justify-center">
@@ -204,6 +209,15 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
               >
                   Create Invoice
+              </button>
+              <button
+                  onClick={downloadProductReport}
+                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
+              >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                  Download PDF
               </button>
             </div>
           )}

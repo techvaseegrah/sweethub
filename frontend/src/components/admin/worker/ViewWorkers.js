@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
 import CustomModal from '../../../components/CustomModal'; // Import CustomModal
 import Webcam from 'react-webcam'; // Import Webcam for face enrollment
-import { LuCamera, LuUpload, LuUserPlus, LuCheck, LuX } from 'react-icons/lu'; // Import icons
+import { LuCamera, LuUpload, LuUserPlus, LuCheck, LuX, LuDownload } from 'react-icons/lu'; // Import icons
 import faceRecognitionService from '../../../services/faceRecognitionService';
 import { useLocation } from 'react-router-dom'; // Import useLocation
+import { generateWorkerReportPdf } from '../../../utils/generateWorkerReportPdf'; // Import the PDF utility
 
 // Utility function to format time in 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
@@ -23,6 +24,7 @@ function ViewWorkers() {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedDepartment, setSelectedDepartment] = useState('All');
 
   // State for modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -42,6 +44,20 @@ function ViewWorkers() {
   // State for delete confirmation modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [workerToDelete, setWorkerToDelete] = useState(null);
+  
+  // State to store filtered workers
+  const [filteredWorkers, setFilteredWorkers] = useState([]);
+  
+  // Function to export to PDF
+  const exportToPdf = () => {
+    // Prepare filter information for the report
+    const filterInfo = {};
+    if (selectedDepartment !== 'All') {
+      filterInfo.department = selectedDepartment;
+    }
+    
+    generateWorkerReportPdf(workers, departments, filterInfo);
+  };
 
   // Create a function to fetch data that can be called externally
   const fetchData = async () => {
@@ -63,6 +79,23 @@ function ViewWorkers() {
   useEffect(() => {
     fetchData();
   }, [location.key]); // Add location.key as dependency to refresh when route changes
+  
+  // Update filtered workers when workers or selected department changes
+  useEffect(() => {
+    if (workers.length > 0 && departments.length > 0) {
+      let filtered = workers;
+      
+      if (selectedDepartment !== 'All') {
+        filtered = workers.filter(worker => 
+          worker.department?._id === selectedDepartment
+        );
+      }
+      
+      setFilteredWorkers(filtered);
+    } else {
+      setFilteredWorkers(workers);
+    }
+  }, [workers, selectedDepartment]);
 
   // Open edit modal
   const handleEdit = (worker) => {
@@ -303,8 +336,38 @@ function ViewWorkers() {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
-      <h3 className="text-2xl font-semibold mb-4 text-gray-800">Existing Workers</h3>
-      {workers.length === 0 ? (
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-2xl font-semibold text-gray-800">Existing Workers</h3>
+        <button 
+          onClick={exportToPdf}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
+          disabled={workers.length === 0}
+        >
+          <LuDownload className="mr-2" />
+          Download PDF
+        </button>
+      </div>
+      
+      {/* Department Filter */}
+      <div className="mb-4 flex flex-wrap gap-4">
+        <div className="w-full sm:w-auto">
+          <label className="block text-gray-700 text-sm font-bold mb-2">Filter by Department</label>
+          <select
+            value={selectedDepartment}
+            onChange={(e) => setSelectedDepartment(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="All">All Departments</option>
+            {departments.map((dept) => (
+              <option key={dept._id} value={dept._id}>
+                {dept.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      
+      {filteredWorkers.length === 0 ? (
         <p>No workers found. Please add a worker.</p>
       ) : (
         <div className="overflow-x-auto">
@@ -320,7 +383,7 @@ function ViewWorkers() {
         </tr>
     </thead>
     <tbody className="bg-white divide-y divide-gray-200">
-        {workers.map((worker) => (
+        {filteredWorkers.map((worker) => (
             <tr key={worker._id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{worker.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.department?.name}</td>

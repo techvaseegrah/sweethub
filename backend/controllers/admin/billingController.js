@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 // IMPORT WHATSAPP SERVICE
 const { sendWhatsAppBill } = require('../../services/whatsappService');
 const { generateAdminBillId, generateShopBillId } = require('../../utils/billIdGenerator');
+const { convertUnit, areRelatedUnits } = require('../../utils/unitConversion');
 
 exports.createBill = async (req, res) => {
   const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount } = req.body;
@@ -45,10 +46,19 @@ exports.createBill = async (req, res) => {
         session.endSession();
         return res.status(404).json({ message: `Product with ID ${item.product} not found.` });
       }
-      if (product.stockLevel < item.quantity) {
+      // Check Stock - convert item quantity to product's unit if units are related
+      let itemQuantityInProductUnit = item.quantity;
+      if (product.prices && product.prices.length > 0) {
+        const productBaseUnit = product.prices[0].unit; // Assuming all prices use the same base unit
+        if (areRelatedUnits(item.unit, productBaseUnit)) {
+          itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+        }
+      }
+      
+      if (product.stockLevel < itemQuantityInProductUnit) {
         await session.abortTransaction();
         session.endSession();
-        return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel}` });
+        return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}` });
       }
 
       itemsWithDetails.push({
@@ -84,11 +94,21 @@ exports.createBill = async (req, res) => {
     
     await newBill.save({ session });
 
-    // Deduct stock
+    // Deduct stock - convert quantity to product's unit if units are related
     for (const item of items) {
+      const product = await Product.findById(item.product).session(session);
+      
+      let quantityToDeduct = item.quantity;
+      if (product.prices && product.prices.length > 0) {
+        const productBaseUnit = product.prices[0].unit;
+        if (areRelatedUnits(item.unit, productBaseUnit)) {
+          quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
+        }
+      }
+      
       await Product.findByIdAndUpdate(
         item.product,
-        { $inc: { stockLevel: -item.quantity } },
+        { $inc: { stockLevel: -quantityToDeduct } },
         { session }
       );
     }

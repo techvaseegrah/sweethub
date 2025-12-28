@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
+import { LuDownload } from 'react-icons/lu';
+import { generateDepartmentReportPdf } from '../../../utils/generateDepartmentReportPdf';
 
 
 function ViewDepartments({ baseUrl = '/admin' }) {
@@ -14,6 +16,19 @@ function ViewDepartments({ baseUrl = '/admin' }) {
   const [editingName, setEditingName] = useState('');
   const [expandedDept, setExpandedDept] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const exportToPdf = () => {
+    // Prepare filter information for the report
+    const filterInfo = {};
+    if (selectedShop !== 'admin') {
+      const selectedShopName = shops.find(shop => shop._id === selectedShop)?.name || 'All Shops';
+      filterInfo.shop = selectedShopName;
+    } else {
+      filterInfo.shop = 'Admin Departments Only';
+    }
+    
+    generateDepartmentReportPdf(departments, filterInfo);
+  };
 
 
   useEffect(() => {
@@ -121,7 +136,17 @@ const closeEditModal = () => {
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
-     <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800">Existing Departments</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl md:text-2xl font-semibold text-gray-800">Existing Departments</h3>
+        <button 
+          onClick={exportToPdf}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
+          disabled={departments.length === 0}
+        >
+          <LuDownload className="mr-2" />
+          Download PDF
+        </button>
+      </div>
 
          {/* Add the new filter dropdown for admin panel */}
       {baseUrl === '/admin' && (

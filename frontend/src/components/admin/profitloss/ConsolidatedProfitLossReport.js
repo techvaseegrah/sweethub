@@ -10,6 +10,7 @@ import {
     LuTrendingDown
 } from 'react-icons/lu';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { generateProfitLossReportPdf } from '../../../utils/generateProfitLossReportPdf';
 
 const ConsolidatedProfitLossReport = () => {
     const [reportData, setReportData] = useState(null);
@@ -63,7 +64,9 @@ const ConsolidatedProfitLossReport = () => {
     };
 
     const exportToPDF = () => {
-        window.print();
+        if (reportData) {
+            generateProfitLossReportPdf(reportData, startDate, endDate);
+        }
     };
 
     const exportToCSV = () => {

@@ -1,6 +1,14 @@
 import html2pdf from 'html2pdf.js';
 
 export const generateBillPdf = (billData, shopData) => {
+  return generateBillPdfInternal(billData, shopData, false);
+};
+
+export const printBill = (billData, shopData) => {
+  return generateBillPdfInternal(billData, shopData, true);
+};
+
+const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
   // Handle different bill data structures
   const shopName = shopData?.name || billData?.shop?.name || 'The Sweet Hub';
   const shopLocation = shopData?.address || billData?.shop?.address || '156, Dubai Main Road, Thanjavur, Tamil Nadu - 613006';
@@ -8,9 +16,9 @@ export const generateBillPdf = (billData, shopData) => {
   
   // Extract bill details
   const billId = billData?.billId || (billData?._id ? billData._id.slice(-8) : 'N/A');
-  const billDate = billData?.billDate ? new Date(billData.billDate).toLocaleDateString() : 'N/A';
-  const paymentMethod = billData?.paymentMethod || 'N/A';
-  const customerName = billData?.customerName || 'N/A';
+  const billDate = billData?.billDate ? new Date(billData.billDate).toLocaleDateString() : new Date().toLocaleDateString();
+  const paymentMethod = billData?.paymentMethod || 'Cash';
+  const customerName = billData?.customerName || 'Walk-in Customer';
   const customerMobile = billData?.customerMobileNumber || 'N/A';
   
   // Calculate totals if not provided
@@ -44,7 +52,7 @@ export const generateBillPdf = (billData, shopData) => {
   // Generate items HTML
   const itemsHtml = billData.items.map(item => `
     <tr>
-      <td style="padding: 6px 8px; border: 1px solid #ddd;">${item.productName || item.product?.name || item.name || 'N/A'}</td>
+      <td style="padding: 6px 8px; border: 1px solid #ddd;">${item.productName || item.product?.name || item.name || 'Item'}</td>
       <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: center;">${item.quantity || 0}</td>
       <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
       <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
@@ -180,6 +188,30 @@ export const generateBillPdf = (billData, shopData) => {
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
   };
 
-  // Generate and download the PDF
-  html2pdf().from(billHtml).set(opt).save();
+  if (shouldPrint) {
+    // Create a temporary iframe for printing
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.zIndex = '-1';
+    iframe.srcdoc = billHtml;
+    document.body.appendChild(iframe);
+    
+    iframe.onload = () => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      
+      // Remove the iframe after printing
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    };
+  } else {
+    // Generate and download the PDF
+    html2pdf().from(billHtml).set(opt).save();
+  }
 };

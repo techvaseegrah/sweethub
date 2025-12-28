@@ -61,7 +61,12 @@ function ViewAdminProducts() {
       );
     }
 
-    setFilteredProducts(tempProducts);
+    // Remove duplicate products based on _id
+    const uniqueTempProducts = tempProducts.filter((product, index, self) =>
+      index === self.findIndex(p => p._id === product._id)
+    );
+
+    setFilteredProducts(uniqueTempProducts);
   }, [products, selectedCategory, searchTerm]);
 
   if (loading) {
@@ -84,24 +89,8 @@ function ViewAdminProducts() {
     return <div className="p-6 text-center text-red-500">{error}</div>;
   }
 
-  // Flatten products with their units to create one row per unit (similar to admin view)
-  const flattenedProducts = [];
-  filteredProducts.forEach(product => {
-    // Create a simplified price structure for admin products
-    const price = {
-      unit: product.unit || 'N/A',
-      netPrice: product.price || 0,
-      sellingPrice: product.price || 0
-    };
-    
-    flattenedProducts.push({
-      ...product,
-      unit: price.unit,
-      netPrice: price.netPrice,
-      sellingPrice: price.sellingPrice,
-      stockLevel: product.stockLevel
-    });
-  });
+  // Show each product only once (no flattening by unit)
+  const uniqueProducts = filteredProducts;
 
     return (
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
@@ -131,7 +120,7 @@ function ViewAdminProducts() {
         </select>
         </div>
         
-        {flattenedProducts.length === 0 ? (
+        {uniqueProducts.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 text-lg mb-2">📦</div>
             <p className="text-gray-600 font-medium">No admin products found.</p>
@@ -149,14 +138,12 @@ function ViewAdminProducts() {
                 </th>
                 <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
                 <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                 <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {flattenedProducts.map((product) => (
-                <tr key={`${product._id}-${product.unit}`} className="hover:bg-gray-50">
+              {uniqueProducts.map((product) => (
+                <tr key={product._id} className="hover:bg-gray-50">
                   <td className="px-2 sm:px-6 py-4 text-sm font-semibold text-gray-900">
                     {product.name}
                   </td>
@@ -167,20 +154,6 @@ function ViewAdminProducts() {
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 uppercase">
                       {product.unit}
                     </span>
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      product.stockLevel <= 0 
-                        ? 'bg-red-100 text-red-800' 
-                        : product.stockLevel <= 5 
-                        ? 'bg-yellow-100 text-yellow-800' 
-                        : 'bg-green-100 text-green-800'
-                    }`}>
-                      {product.stockLevel}
-                    </span>
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
-                    ₹{product.sellingPrice}
                   </td>
                   <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {product.category ? (typeof product.category === 'object' ? product.category.name : 

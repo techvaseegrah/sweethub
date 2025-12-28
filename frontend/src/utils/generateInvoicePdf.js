@@ -1,6 +1,14 @@
 import html2pdf from 'html2pdf.js';
 
 export const generateInvoicePdf = (invoiceData) => {
+  return generateInvoicePdfInternal(invoiceData, false);
+};
+
+export const printInvoice = (invoiceData) => {
+  return generateInvoicePdfInternal(invoiceData, true);
+};
+
+const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
   // Handle different invoice data structures
   const shopName = invoiceData?.shop?.name || invoiceData?.shopName || 'The Sweet Hub';
   const shopLocation = invoiceData?.shop?.address || invoiceData?.shopAddress || '156, Dubai Main Road, Thanjavur, Tamil Nadu - 613006';
@@ -10,8 +18,8 @@ export const generateInvoicePdf = (invoiceData) => {
   // Extract invoice details
   const invoiceNumber = invoiceData?.invoiceNumber || invoiceData?._id?.slice(-8) || 'N/A';
   const issueDate = invoiceData?.issueDate ? new Date(invoiceData.issueDate).toLocaleDateString() : 
-                   invoiceData?.billDate ? new Date(invoiceData.billDate).toLocaleDateString() : 'N/A';
-  const status = invoiceData?.status || 'N/A';
+                   invoiceData?.billDate ? new Date(invoiceData.billDate).toLocaleDateString() : new Date().toLocaleDateString();
+  const status = invoiceData?.status || 'Active';
   
   // Check for GST information first, then fall back to old tax system
   const gstPercentage = invoiceData?.gstPercentage || 0;
@@ -36,7 +44,7 @@ export const generateInvoicePdf = (invoiceData) => {
   // Generate items HTML
   const itemsHtml = invoiceData.items.map(item => `
     <tr>
-      <td style="padding: 8px; border: 1px solid #ddd;">${item.productName || item.product?.name || item.name || 'N/A'}</td>
+      <td style="padding: 8px; border: 1px solid #ddd;">${item.productName || item.product?.name || item.name || 'Item'}</td>
       <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.quantity || 0}</td>
       <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
       <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
@@ -148,6 +156,30 @@ export const generateInvoicePdf = (invoiceData) => {
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
   };
 
-  // Generate and download the PDF
-  html2pdf().from(invoiceHtml).set(opt).save();
+  if (shouldPrint) {
+    // Create a temporary iframe for printing
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    iframe.style.zIndex = '-1';
+    iframe.srcdoc = invoiceHtml;
+    document.body.appendChild(iframe);
+    
+    iframe.onload = () => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      
+      // Remove the iframe after printing
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    };
+  } else {
+    // Generate and download the PDF
+    html2pdf().from(invoiceHtml).set(opt).save();
+  }
 };

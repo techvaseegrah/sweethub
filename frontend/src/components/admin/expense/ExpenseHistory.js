@@ -169,6 +169,49 @@ const ExpenseHistory = () => {
     generateExpenseReportPdf(filteredExpenses, dateFrom, dateTo, filterInfo);
   };
 
+  // Set date range for predefined periods
+  const setDateRange = (period) => {
+    const today = new Date();
+    let start = new Date();
+    let end = new Date();
+
+    switch(period) {
+      case 'daily':
+        // Today only
+        start = new Date(today);
+        end = new Date(today);
+        break;
+      case 'weekly':
+        // Start of current week (Sunday)
+        const dayOfWeek = today.getDay();
+        start = new Date(today);
+        start.setDate(today.getDate() - dayOfWeek);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        break;
+      case 'monthly':
+        // Start of current month
+        start = new Date(today.getFullYear(), today.getMonth(), 1);
+        end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        break;
+      case 'yearly':
+        // Start of current year
+        start = new Date(today.getFullYear(), 0, 1);
+        end = new Date(today.getFullYear(), 11, 31);
+        break;
+      default:
+        return;
+    }
+
+    // Format dates as YYYY-MM-DD
+    const formatDate = (date) => {
+      return date.toISOString().split('T')[0];
+    };
+
+    setDateFrom(formatDate(start));
+    setDateTo(formatDate(end));
+  };
+
   // Close expense detail modal
   const closeExpenseDetail = () => {
     setSelectedExpense(null);
@@ -269,6 +312,34 @@ const ExpenseHistory = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             />
           </div>
+        </div>
+        
+        {/* Quick Date Range Buttons */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button 
+            onClick={() => setDateRange('daily')}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            Today
+          </button>
+          <button 
+            onClick={() => setDateRange('weekly')}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            This Week
+          </button>
+          <button 
+            onClick={() => setDateRange('monthly')}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            This Month
+          </button>
+          <button 
+            onClick={() => setDateRange('yearly')}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+          >
+            This Year
+          </button>
         </div>
         
         {/* Total Amount Display */}

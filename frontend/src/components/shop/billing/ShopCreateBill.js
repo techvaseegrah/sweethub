@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from '../../../api/axios';
-import { generateInvoicePdf } from '../../../utils/generateInvoicePdf';
+import { generateInvoicePdf, printInvoice } from '../../../utils/generateInvoicePdf';
+import { getAvailableUnits, convertUnit, areRelatedUnits } from '../../../utils/unitConversion';
 import CustomModal from '../../CustomModal'; // Added import for CustomModal
 import KeyboardShortcutsGuide from './KeyboardShortcutsGuide'; // Import keyboard shortcuts guide
 
@@ -35,6 +36,7 @@ function CreateBill({ baseUrl = '/shop' }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [autoDownload, setAutoDownload] = useState(true);
+  const [autoPrint, setAutoPrint] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   
@@ -232,11 +234,12 @@ function CreateBill({ baseUrl = '/shop' }) {
     setSelectedCategory('All');
     
     if (product.prices && product.prices.length > 0) {
+      const availableUnits = getAvailableUnits(product.prices);
       setCurrentItem({
         product,
-        unit: product.prices[0].unit,
+        unit: availableUnits[0],
         quantity: '',
-        price: product.prices[0].sellingPrice,
+        price: product.prices.find(p => p.unit === availableUnits[0])?.sellingPrice || product.prices[0].sellingPrice,
         productName: product.name,
         sku: product.sku,
       });
@@ -284,8 +287,15 @@ function CreateBill({ baseUrl = '/shop' }) {
   const handleUnitChange = (e) => {
     const selectedUnit = e.target.value;
     const priceInfo = currentItem.product.prices.find(p => p.unit === selectedUnit);
+    
+    // If the selected unit exists in the product's prices, use its price
     if (priceInfo) {
       setCurrentItem(prev => ({ ...prev, unit: priceInfo.unit, price: priceInfo.sellingPrice }));
+    } else {
+      // If it's a related unit (like gram for a kg product), use the price from the base unit
+      // For example, if product is priced in kg, the price remains per kg regardless of unit selected
+      const baseUnitInfo = currentItem.product.prices[0]; // Use the first available unit's price
+      setCurrentItem(prev => ({ ...prev, unit: selectedUnit, price: baseUnitInfo.sellingPrice }));
     }
   };
 
@@ -295,7 +305,7 @@ function CreateBill({ baseUrl = '/shop' }) {
     if (value === '') {
       setCurrentItem(prev => ({ ...prev, quantity: '' }));
     } else {
-      const numValue = parseInt(value, 10);
+      const numValue = parseFloat(value);
       if (!isNaN(numValue) && numValue > 0) {
         setCurrentItem(prev => ({ ...prev, quantity: numValue }));
       }
@@ -311,13 +321,29 @@ function CreateBill({ baseUrl = '/shop' }) {
       return;
     }
     
+    // Calculate the price per unit based on the selected unit
+    // If the selected unit is different from the product's base unit, we need to adjust the price
+    let pricePerUnit = currentItem.price;
+    if (currentItem.product.prices && currentItem.product.prices.length > 0) {
+      const baseUnit = currentItem.product.prices[0].unit;
+      if (currentItem.unit !== baseUnit && areRelatedUnits(currentItem.unit, baseUnit)) {
+        // Convert the base price to the selected unit
+        // For example, if base price is ₹100/kg and user selects gram, price per gram = ₹0.10
+        // To convert: if base price is per kg, and we want per gram, we divide by 1000
+        const conversionFactor = convertUnit(1, currentItem.unit, baseUnit); // Convert 1 of selected unit to base unit
+        pricePerUnit = currentItem.price * conversionFactor; // This will be smaller for smaller units
+      }
+    }
+    
     const newItem = {
       product: currentItem.product._id,
       productName: currentItem.productName,
       sku: currentItem.sku,
       unit: currentItem.unit,
       quantity: quantity,
-      price: currentItem.price,
+      price: pricePerUnit, // Use the converted price per unit for calculations
+      baseUnitPrice: currentItem.price, // Store the original base unit price for display
+      baseUnit: currentItem.product.prices[0].unit, // Store the base unit
     };
     
     const existingItemIndex = billItems.findIndex(item => item.product === newItem.product && item.unit === newItem.unit);
@@ -408,6 +434,10 @@ function CreateBill({ baseUrl = '/shop' }) {
 
       if (autoDownload) {
         generateInvoicePdf(response.data);
+      }
+      
+      if (autoPrint) {
+        printInvoice(response.data);
       }
 
       setCustomerMobileNumber('');
@@ -946,9 +976,9 @@ function CreateBill({ baseUrl = '/shop' }) {
               disabled={!currentItem.product}
               className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75 disabled:bg-gray-200"
             >
-              {currentItem.product?.prices?.map((price) => (
-                <option key={price.unit} value={price.unit}>
-                  {price.unit}
+              {getAvailableUnits(currentItem.product?.prices || [])?.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit}
                 </option>
               ))}
             </select>
@@ -1048,7 +1078,7 @@ function CreateBill({ baseUrl = '/shop' }) {
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.sku}</td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.unit}</td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.quantity}</td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{item.price.toFixed(2)}</td>
+                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{item.baseUnitPrice.toFixed(2)}</td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{(item.quantity * item.price).toFixed(2)}</td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     <button
@@ -1258,6 +1288,17 @@ function CreateBill({ baseUrl = '/shop' }) {
           id="autoDownload"
           checked={autoDownload}
           onChange={(e) => setAutoDownload(e.target.checked)}
+          className="form-checkbox h-5 w-5 text-primary"
+        />
+      </div>
+      
+      <div className="mb-6 p-4 border rounded-lg bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+        <label htmlFor="autoPrint" className="text-gray-700 font-bold">Auto Print Bill after Creation</label>
+        <input
+          type="checkbox"
+          id="autoPrint"
+          checked={autoPrint}
+          onChange={(e) => setAutoPrint(e.target.checked)}
           className="form-checkbox h-5 w-5 text-primary"
         />
       </div>

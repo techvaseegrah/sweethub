@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
+import { LuDownload } from 'react-icons/lu';
+import { generateStockReportPdf } from '../../../utils/generateStockReportPdf';
 
 function TrackStock({ baseUrl = '/admin' }) {
   const PRODUCTS_URL = `${baseUrl}/products`;
@@ -17,6 +19,19 @@ function TrackStock({ baseUrl = '/admin' }) {
   
   const [shops, setShops] = useState([]);
   const [selectedShop, setSelectedShop] = useState('admin');
+  
+  const exportToPdf = () => {
+    // Prepare filter information for the report
+    const filterInfo = {};
+    if (selectedShop !== 'admin') {
+      const selectedShopName = shops.find(shop => shop._id === selectedShop)?.name || 'All Shops';
+      filterInfo.shop = selectedShopName;
+    } else {
+      filterInfo.shop = 'Admin Products Only';
+    }
+    
+    generateStockReportPdf(products, filterInfo);
+  };
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -110,7 +125,18 @@ const handleCancel = () => {
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
-    <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800">Track Stock</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl md:text-2xl font-semibold text-gray-800">Track Stock</h3>
+        <button 
+          onClick={exportToPdf}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
+          disabled={products.length === 0}
+        >
+          <LuDownload className="mr-2" />
+          Download PDF
+        </button>
+      </div>
+      
       {/* Add the filter dropdown */}
       {baseUrl === '/admin' && (
         <div className="mb-4">

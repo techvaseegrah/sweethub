@@ -4,6 +4,7 @@ const Product = require('../../models/productModel');
 const mongoose = require('mongoose');
 const { sendWhatsAppBill } = require('../../services/whatsappService');
 const { generateShopBillId } = require('../../utils/billIdGenerator');
+const { convertUnit, areRelatedUnits } = require('../../utils/unitConversion');
 
 exports.createBill = async (req, res) => {
   const session = await mongoose.startSession();
@@ -50,8 +51,17 @@ exports.createBill = async (req, res) => {
       }
 
       // Optional: Check Stock
-      if (product.stockLevel < item.quantity) {
-        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stockLevel}`);
+      // If units are related (e.g., kg and gram), convert item quantity to product's unit for comparison
+      let itemQuantityInProductUnit = item.quantity;
+      if (product.prices && product.prices.length > 0) {
+        const productBaseUnit = product.prices[0].unit; // Assuming all prices use the same base unit
+        if (areRelatedUnits(item.unit, productBaseUnit)) {
+          itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+        }
+      }
+      
+      if (product.stockLevel < itemQuantityInProductUnit) {
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}`);
       }
 
       itemsWithDetails.push({
@@ -63,10 +73,18 @@ exports.createBill = async (req, res) => {
         price: item.price,
       });
 
-      // Update Stock
+      // Update Stock - convert quantity to product's unit if units are related
+      let quantityToDeduct = item.quantity;
+      if (product.prices && product.prices.length > 0) {
+        const productBaseUnit = product.prices[0].unit;
+        if (areRelatedUnits(item.unit, productBaseUnit)) {
+          quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
+        }
+      }
+      
       await Product.findByIdAndUpdate(
         item.product,
-        { $inc: { stockLevel: -item.quantity } },
+        { $inc: { stockLevel: -quantityToDeduct } },
         { session }
       );
     }

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
+import { LuDownload } from 'react-icons/lu';
+import { generateStockAlertsReportPdf } from '../../../utils/generateStockAlertsReportPdf';
 
 function StockAlerts({ baseUrl = '/admin' }) {
   const PRODUCTS_URL = `${baseUrl}/products`;
@@ -16,6 +18,25 @@ function StockAlerts({ baseUrl = '/admin' }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
+  
+  const exportToPdf = () => {
+    // Prepare filter information for the report
+    const filterInfo = {};
+    if (selectedShop !== 'admin') {
+      const selectedShopName = shops.find(shop => shop._id === selectedShop)?.name || 'All Shops';
+      filterInfo.shop = selectedShopName;
+    } else {
+      filterInfo.shop = 'Admin Products Only';
+    }
+    if (selectedCategory !== 'All') {
+      filterInfo.category = selectedCategory;
+    }
+    if (searchTerm) {
+      filterInfo.searchTerm = searchTerm;
+    }
+    
+    generateStockAlertsReportPdf(filteredProducts, categories, shops, filterInfo);
+  };
 
   useEffect(() => {
     const fetchShops = async () => {
@@ -139,7 +160,17 @@ function StockAlerts({ baseUrl = '/admin' }) {
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-xl shadow-md">
-    <h3 className="text-xl md:text-2xl font-semibold mb-4 text-text-primary">Stock Alerts</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl md:text-2xl font-semibold text-text-primary">Stock Alerts</h3>
+        <button 
+          onClick={exportToPdf}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
+          disabled={filteredProducts.length === 0}
+        >
+          <LuDownload className="mr-2" />
+          Download PDF
+        </button>
+      </div>
       {/* New: Alerts Dashboard Section */}
       {baseUrl === '/admin' && (
        <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
