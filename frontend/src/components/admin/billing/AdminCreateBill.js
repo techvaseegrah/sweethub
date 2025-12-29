@@ -77,6 +77,8 @@ function CreateBill({ baseUrl = '/admin' }) {
     price: 0,
     productName: '',
     sku: '',
+    isDecimalAsGram: false, // Track if decimal input was meant as grams
+    rawInput: '', // Track raw input to handle partial entries like "0."
   });
 
   const [billItems, setBillItems] = useState([]);
@@ -397,22 +399,76 @@ function CreateBill({ baseUrl = '/admin' }) {
 
   const handleQuantityChange = (e) => {
     const value = e.target.value;
-    // Allow empty value to enable proper editing
-    if (value === '') {
-      setCurrentItem(prev => ({ ...prev, quantity: '' }));
-    } else {
-      const numValue = parseFloat(value);
-      if (!isNaN(numValue) && numValue > 0) {
-        setCurrentItem(prev => ({ ...prev, quantity: numValue }));
+    
+    // Always update the raw input value to allow proper typing
+    const numValue = parseFloat(value);
+    
+    // If it's a valid number or a partial input like "0."
+    if (value === "" || value === "0." || value === "." || (!isNaN(numValue) && numValue >= 0)) {
+      if (value === "0." || value === ".") {
+        // For partial inputs like "0." or ".", store the string in rawInput and keep quantity as empty
+        setCurrentItem(prev => ({ ...prev, quantity: '', rawInput: value, isDecimalAsGram: false }));
+      } else if (value === "") {
+        // For empty input
+        setCurrentItem(prev => ({ ...prev, quantity: '', rawInput: '', isDecimalAsGram: false }));
+      } else if (!isNaN(numValue) && numValue >= 0) {
+        // If the product is priced in kg and user enters a decimal < 1, 
+        // assume they mean grams and set the unit to gram automatically
+        if (currentItem.product && 
+            currentItem.product.prices && 
+            currentItem.product.prices.length > 0 &&
+            currentItem.product.prices[0].unit === 'kg' &&
+            numValue < 1 && 
+            value.includes('.') && numValue > 0) {  // Only convert if value > 0
+          // Convert the decimal to actual grams value
+          // e.g., user enters 0.25 -> means 250g -> store as 250 in quantity but unit as gram
+          const gramValue = numValue * 1000;
+          setCurrentItem(prev => ({ ...prev, quantity: gramValue, rawInput: value, unit: 'gram', isDecimalAsGram: true }));
+          
+          // Update the price if needed based on the gram unit
+          const priceInfo = currentItem.product?.prices?.find(p => p.unit === 'gram');
+          if (priceInfo) {
+            setCurrentItem(prev => ({ ...prev, price: priceInfo.sellingPrice }));
+          }
+        } else {
+          setCurrentItem(prev => ({ ...prev, quantity: numValue, rawInput: value, isDecimalAsGram: false }));
+        }
       }
     }
   };
   
   const handleAddItem = () => {
-    // Handle empty quantity by defaulting to 1
-    const quantity = currentItem.quantity === '' ? 1 : currentItem.quantity;
+    // Check if we have a valid quantity
+    let finalQuantity;
+    let isValid = false;
     
-    if (!currentItem.product || quantity <= 0) {
+    // If decimal-to-gram conversion happened (isDecimalAsGram is true), use the processed quantity
+    if (currentItem.isDecimalAsGram && typeof currentItem.quantity === 'number' && currentItem.quantity !== '') {
+      // Use the processed quantity (e.g., 250 for input 0.25 interpreted as 250g)
+      finalQuantity = parseFloat(currentItem.quantity);
+      isValid = true;
+    } else if (currentItem.rawInput && currentItem.rawInput !== '') {
+      // Otherwise, if rawInput exists, try to parse it
+      const parsedRaw = parseFloat(currentItem.rawInput);
+      if (!isNaN(parsedRaw) && isFinite(parsedRaw) && parsedRaw >= 0) {
+        finalQuantity = parsedRaw;
+        isValid = true;
+      }
+    } else if (currentItem.quantity !== '') {
+      // Finally, use the quantity field if rawInput doesn't exist
+      const parsedQuantity = parseFloat(currentItem.quantity);
+      if (!isNaN(parsedQuantity) && isFinite(parsedQuantity) && parsedQuantity >= 0) {
+        finalQuantity = parsedQuantity;
+        isValid = true;
+      }
+    }
+    
+    if (!isValid) {
+      setError('Please enter a valid quantity number.');
+      return;
+    }
+    
+    if (!currentItem.product || finalQuantity <= 0) {
       setError('Please select a valid product and quantity.');
       return;
     }
@@ -436,7 +492,7 @@ function CreateBill({ baseUrl = '/admin' }) {
       productName: currentItem.productName,
       sku: currentItem.sku,
       unit: currentItem.unit,
-      quantity: quantity,
+      quantity: finalQuantity,
       price: pricePerUnit, // Use the converted price per unit for calculations
       baseUnitPrice: currentItem.price, // Store the original base unit price for display
       baseUnit: currentItem.product.prices[0].unit, // Store the base unit
@@ -453,7 +509,7 @@ function CreateBill({ baseUrl = '/admin' }) {
     }
 
     setSearchTerm('');
-    setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '' }); 
+    setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '', isDecimalAsGram: false, rawInput: '' }); 
     setError('');
   };
 
@@ -691,7 +747,7 @@ function CreateBill({ baseUrl = '/admin' }) {
       }
       
       // Enter on quantity field to add item
-      if (event.key === 'Enter' && currentItem.product && currentItem.quantity) {
+      if (event.key === 'Enter' && currentItem.product && (currentItem.quantity !== '' || (currentItem.rawInput && currentItem.rawInput !== ''))) {
         event.preventDefault();
         handleAddItem();
         // After adding item, return focus to product search field
@@ -1168,6 +1224,15 @@ function CreateBill({ baseUrl = '/admin' }) {
                           scrollToElement(discountTypeRef.current);
                         }
                         return; // Exit early to skip normal tab behavior
+                      } else {
+                        // If product is selected, skip the unit dropdown and go directly to quantity
+                        if (currentItem.product) {
+                          e.preventDefault();
+                          if (quantityRef.current) {
+                            quantityRef.current.focus();
+                          }
+                          return; // Exit early to skip normal tab behavior
+                        }
                       }
                     }
                   }}
@@ -1341,6 +1406,16 @@ function CreateBill({ baseUrl = '/admin' }) {
               onChange={handleUnitChange}
               disabled={!currentItem.product}
               className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-200"
+              onKeyDown={(e) => {
+                // Skip this field when Tab is pressed
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  // Focus on the quantity input
+                  if (quantityRef.current) {
+                    quantityRef.current.focus();
+                  }
+                }
+              }}
             >
               {getAvailableUnits(currentItem.product?.prices || [])?.map((unit) => (
                 <option key={unit} value={unit}>
@@ -1354,7 +1429,7 @@ function CreateBill({ baseUrl = '/admin' }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
             <input
               type="text"
-              value={currentItem.quantity}
+              value={currentItem.rawInput !== undefined && currentItem.rawInput !== '' ? currentItem.rawInput : currentItem.quantity}
               onChange={handleQuantityChange}
               disabled={!currentItem.product}
               className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-200"
@@ -1369,6 +1444,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                   document.querySelector('button[type="button"][onClick*="handleAddItem"]').focus();
                 } else if (e.key === 'Tab' && e.shiftKey) {
                   e.preventDefault();
+                  // Skip the unit dropdown when going back with Shift+Tab
                   if (productSearchRef.current) {
                     productSearchRef.current.focus();
                   }
@@ -1385,6 +1461,7 @@ function CreateBill({ baseUrl = '/admin' }) {
               type="text"
               value={currentItem.price}
               readOnly
+              tabIndex="-1"
               className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm"
             />
           </div>
