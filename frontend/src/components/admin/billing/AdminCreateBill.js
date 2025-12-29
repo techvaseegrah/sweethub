@@ -89,6 +89,7 @@ function CreateBill({ baseUrl = '/admin' }) {
   const [netAmount, setNetAmount] = useState(0); // Add net amount state
   const [gstPercentage, setGstPercentage] = useState(0); // Add GST percentage state
   const [gstAmount, setGstAmount] = useState(0); // Add GST amount state
+  const [baseAmount, setBaseAmount] = useState(0); // Add base amount state
   const [totalAmount, setTotalAmount] = useState(0); // Update total amount calculation
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [amountPaid, setAmountPaid] = useState('');
@@ -194,9 +195,11 @@ function CreateBill({ baseUrl = '/admin' }) {
       const calculatedBaseAmount = newNetAmount / (1 + gstPercentage / 100);
       const calculatedGstAmount = newNetAmount - calculatedBaseAmount;
       
+      setBaseAmount(calculatedBaseAmount);
       setGstAmount(calculatedGstAmount);
       setTotalAmount(newNetAmount); // Total amount is net amount (which includes GST)
     } else {
+      setBaseAmount(newNetAmount);
       setGstAmount(0);
       setTotalAmount(newNetAmount);
     }
@@ -577,7 +580,7 @@ function CreateBill({ baseUrl = '/admin' }) {
         customerMobileNumber: getE164Number(customerMobileNumber),
         customerName,
         items: billItems,
-        baseAmount: netAmount, // Base amount is net amount minus GST
+        baseAmount: baseAmount, // Base amount is before GST
         gstPercentage: gstPercentage,
         gstAmount: gstAmount,
         totalAmount,

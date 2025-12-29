@@ -21,6 +21,7 @@ exports.getPendingInvoiceForShop = async (req, res) => {
 
     const pendingInvoice = await Invoice.findOne({ shop: shopId, status: 'Pending' })
       .populate('admin', 'name') // Populate the admin's name for display
+      .populate('shop', 'name location gstNumber shopPhoneNumber') // Populate shop details for PDF generation
       .sort({ createdAt: -1 }); // Get the most recent pending invoice
 
     console.log('Found pending invoice:', pendingInvoice ? pendingInvoice.invoiceNumber : 'None');
@@ -52,6 +53,7 @@ exports.getAllInvoicesForShop = async (req, res) => {
 
     const invoices = await Invoice.find({ shop: shopId })
       .populate('admin', 'name') // Populate the admin's name for display
+      .populate('shop', 'name location gstNumber shopPhoneNumber') // Populate shop details for PDF generation
       .sort({ createdAt: -1 }); // Get most recent first
 
     console.log('Found invoices:', invoices.length);

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const StoreRoomItem = require('../../models/storeRoomItemModel');
 const PackingMaterial = require('../../models/packingMaterialModel');
 const Manufacturing = require('../../models/manufacturingModel');
@@ -5,6 +6,8 @@ const OutgoingMaterial = require('../../models/outgoingMaterialModel');
 const OutgoingPackingMaterial = require('../../models/outgoingPackingMaterialModel');
 const ReturnProduct = require('../../models/returnProductModel');
 const VendorHistory = require('../../models/vendorHistoryModel');
+const DailySchedule = require('../../models/dailyScheduleModel');
+const Product = require('../../models/productModel');
 
 // Raw Materials / Store Room
 const addRawMaterial = async (req, res) => {
@@ -334,6 +337,27 @@ const addManufacturingProcess = async (req, res) => {
             }
         }
 
+        // Check if the product exists in the products collection
+        let product = await Product.findOne({ 
+            name: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } 
+        });
+
+        // If product doesn't exist, create it with minimal information
+        if (!product) {
+            product = new Product({
+                name: sweetName,
+                category: null, // No category initially
+                sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Generate a unique SKU
+                stockLevel: 0, // Manufacturing doesn't add to stock initially
+                prices: [{
+                    unit: unit,
+                    netPrice: price,
+                    sellingPrice: price * 1.2 // Assuming 20% profit margin
+                }],
+                admin: req.user._id // Assuming req.user exists from auth middleware
+            });
+            await product.save();
+        }
 
         let process = await Manufacturing.findOne({ sweetName: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } });
 
@@ -380,6 +404,7 @@ const getManufacturingProcessByName = async (req, res) => {
     }
 };
 
+// Update manufacturing process
 const updateManufacturingProcess = async (req, res) => {
     try {
         const { id } = req.params;
@@ -396,6 +421,46 @@ const updateManufacturingProcess = async (req, res) => {
             if (!ingredient.name || !ingredient.quantity || !ingredient.unit || !ingredient.price) {
                 return res.status(400).json({ message: 'Each ingredient must have a name, quantity, unit, and price for update.' });
             }
+        }
+
+        // Check if the product exists in the products collection
+        let product = await Product.findOne({ 
+            name: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } 
+        });
+
+        // If product doesn't exist, create it with minimal information
+        if (!product) {
+            product = new Product({
+                name: sweetName,
+                category: null, // No category initially
+                sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Generate a unique SKU
+                stockLevel: 0, // Manufacturing doesn't add to stock initially
+                prices: [{
+                    unit: unit,
+                    netPrice: price,
+                    sellingPrice: price * 1.2 // Assuming 20% profit margin
+                }],
+                admin: req.user._id // Assuming req.user exists from auth middleware
+            });
+            await product.save();
+        } else {
+            // If product exists, update its price information if needed
+            let priceObj = product.prices.find(p => p.unit.toLowerCase() === unit.toLowerCase());
+            if (!priceObj) {
+                // Add new price entry if unit doesn't exist
+                product.prices.push({
+                    unit: unit,
+                    netPrice: price,
+                    sellingPrice: price * 1.2
+                });
+            } else {
+                // Update existing price if different
+                if (priceObj.netPrice !== price) {
+                    priceObj.netPrice = price;
+                    priceObj.sellingPrice = price * 1.2;
+                }
+            }
+            await product.save();
         }
 
         const updatedProcess = await Manufacturing.findByIdAndUpdate(
@@ -487,8 +552,54 @@ const getMaterialStockAlerts = async (req, res) => {
 
 const getOutgoingMaterials = async (req, res) => {
     try {
-        const outgoingMaterials = await OutgoingMaterial.find().sort({ usedDate: -1 });
-        res.json(outgoingMaterials);
+        // Populate outgoing materials with related schedule information
+        const outgoingMaterials = await OutgoingMaterial.find()
+            .sort({ usedDate: -1 });
+        
+        // Get all unique schedule IDs from outgoing materials
+        const scheduleIds = [...new Set(outgoingMaterials.map(item => item.scheduleId))];
+        
+        // Filter valid ObjectIds to avoid errors
+        const validScheduleIds = scheduleIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+        
+        // Get related daily schedules
+        const dailySchedules = await DailySchedule.find({ _id: { $in: validScheduleIds } });
+        
+        // Create a map of scheduleId to schedule details
+        const scheduleMap = {};
+        dailySchedules.forEach(schedule => {
+            scheduleMap[schedule._id] = schedule;
+        });
+        
+        // Enhance outgoing materials with additional information
+        const enhancedOutgoingMaterials = outgoingMaterials.map(item => {
+            const schedule = scheduleMap[item.scheduleId];
+            
+            // Calculate total cost
+            const totalCost = item.quantityUsed * item.pricePerUnit;
+            
+            // Create readable schedule reference
+            let readableScheduleRef = item.scheduleId;
+            if (mongoose.Types.ObjectId.isValid(item.scheduleId)) {
+                readableScheduleRef = `SCH-${item.scheduleId.substring(0, 8).toUpperCase()}`;
+            } else if (item.scheduleId.startsWith('SCHEDULE_')) {
+                // Convert old format to readable format
+                readableScheduleRef = `SCH-${item.scheduleId.substring(9, 17)}`;
+            }
+            
+            return {
+                ...item.toObject(),
+                manufacturedProductName: schedule ? schedule.sweetName : item.scheduleReference,
+                dateUsed: item.usedDate,
+                manufacturingProcessReference: readableScheduleRef,
+                dailyScheduleReference: readableScheduleRef,
+                status: schedule ? schedule.status : 'Unknown',
+                totalCost: totalCost,
+                unit: item.unit
+            };
+        });
+        
+        res.json(enhancedOutgoingMaterials);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
@@ -500,6 +611,12 @@ const createOutgoingMaterial = async (req, res) => {
         
         if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ message: 'Invalid ingredients data provided.' });
+        }
+        
+        // Check if outgoing materials for this schedule already exist to prevent duplicates
+        const existingOutgoingMaterials = await OutgoingMaterial.find({ scheduleId });
+        if (existingOutgoingMaterials.length > 0) {
+            return res.status(400).json({ message: 'Outgoing materials already exist for this schedule. Cannot process duplicate entries.' });
         }
         
         const outgoingRecords = [];
@@ -543,11 +660,39 @@ const createOutgoingMaterial = async (req, res) => {
                     await outgoingRecord.save();
                     outgoingRecords.push(outgoingRecord);
                 } else {
+                    // If any ingredient fails, revert all previous deductions
+                    for (const revertedItem of deductedItems) {
+                        const itemToRevert = await StoreRoomItem.findOne({ name: { $regex: new RegExp(`^${revertedItem.name.trim()}$`, 'i') } });
+                        if (itemToRevert) {
+                            itemToRevert.quantity += revertedItem.deductedQuantity;
+                            await itemToRevert.save();
+                        }
+                    }
+                    
+                    // Delete all created outgoing records
+                    for (const record of outgoingRecords) {
+                        await OutgoingMaterial.findByIdAndDelete(record._id);
+                    }
+                    
                     return res.status(400).json({ 
                         message: `Insufficient stock for ${ingredient.materialName}. Available: ${storeItem.quantity}, Required: ${ingredient.quantityUsed}` 
                     });
                 }
             } else {
+                // If any ingredient fails, revert all previous deductions
+                for (const revertedItem of deductedItems) {
+                    const itemToRevert = await StoreRoomItem.findOne({ name: { $regex: new RegExp(`^${revertedItem.name.trim()}$`, 'i') } });
+                    if (itemToRevert) {
+                        itemToRevert.quantity += revertedItem.deductedQuantity;
+                        await itemToRevert.save();
+                    }
+                }
+                
+                // Delete all created outgoing records
+                for (const record of outgoingRecords) {
+                    await OutgoingMaterial.findByIdAndDelete(record._id);
+                }
+                
                 return res.status(404).json({ 
                     message: `Material ${ingredient.materialName} not found in store room.` 
                 });
@@ -561,6 +706,155 @@ const createOutgoingMaterial = async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating outgoing materials:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+// Get daily schedules with status
+const getDailySchedules = async (req, res) => {
+    try {
+        const schedules = await DailySchedule.find().sort({ date: -1, createdAt: -1 });
+        res.json(schedules);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+// Create daily schedule
+const createDailySchedule = async (req, res) => {
+    try {
+        const { sweetName, quantity, ingredients, price, unit, date, description } = req.body;
+        
+        if (!sweetName || !quantity || !ingredients || !price || !unit || !date) {
+            return res.status(400).json({ message: 'All fields are required: sweetName, quantity, ingredients, price, unit, date' });
+        }
+        
+        // Validate ingredients array
+        if (!Array.isArray(ingredients) || ingredients.length === 0) {
+            return res.status(400).json({ message: 'Ingredients must be a non-empty array' });
+        }
+        
+        const schedule = new DailySchedule({
+            sweetName,
+            quantity: Number(quantity),
+            ingredients,
+            price: Number(price),
+            unit,
+            date: new Date(date),
+            description: description || ''
+        });
+        
+        await schedule.save();
+        res.status(201).json(schedule);
+    } catch (error) {
+        console.error('Error creating daily schedule:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+// Update daily schedule status
+const getDailyScheduleById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const schedule = await DailySchedule.findById(id);
+        
+        if (!schedule) {
+            return res.status(404).json({ message: 'Daily schedule not found' });
+        }
+        
+        res.json(schedule);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+const updateDailyScheduleStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        
+        if (!status || !['Pending', 'Completed'].includes(status)) {
+            return res.status(400).json({ message: 'Status must be either "Pending" or "Completed"' });
+        }
+        
+        // Find the schedule
+        const schedule = await DailySchedule.findById(id);
+        if (!schedule) {
+            return res.status(404).json({ message: 'Schedule not found' });
+        }
+        
+        // Prevent changing status from Completed back to Pending
+        if (schedule.status === 'Completed' && status === 'Pending') {
+            return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
+        }
+        
+        // If changing to Completed, update product stock
+        if (status === 'Completed' && schedule.status !== 'Completed') {
+            // Find the product by name (case-insensitive)
+            const product = await Product.findOne({ 
+                name: { $regex: new RegExp(`^${schedule.sweetName.trim()}$`, 'i') } 
+            });
+            
+            if (product) {
+                // Find if there's already a price entry with the same unit
+                let priceObj = product.prices.find(p => p.unit.toLowerCase() === schedule.unit.toLowerCase());
+                
+                if (!priceObj) {
+                    // If unit doesn't exist, create a new price entry
+                    priceObj = {
+                        unit: schedule.unit,
+                        netPrice: schedule.price,
+                        sellingPrice: schedule.price * 1.2 // Assuming 20% profit margin
+                    };
+                    product.prices.push(priceObj);
+                } else {
+                    // If unit exists, update the price if it's different
+                    if (priceObj.netPrice !== schedule.price) {
+                        priceObj.netPrice = schedule.price;
+                        priceObj.sellingPrice = schedule.price * 1.2;
+                    }
+                }
+                
+                // Update the stock level by adding the scheduled quantity
+                product.stockLevel = (product.stockLevel || 0) + Number(schedule.quantity);
+                
+                await product.save();
+            } else {
+                // If product doesn't exist in the products collection, create a new one
+                // First, try to find a category for the product (optional - you might want to handle this differently)
+                const newProduct = new Product({
+                    name: schedule.sweetName,
+                    category: null, // You might want to set a default category or get it from somewhere else
+                    sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Generate a unique SKU
+                    stockLevel: Number(schedule.quantity),
+                    prices: [{
+                        unit: schedule.unit,
+                        netPrice: schedule.price,
+                        sellingPrice: schedule.price * 1.2 // Assuming 20% profit margin
+                    }],
+                    admin: req.user._id // Assuming req.user exists from auth middleware
+                });
+                
+                await newProduct.save();
+            }
+        }
+        
+        // Update the schedule status
+        const updatedSchedule = await DailySchedule.findByIdAndUpdate(
+            id,
+            { 
+                status,
+                completedAt: status === 'Completed' ? new Date() : null
+            },
+            { new: true }
+        );
+        
+        res.json({
+            message: `Schedule status updated to ${status}`,
+            schedule: updatedSchedule
+        });
+    } catch (error) {
+        console.error('Error updating schedule status:', error);
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
@@ -591,4 +885,8 @@ module.exports = {
     getReturnProducts,
     getVendorHistory,
     getAllVendorHistory,
+    getDailySchedules,        // Add this function to exports
+    createDailySchedule,      // Add this function to exports
+    getDailyScheduleById,     // Add this function to exports
+    updateDailyScheduleStatus // Add this function to exports
 };

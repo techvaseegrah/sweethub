@@ -78,7 +78,13 @@ function ShopViewBills() {
 
   const generateInvoice = (bill) => {
     // For shop bills, use the shop data from the bill itself
-    generateBillPdf(bill, bill.shop);
+    generateBillPdf(bill, {
+      name: bill.shopName || bill.shop?.name,
+      address: bill.shopAddress || bill.shop?.location,
+      gstNumber: bill.shopGstNumber || bill.shop?.gstNumber,
+      fssaiNumber: bill.shopFssaiNumber || bill.shop?.fssaiNumber,
+      phone: bill.shopPhone || bill.shop?.shopPhoneNumber
+    });
   };
   
   const viewBillDetails = (bill) => {

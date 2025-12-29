@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuFileCheck, LuInbox, LuSend, LuEye, LuClock, LuCheck, LuDownload, LuTriangleAlert } from 'react-icons/lu';
 import { generateInvoicePdf } from '../../../utils/generateInvoicePdf';
+import { generateBillPdf } from '../../../utils/generateBillPdf';
 import CustomModal from '../../CustomModal'; // Import the CustomModal component
 
 function ViewInvoice() {
@@ -659,7 +660,13 @@ function ViewInvoice() {
                             console.error('No invoice data provided');
                             return;
                           }
-                          generateInvoicePdf(invoice);
+                          generateBillPdf(invoice, {
+                            name: invoice.shop?.name,
+                            address: invoice.shop?.location,
+                            gstNumber: invoice.shop?.gstNumber,
+                            fssaiNumber: invoice.shop?.fssaiNumber,
+                            phone: invoice.shop?.shopPhoneNumber
+                          });
                         }}
                         className="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 text-sm font-medium rounded-md hover:bg-green-200 transition-colors"
                       >

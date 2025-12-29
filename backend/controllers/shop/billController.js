@@ -25,14 +25,16 @@ exports.createBill = async (req, res) => {
       customerMobileNumber, 
       customerName, 
       items, 
+      baseAmount,
+      gstPercentage,
+      gstAmount,
       totalAmount, 
       paymentMethod, 
       amountPaid,
       discountType,
       discountValue,
-      discountAmount,
-      fromInfo, // Add FROM information
-      toInfo    // Add TO information
+      discountAmount
+      // Note: fromInfo and toInfo are not used for shop bills
     } = req.body;
 
     // 2. Generate unique bill ID for this shop
@@ -89,23 +91,34 @@ exports.createBill = async (req, res) => {
       );
     }
 
-    // 4. Create Bill
+    // 4. Fetch Shop Details for Bill Creation
+    const shopDetails = await Shop.findById(shopId);
+    
+    // 5. Create Bill
     const newBill = new Bill({
       billId,
       shop: shopId,
       customerMobileNumber,
       customerName,
       items: itemsWithDetails,
+      baseAmount,
+      gstPercentage,
+      gstAmount,
       totalAmount,
       paymentMethod,
       amountPaid,
-      // Add FROM and TO information
-      ...(fromInfo && { fromInfo }),
-      ...(toInfo && { toInfo }),
+      // Note: FROM and TO information are not used for shop bills
+      // Only admin bills use fromInfo and toInfo
       // Add discount fields
       discountType: discountType || 'none',
       discountValue: discountValue || 0,
-      discountAmount: discountAmount || 0
+      discountAmount: discountAmount || 0,
+      // Include shop details for PDF generation
+      shopName: shopDetails?.name,
+      shopAddress: shopDetails?.location,
+      shopGstNumber: shopDetails?.gstNumber,
+      shopFssaiNumber: shopDetails?.fssaiNumber,
+      shopPhone: shopDetails?.shopPhoneNumber
     });
 
     await newBill.save({ session });
@@ -113,8 +126,7 @@ exports.createBill = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // 5. Fetch Shop Details for WhatsApp Name
-    const shopDetails = await Shop.findById(shopId);
+    // 6. Get shop name for WhatsApp
     const shopName = shopDetails ? shopDetails.name : 'Sri Sakthi Sweets';
 
     // 6. Send WhatsApp

@@ -32,6 +32,36 @@ exports.getShopProducts = async (req, res) => {
   }
 };
 
-// You may have other functions here for updating product details, etc.
-// Based on the request, no other changes are needed in this file.
-// For example: exports.updateShopProduct = async (req, res) => { ... };
+// Update product prices for shop users
+exports.updateShopProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prices } = req.body;
+    
+    // Get shop ID from the authenticated user
+    const shopId = req.user.shopId;
+    
+    if (!shopId) {
+      return res.status(400).json({ message: 'Shop ID not found in user token.' });
+    }
+    
+    // Find the product that belongs to this shop
+    const product = await Product.findOne({ _id: id, shop: shopId });
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found or does not belong to your shop.' });
+    }
+    
+    // Update only the prices field
+    if (prices && Array.isArray(prices)) {
+      product.prices = prices;
+    }
+    
+    const updatedProduct = await product.save();
+    
+    res.status(200).json(updatedProduct);
+  } catch (error) {
+    console.error('Error updating shop product:', error);
+    res.status(500).json({ message: 'Failed to update product.', error: error.message });
+  }
+};

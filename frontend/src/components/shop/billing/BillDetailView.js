@@ -75,18 +75,27 @@ const BillDetailView = ({ bill, onClose }) => {
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="flex justify-end">
               <div className="w-full max-w-xs">
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span className="font-medium">₹{bill.subtotal?.toFixed(2) || bill.totalAmount?.toFixed(2) || '0.00'}</span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-600">Tax:</span>
-                  <span className="font-medium">₹{bill.tax?.toFixed(2) || '0.00'}</span>
-                </div>
-                <div className="flex justify-between py-2 border-t border-gray-300 mt-2">
-                  <span className="text-lg font-bold text-gray-800">Total Amount:</span>
-                  <span className="text-lg font-bold text-gray-800">₹{bill.totalAmount?.toFixed(2) || '0.00'}</span>
-                </div>
+                {bill.gstPercentage > 0 ? (
+                  <>
+                    <div className="flex justify-between py-2">
+                      <span className="text-gray-600">Base Amount:</span>
+                      <span className="font-medium">₹{bill.baseAmount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-gray-600">GST ({bill.gstPercentage}%):</span>
+                      <span className="font-medium">₹{bill.gstAmount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-t border-gray-300 mt-2">
+                      <span className="text-lg font-bold text-gray-800">Total Amount:</span>
+                      <span className="text-lg font-bold text-gray-800">₹{bill.totalAmount?.toFixed(2) || '0.00'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-600">Total Amount:</span>
+                    <span className="text-lg font-bold text-gray-800">₹{bill.totalAmount?.toFixed(2) || '0.00'}</span>
+                  </div>
+                )}
                 {bill.amountPaid > 0 && (
                   <div className="flex justify-between py-2">
                     <span className="text-gray-600">Amount Paid:</span>

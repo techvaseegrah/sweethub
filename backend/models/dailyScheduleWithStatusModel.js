@@ -53,4 +53,4 @@ const dailyScheduleSchema = new mongoose.Schema({
     }
 });
 
-module.exports = mongoose.model('DailySchedule', dailyScheduleSchema);
+module.exports = mongoose.model('DailyScheduleWithStatus', dailyScheduleSchema);

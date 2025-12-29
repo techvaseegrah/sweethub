@@ -1,7 +1,7 @@
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Menu } from 'lucide-react';
-import AdminSidebar from '../components/admin/Sidebar';
+import { LuMenu } from 'react-icons/lu';
+import Sidebar from '../components/admin/Sidebar';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AddWorker from '../components/admin/worker/AddWorker';
 import ViewWorkers from '../components/admin/worker/ViewWorkers';
@@ -37,6 +37,7 @@ import RawMaterials from '../components/admin/warehouse/RawMaterials';
 // Removed FaceServiceDiagnostic import
 import InvoiceHistory from '../components/admin/invoice/InvoiceHistory';
 import ProfitLossPage from './ProfitLossPage';
+import ProductionSchedules from '../components/admin/warehouse/ProductionSchedules'; // Add this import
 import Settings from '../components/admin/settings/Settings';
 // Expense module imports
 import ExpenseDashboard from '../components/admin/expense/ExpenseDashboard';
@@ -81,7 +82,7 @@ const AdminDashboardPage = () => {
             {/* Sidebar */}
             <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
                              lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-40`}>
-                <AdminSidebar />
+                <Sidebar />
             </div>
 
             {/* --- MODIFIED: Main content area for responsiveness --- */}
@@ -89,7 +90,7 @@ const AdminDashboardPage = () => {
                 {/* Mobile and Tablet header */}
                 <header className="lg:hidden bg-white shadow-sm p-4 flex items-center justify-between">
                     <button onClick={toggleSidebar} className="text-gray-500 focus:outline-none">
-                        <Menu size={24} />
+                        <LuMenu size={24} />
                     </button>
                     <h1 className="text-xl font-bold text-gray-800">Admin Panel</h1>
                 </header>
@@ -116,6 +117,7 @@ const AdminDashboardPage = () => {
                         <Route path="warehouse/manufacturing" element={<Manufacturing />} />
                         <Route path="warehouse/daily-schedule" element={<DailySchedule />} />
                         <Route path="warehouse/outgoing-materials" element={<OutgoingMaterials />} />
+                        <Route path="warehouse/production-schedules" element={<ProductionSchedules />} /> {/* Add this route */}
                         <Route path="warehouse/material-stock-alerts" element={<MaterialStockAlerts />} />
                         <Route path="warehouse/packing-materials/alerts" element={<AlertPackingMaterials />} />
                         <Route path="warehouse/packing-materials/outgoing" element={<OutgoingPackingMaterials />} />

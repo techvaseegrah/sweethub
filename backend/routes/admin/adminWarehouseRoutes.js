@@ -27,6 +27,10 @@ const {
     getVendorHistory,
     getAllVendorHistory,
     // getPackingMaterialVendorHistory, // Remove this line
+    getDailySchedules,        // Add the new function
+    createDailySchedule,      // Add the new function
+    getDailyScheduleById,     // Add this function to exports
+    updateDailyScheduleStatus // Add the new function
 } = require('../../controllers/admin/warehouseController');
 const { adminAuth } = require('../../middleware/auth');
 
@@ -65,6 +69,12 @@ router.delete('/manufacturing/:id', deleteManufacturingProcess);
 router.put('/outgoing-materials/bulk-update', bulkUpdateOutgoingMaterials);
 
 router.put('/outgoing-materials/:id', updateOutgoingMaterial);
+
+// Daily Schedules
+router.get('/daily-schedules', getDailySchedules);
+router.post('/daily-schedules', createDailySchedule);
+router.get('/daily-schedules/:id', getDailyScheduleById);
+router.put('/daily-schedules/:id/status', updateDailyScheduleStatus);
 
 // Material Stock Alerts
 router.get('/material-stock-alerts', getMaterialStockAlerts);

@@ -30,6 +30,8 @@ function ViewShops() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  // State for update confirmation modal
+  const [showUpdateConfirmation, setShowUpdateConfirmation] = useState(false);
   // State for delete confirmation modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [shopToDelete, setShopToDelete] = useState(null);
@@ -59,6 +61,8 @@ function ViewShops() {
       name: shop.name || '',
       location: shop.location || '',
       shopPhoneNumber: shop.shopPhoneNumber || '',
+      gstNumber: shop.gstNumber || '',
+      fssaiNumber: shop.fssaiNumber || '',
       newPassword: '',
       confirmNewPassword: ''
     });
@@ -92,12 +96,21 @@ function ViewShops() {
       return;
     }
     
+    // Show update confirmation modal
+    setShowUpdateConfirmation(true);
+  };
+  
+  const confirmUpdate = async () => {
+    setShowUpdateConfirmation(false);
+    
     try {
       // Prepare update data
       const updateData = {
         name: editedShop.name,
         location: editedShop.location,
-        shopPhoneNumber: editedShop.shopPhoneNumber
+        shopPhoneNumber: editedShop.shopPhoneNumber,
+        gstNumber: editedShop.gstNumber,
+        fssaiNumber: editedShop.fssaiNumber
       };
       
       // Include new password only if it's provided
@@ -120,6 +133,10 @@ function ViewShops() {
       setErrorMessage('Failed to update shop.');
       console.error(err);
     }
+  };
+  
+  const cancelUpdate = () => {
+    setShowUpdateConfirmation(false);
   };
 
   // Open delete confirmation modal
@@ -180,6 +197,8 @@ function ViewShops() {
                 {shop.user && <p className="text-sm text-gray-500 mt-2">Username: {shop.user.username}</p>}
                 <p className="text-sm text-gray-500">Location: {shop.location}</p>
                 <p className="text-sm text-gray-500">Phone Number: {shop.shopPhoneNumber}</p>
+                {shop.gstNumber && <p className="text-sm text-gray-500">GST Number: {shop.gstNumber}</p>}
+                {shop.fssaiNumber && <p className="text-sm text-gray-500">FSSAI Number: {shop.fssaiNumber}</p>}
               </div>
               <div className="w-full flex justify-end items-center space-x-4 sm:w-auto sm:space-x-2">
                 <button
@@ -231,6 +250,26 @@ function ViewShops() {
               value={editedShop.location || ''}
               onChange={(e) => handleInputChange(e, 'location')}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">GST Number</label>
+            <input
+              type="text"
+              value={editedShop.gstNumber || ''}
+              onChange={(e) => handleInputChange(e, 'gstNumber')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter GST number (optional)"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">FSSAI Number</label>
+            <input
+              type="text"
+              value={editedShop.fssaiNumber || ''}
+              onChange={(e) => handleInputChange(e, 'fssaiNumber')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Enter FSSAI number (optional)"
             />
           </div>
           
@@ -364,6 +403,45 @@ function ViewShops() {
                 className="inline-flex justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      </CustomModal>
+
+      {/* Update Confirmation Modal */}
+      <CustomModal 
+        isOpen={showUpdateConfirmation} 
+        onClose={cancelUpdate} 
+        title="Confirm Update"
+      >
+        <div className="text-center py-4">
+          <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+            <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="mt-3">
+            <h3 className="text-lg font-medium text-gray-900">Are you sure you want to update this shop?</h3>
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">
+                This will update the shop details including GST and FSSAI numbers. Do you want to continue?
+              </p>
+            </div>
+            <div className="mt-6 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={cancelUpdate}
+                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmUpdate}
+                className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Update
               </button>
             </div>
           </div>

@@ -642,6 +642,22 @@ const Sidebar = () => {
                             <span className="font-medium">Outgoing Materials</span>
                         </NavLink>
                         <NavLink
+                            to="/admin/warehouse/production-schedules"
+                            className={({ isActive }) =>
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                }`
+                            }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
+                        >
+                            <span className="font-medium">Production Schedules</span>
+                        </NavLink>
+                        <NavLink
                             to="/admin/warehouse/material-stock-alerts"
                             className={({ isActive }) =>
                                 `flex items-center px-3 py-2 text-sm rounded-lg ${

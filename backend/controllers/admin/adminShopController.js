@@ -37,7 +37,7 @@ const generateShopCode = async (location, shopName) => {
 };
 
 exports.addShop = async (req, res) => {
-  const { name, location, shopPhoneNumber, username, password } = req.body;
+  const { name, location, shopPhoneNumber, gstNumber, fssaiNumber, username, password } = req.body;
   
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -71,7 +71,7 @@ exports.addShop = async (req, res) => {
     });
     await newUser.save({ session });
 
-    const newShop = new Shop({ name, location, shopPhoneNumber, shopCode, user: newUser._id });
+    const newShop = new Shop({ name, location, shopPhoneNumber, gstNumber, fssaiNumber, shopCode, user: newUser._id });
     await newShop.save({ session });
 
     await session.commitTransaction();
@@ -103,11 +103,11 @@ exports.getShops = async (req, res) => {
 
 exports.updateShop = async (req, res) => {
     const { id } = req.params;
-    const { name, location, shopPhoneNumber, password } = req.body;
+    const { name, location, shopPhoneNumber, gstNumber, fssaiNumber, password } = req.body;
     try {
         const updatedShop = await Shop.findByIdAndUpdate(
             id,
-            { name, location, shopPhoneNumber },
+            { name, location, shopPhoneNumber, gstNumber, fssaiNumber },
             { new: true }
         );
         if (!updatedShop) {

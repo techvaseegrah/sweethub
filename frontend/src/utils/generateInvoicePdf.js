@@ -12,7 +12,9 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
   // Handle different invoice data structures
   const shopName = invoiceData?.shop?.name || invoiceData?.shopName || 'The Sweet Hub';
   const shopLocation = invoiceData?.shop?.address || invoiceData?.shopAddress || '156, Dubai Main Road, Thanjavur, Tamil Nadu - 613006';
-  const shopPhone = invoiceData?.shop?.phone || '7339200636';
+  const shopPhone = invoiceData?.shop?.phone || invoiceData?.shopPhone || '7339200636';
+  const shopGstNumber = invoiceData?.shop?.gstNumber || invoiceData?.shopGstNumber || null;
+  const shopFssaiNumber = invoiceData?.shop?.fssaiNumber || invoiceData?.shopFssaiNumber || null;
   const adminName = invoiceData?.admin?.name || 'Admin';
   
   // Extract invoice details
@@ -89,6 +91,8 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
         <h2 style="color: #333;">${shopName}</h2>
         <p style="color: #666; font-size: 14px;">${shopLocation}</p>
         ${shopPhone ? `<p style="color: #666; font-size: 14px;">Phone: ${shopPhone}</p>` : ''}
+        ${shopGstNumber ? `<p style="color: #666; font-size: 14px;">GSTIN: ${shopGstNumber}</p>` : ''}
+        ${shopFssaiNumber ? `<p style="color: #666; font-size: 14px;">FSSAI: ${shopFssaiNumber}</p>` : ''}
       </div>
       <div style="display: flex; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
         <div>

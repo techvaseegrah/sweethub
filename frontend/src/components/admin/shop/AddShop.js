@@ -8,6 +8,8 @@ function AddShop() {
   const [shopName, setShopName] = useState('');
   const [shopLocation, setShopLocation] = useState('');
   const [shopPhoneNumber, setShopPhoneNumber] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
+  const [fssaiNumber, setFssaiNumber] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
@@ -22,7 +24,7 @@ function AddShop() {
     try {
       await axios.post(
         SHOPS_URL,
-        JSON.stringify({ name: shopName, location: shopLocation, shopPhoneNumber, username, password }),
+        JSON.stringify({ name: shopName, location: shopLocation, shopPhoneNumber, gstNumber, fssaiNumber, username, password }),
         {
           headers: { 'Content-Type': 'application/json' },
           withCredentials: true,
@@ -32,6 +34,8 @@ function AddShop() {
       setShopName('');
       setShopLocation('');
       setShopPhoneNumber('');
+      setGstNumber('');
+      setFssaiNumber('');
       setUsername('');
       setPassword('');
     } catch (err) {
@@ -81,6 +85,32 @@ function AddShop() {
             value={shopLocation}
             onChange={(e) => setShopLocation(e.target.value)}
             required
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="gstNumber">
+            GST Number
+          </label>
+          <input
+            type="text"
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="gstNumber"
+            value={gstNumber}
+            onChange={(e) => setGstNumber(e.target.value)}
+            placeholder="Enter GST number (optional)"
+          />
+        </div>
+        <div>
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="fssaiNumber">
+            FSSAI Number
+          </label>
+          <input
+            type="text"
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="fssaiNumber"
+            value={fssaiNumber}
+            onChange={(e) => setFssaiNumber(e.target.value)}
+            placeholder="Enter FSSAI number (optional)"
           />
         </div>
         <div>

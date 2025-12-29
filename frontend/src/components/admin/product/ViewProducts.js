@@ -108,8 +108,37 @@ function ViewProducts({ baseUrl = '/admin' }) {
     setEditedProduct({ ...editedProduct, [field]: e.target.value });
   };
 
+  const handlePriceChange = (index, field, value) => {
+    const updatedPrices = [...editedProduct.prices];
+    updatedPrices[index][field] = value;
+    setEditedProduct({ ...editedProduct, prices: updatedPrices });
+  };
+
+  const addNewPrice = () => {
+    const newPrice = { unit: 'piece', netPrice: '', sellingPrice: '' };
+    setEditedProduct({ 
+      ...editedProduct, 
+      prices: [...editedProduct.prices, newPrice] 
+    });
+  };
+
+  const removePrice = (index) => {
+    if (editedProduct.prices.length <= 1) {
+      alert('At least one price configuration is required.');
+      return;
+    }
+    const updatedPrices = [...editedProduct.prices];
+    updatedPrices.splice(index, 1);
+    setEditedProduct({ ...editedProduct, prices: updatedPrices });
+  };
+
   const openEditModal = (product) => {
-    setEditedProduct({ ...product, category: product.category?._id || '' });
+    // Ensure prices array exists and has at least one entry
+    const productWithPrices = { ...product, category: product.category?._id || '' };
+    if (!productWithPrices.prices || !Array.isArray(productWithPrices.prices) || productWithPrices.prices.length === 0) {
+      productWithPrices.prices = [{ unit: 'piece', netPrice: '', sellingPrice: '' }];
+    }
+    setEditedProduct(productWithPrices);
     setIsEditModalOpen(true);
   };
 
@@ -119,8 +148,37 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
   const confirmUpdate = async () => {
     try {
-      const { ...updatePayload } = editedProduct;
-      await axios.put(`${PRODUCT_URL}/${editedProduct._id}`, updatePayload, {
+      // Prepare the update payload, ensuring prices are properly formatted as numbers
+      let updatePayload = {};
+      
+      if (baseUrl === '/shop') {
+        // For shop side, only update prices
+        updatePayload = {
+          prices: editedProduct.prices.map(price => ({
+            unit: price.unit,
+            netPrice: parseFloat(price.netPrice),
+            sellingPrice: parseFloat(price.sellingPrice)
+          }))
+        };
+      } else {
+        // For admin side, update all fields
+        updatePayload = {
+          ...editedProduct,
+          prices: editedProduct.prices.map(price => ({
+            unit: price.unit,
+            netPrice: parseFloat(price.netPrice),
+            sellingPrice: parseFloat(price.sellingPrice)
+          }))
+        };
+      }
+      
+      // Use different endpoints for admin vs shop
+      let updateUrl = `${PRODUCT_URL}/${editedProduct._id}`;
+      if (baseUrl === '/shop') {
+        updateUrl = `/shop/products/${editedProduct._id}`;
+      }
+      
+      await axios.put(updateUrl, updatePayload, {
         withCredentials: true,
       });
       fetchProducts();
@@ -415,20 +473,39 @@ function ViewProducts({ baseUrl = '/admin' }) {
         
         {isEditModalOpen && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
-          <div className="relative m-4 p-4 sm:p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+          <div className="relative m-4 p-4 sm:p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Edit Product</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input type="text" value={editedProduct.name} onChange={(e) => handleInputChange(e, 'name')} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                <input 
+                  type="text" 
+                  value={editedProduct.name} 
+                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'name') : null} 
+                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={baseUrl === '/shop'}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">SKU</label>
-                <input type="text" value={editedProduct.sku} onChange={(e) => handleInputChange(e, 'sku')} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                <input 
+                  type="text" 
+                  value={editedProduct.sku} 
+                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'sku') : null} 
+                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={baseUrl === '/shop'}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Stock</label>
-                <input type="number" step="0.01" value={editedProduct.stockLevel} onChange={(e) => handleInputChange(e, 'stockLevel')} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={editedProduct.stockLevel} 
+                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'stockLevel') : null} 
+                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={baseUrl === '/shop'}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Stock Alert Threshold</label>
@@ -436,15 +513,94 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   type="number"
                   step="0.01"
                   value={editedProduct.stockAlertThreshold || ''}
-                  onChange={(e) => handleInputChange(e, 'stockAlertThreshold')}
-                  className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'stockAlertThreshold') : null}
+                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={baseUrl === '/shop'}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Category</label>
-                <select value={editedProduct.category} onChange={(e) => setEditedProduct({...editedProduct, category: e.target.value})} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                  {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
-                </select>
+                <select 
+                  value={editedProduct.category} 
+                  onChange={(e) => baseUrl === '/admin' ? setEditedProduct({...editedProduct, category: e.target.value}) : null} 
+                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  disabled={baseUrl === '/shop'}
+                >
+                  {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}</select>
+              </div>
+              
+              {/* Unit Configuration Section */}
+              <div className="mt-6">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-lg font-medium text-gray-800">Unit Configuration</h4>
+                  {baseUrl === '/admin' && (
+                    <button
+                      type="button"
+                      onClick={addNewPrice}
+                      className="text-sm bg-green-500 hover:bg-green-700 text-white py-1 px-3 rounded-md"
+                    >
+                      Add Unit
+                    </button>
+                  )}
+                </div>
+                
+                {editedProduct.prices && editedProduct.prices.map((price, index) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3 p-3 border rounded">
+                    <div className="md:col-span-1">
+                      <label className="block text-gray-700 text-xs font-bold mb-1">Unit</label>
+                      <select
+                        value={price.unit}
+                        onChange={(e) => baseUrl === '/admin' ? handlePriceChange(index, 'unit', e.target.value) : null}
+                        className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                        disabled={baseUrl === '/shop'}
+                      >
+                        <option value="piece">Piece</option>
+                        <option value="kg">Kg</option>
+                        <option value="g">Gram</option>
+                        <option value="l">Liter</option>
+                        <option value="ml">Milliliter</option>
+                        <option value="dozen">Dozen</option>
+                        <option value="pack">Pack</option>
+                        <option value="box">Box</option>
+                        <option value="bundle">Bundle</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-gray-700 text-xs font-bold mb-1">Net Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={price.netPrice}
+                        onChange={(e) => handlePriceChange(index, 'netPrice', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-700 text-xs font-bold mb-1">Selling Price</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={price.sellingPrice}
+                        onChange={(e) => handlePriceChange(index, 'sellingPrice', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        required
+                      />
+                    </div>
+                    {baseUrl === '/admin' && (
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => removePrice(index)}
+                          disabled={editedProduct.prices.length <= 1}
+                          className={`w-full py-2 px-3 rounded-md text-sm ${editedProduct.prices.length <= 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'}`}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
             <div className="mt-6 flex justify-end space-x-3">

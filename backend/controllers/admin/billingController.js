@@ -74,7 +74,15 @@ exports.createBill = async (req, res) => {
     // Create Bill
     const newBill = new Bill({
       billId,
-      ...(finalShopId && finalShopId !== 'admin' && { shop: finalShopId }),
+      ...(finalShopId && finalShopId !== 'admin' && { 
+        shop: finalShopId,
+        // Include shop details for PDF generation
+        shopName: shopDetails?.name,
+        shopAddress: shopDetails?.location,
+        shopGstNumber: shopDetails?.gstNumber,
+        shopFssaiNumber: shopDetails?.fssaiNumber,
+        shopPhone: shopDetails?.shopPhoneNumber
+      }),
       customerMobileNumber,
       customerName,
       items: itemsWithDetails,

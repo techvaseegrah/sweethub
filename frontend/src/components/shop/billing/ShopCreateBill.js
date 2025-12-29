@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from '../../../api/axios';
 import { generateInvoicePdf, printInvoice } from '../../../utils/generateInvoicePdf';
+import { generateBillPdf, printBill } from '../../../utils/generateBillPdf';
 import { getAvailableUnits, convertUnit, areRelatedUnits } from '../../../utils/unitConversion';
 import CustomModal from '../../CustomModal'; // Added import for CustomModal
 import KeyboardShortcutsGuide from './KeyboardShortcutsGuide'; // Import keyboard shortcuts guide
@@ -31,6 +32,8 @@ function CreateBill({ baseUrl = '/shop' }) {
   const [discountValue, setDiscountValue] = useState(''); // Add discount value state
   const [discountAmount, setDiscountAmount] = useState(0); // Add discount amount state
   const [netAmount, setNetAmount] = useState(0); // Add net amount state
+  const [gstPercentage, setGstPercentage] = useState(0); // Add GST percentage state
+  const [gstAmount, setGstAmount] = useState(0); // Add GST amount state
   const [totalAmount, setTotalAmount] = useState(0); // Update total amount calculation
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [amountPaid, setAmountPaid] = useState('');
@@ -76,10 +79,26 @@ function CreateBill({ baseUrl = '/shop' }) {
   }, [PRODUCT_URL]);
 
   useEffect(() => {
-    fetchProducts();
+    const fetchProductsAndGst = async () => {
+      setLoading(true);
+      try {
+        await fetchProducts();
+        
+        // Fetch GST settings
+        const gstResponse = await axios.get('/shop/settings/gst');
+        setGstPercentage(gstResponse.data.gstPercentage || 0);
+      } catch (err) {
+        setError('Failed to fetch products or GST settings.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchProductsAndGst();
   }, [fetchProducts]);
 
-  // Calculate amounts when billItems or discount changes
+  // Calculate amounts when billItems, discount, or gst changes
   useEffect(() => {
     const newSubtotal = billItems.reduce((acc, item) => acc + (item.quantity * item.price), 0);
     setSubtotal(newSubtotal);
@@ -100,11 +119,23 @@ function CreateBill({ baseUrl = '/shop' }) {
     
     setDiscountAmount(calculatedDiscountAmount);
     
-    // Calculate net amount and total
+    // Calculate net amount
     const newNetAmount = newSubtotal - calculatedDiscountAmount;
     setNetAmount(newNetAmount);
-    setTotalAmount(newNetAmount);
-  }, [billItems, discountType, discountValue]);
+    
+    // Calculate GST and total amount
+    if (gstPercentage > 0) {
+      // For GST included in total: base amount = total / (1 + gst%) and gst = total - base
+      const calculatedBaseAmount = newNetAmount / (1 + gstPercentage / 100);
+      const calculatedGstAmount = newNetAmount - calculatedBaseAmount;
+      
+      setGstAmount(calculatedGstAmount);
+      setTotalAmount(newNetAmount); // Total amount is the net amount (which includes GST)
+    } else {
+      setGstAmount(0);
+      setTotalAmount(newNetAmount); // Total is just net amount without GST
+    }
+  }, [billItems, discountType, discountValue, gstPercentage]);
 
   const handleSearchChange = (e) => {
     const value = e.target.value;
@@ -468,6 +499,9 @@ function CreateBill({ baseUrl = '/shop' }) {
         customerMobileNumber,
         customerName,
         items: billItems,
+        baseAmount: gstPercentage > 0 ? netAmount / (1 + gstPercentage / 100) : netAmount, // Base amount is before GST
+        gstPercentage,
+        gstAmount,
         totalAmount,
         paymentMethod,
         amountPaid: amountPaidNumber,
@@ -489,11 +523,23 @@ function CreateBill({ baseUrl = '/shop' }) {
       setMessage('Bill created successfully!');
 
       if (autoDownload) {
-        generateInvoicePdf(response.data);
+        generateBillPdf(response.data, {
+          name: response.data.shopName,
+          address: response.data.shopAddress,
+          gstNumber: response.data.shopGstNumber,
+          fssaiNumber: response.data.shopFssaiNumber,
+          phone: response.data.shopPhone
+        });
       }
       
       if (autoPrint) {
-        printInvoice(response.data);
+        printBill(response.data, {
+          name: response.data.shopName,
+          address: response.data.shopAddress,
+          gstNumber: response.data.shopGstNumber,
+          fssaiNumber: response.data.shopFssaiNumber,
+          phone: response.data.shopPhone
+        });
       }
 
       setCustomerMobileNumber('');
@@ -504,6 +550,8 @@ function CreateBill({ baseUrl = '/shop' }) {
       setDiscountValue('');
       setDiscountAmount(0);
       setNetAmount(0);
+      setGstPercentage(0); // Reset GST percentage
+      setGstAmount(0); // Reset GST amount
       setTotalAmount(0);
       setAmountPaid('');
       setSearchTerm('');
@@ -540,6 +588,8 @@ function CreateBill({ baseUrl = '/shop' }) {
         setDiscountValue('');
         setDiscountAmount(0);
         setNetAmount(0);
+        setGstPercentage(0); // Reset GST percentage
+        setGstAmount(0); // Reset GST amount
         setTotalAmount(0);
         setAmountPaid('');
         setSearchTerm('');
@@ -1270,6 +1320,19 @@ function CreateBill({ baseUrl = '/shop' }) {
             <span>Net Amount:</span>
             <span>₹{netAmount.toFixed(2)}</span>
           </div>
+          
+          {gstPercentage > 0 && (
+            <>
+              <div className="flex justify-between">
+                <span>Base Amount:</span>
+                <span>₹{(netAmount / (1 + gstPercentage / 100)).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>GST ({gstPercentage}%):</span>
+                <span>₹{gstAmount.toFixed(2)}</span>
+              </div>
+            </>
+          )}
           
           <div className="flex justify-between font-bold">
             <span>Total Amount:</span>

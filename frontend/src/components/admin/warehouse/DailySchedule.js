@@ -333,7 +333,7 @@ const DailySchedule = () => {
             const responses = [];
             
             for (const sweet of selectedSweets) {
-                const response = await axios.post('/admin/daily-schedule', {
+                const response = await axios.post('/admin/warehouse/daily-schedules', {
                     sweetName: sweet.sweetName,
                     quantity: sweet.quantity,
                     ingredients: sweet.ingredients,
@@ -349,6 +349,10 @@ const DailySchedule = () => {
             setMessageType('success');
             setIsFormSubmitted(true);
 
+            // Store the created schedule IDs in component state for later use
+            const scheduleIds = responses.map(response => response._id);
+            window.createdScheduleIds = scheduleIds; // Store in window for access in handleCreatePDF
+
         } catch (error) {
             console.error('Error creating daily schedule:', error);
             setMessage(error.response?.data?.message || 'Failed to create daily schedule.');
@@ -360,47 +364,33 @@ const DailySchedule = () => {
 
     const handleCreatePDF = async () => {
         try {
-            // Collect all ingredients from all sweets
-            const selectedSweets = sweets.filter(sweet => sweet.sweetName.trim() !== '');
-            const allIngredients = selectedSweets.flatMap(sweet => sweet.ingredients);
+            // Get the stored schedule IDs
+            const scheduleIds = window.createdScheduleIds;
             
-            // Get unique ingredients with total quantities
-            const ingredientMap = new Map();
-            allIngredients.forEach(ingredient => {
-                const key = `${ingredient.name}-${ingredient.unit}`;
-                if (ingredientMap.has(key)) {
-                    const existing = ingredientMap.get(key);
-                    ingredientMap.set(key, {
-                        ...existing,
-                        quantity: existing.quantity + ingredient.quantity
-                    });
-                } else {
-                    ingredientMap.set(key, { ...ingredient });
-                }
-            });
+            if (!scheduleIds || scheduleIds.length === 0) {
+                throw new Error('No daily schedules found to process');
+            }
             
-            const uniqueIngredients = Array.from(ingredientMap.values());
-            
-            // Create outgoing material records and deduct from store room
-            // We'll use the first sweet name as the reference since the backend expects a single sweet name
-            const primarySweetName = selectedSweets[0]?.sweetName || 'Multiple Sweets';
-            
-            const outgoingMaterialsData = {
-                scheduleId: `SCHEDULE_${Date.now()}`,
-                date: date,
-                sweetName: primarySweetName,
-                ingredients: uniqueIngredients.map(ingredient => ({
-                    materialName: ingredient.name,
-                    quantityUsed: ingredient.quantity,
-                    unit: ingredient.unit,
-                    pricePerUnit: ingredient.price || 0
-                })),
-                // Include descriptions from all sweets
-                descriptions: selectedSweets.map(sweet => sweet.description).filter(desc => desc.trim() !== '')
-            };
-            
-            // Call the backend to create outgoing materials and deduct from store room
-            await axios.post('/admin/warehouse/outgoing-materials', outgoingMaterialsData);
+            // Fetch the specific schedules that were created
+            for (const scheduleId of scheduleIds) {
+                const scheduleResponse = await axios.get(`/admin/warehouse/daily-schedules/${scheduleId}`);
+                const schedule = scheduleResponse.data;
+                
+                const outgoingMaterialsData = {
+                    scheduleId: schedule._id, // Use the actual schedule ID
+                    date: schedule.date,
+                    sweetName: schedule.sweetName,
+                    ingredients: schedule.ingredients.map(ingredient => ({
+                        materialName: ingredient.name,
+                        quantityUsed: ingredient.quantity,
+                        unit: ingredient.unit,
+                        pricePerUnit: ingredient.price || 0
+                    }))
+                };
+                
+                // Call the backend to create outgoing materials and deduct from store room
+                await axios.post('/admin/warehouse/outgoing-materials', outgoingMaterialsData);
+            }
             
             // Generate PDF
             setTimeout(() => {

@@ -96,7 +96,13 @@ const billSchema = new mongoose.Schema({
     state: String,
     stateCode: String,
     phone: String
-  }
+  },
+  // Shop details for PDF generation
+  shopName: String,
+  shopAddress: String,
+  shopGstNumber: String,
+  shopFssaiNumber: String,
+  shopPhone: String
 }, {
   timestamps: true,
 });

@@ -10,9 +10,11 @@ export const printBill = (billData, shopData) => {
 
 const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
   // Handle different bill data structures
-  const shopName = shopData?.name || billData?.shop?.name || 'The Sweet Hub';
-  const shopLocation = shopData?.address || billData?.shop?.address || '156, Dubai Main Road, Thanjavur, Tamil Nadu - 613006';
-  const shopPhone = shopData?.phone || billData?.shop?.phone || '7339200636';
+  const shopName = shopData?.name || billData?.shop?.name || billData?.shopName || 'The Sweet Hub';
+  const shopLocation = shopData?.address || billData?.shop?.address || billData?.shopAddress || '156, Dubai Main Road, Thanjavur, Tamil Nadu - 613006';
+  const shopPhone = shopData?.phone || billData?.shop?.phone || billData?.shopPhone || '7339200636';
+  const shopGstNumber = shopData?.gstNumber || billData?.shop?.gstNumber || billData?.shopGstNumber || null;
+  const shopFssaiNumber = shopData?.fssaiNumber || billData?.shop?.fssaiNumber || billData?.shopFssaiNumber || null;
   
   // Extract bill details
   const billId = billData?.billId || (billData?._id ? billData._id.slice(-8) : 'N/A');
@@ -68,9 +70,11 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           <img src="${window.location.origin}/sweethub-logo.png" alt="The Sweet Hub Logo" style="max-height: 60px; width: auto;">
         </div>
         <div style="text-align: right;">
-          <h1 style="color: #333; margin: 0; font-size: 24px;">The Sweet Hub</h1>
-          <p style="color: #666; font-size: 12px; margin: 5px 0;">156, Dubai Main Road, Thanjavur, Tamil Nadu - 613006</p>
-          <p style="color: #666; font-size: 12px; margin: 5px 0;">Phone: 7339200636</p>
+          <h1 style="color: #333; margin: 0; font-size: 24px;">${shopName}</h1>
+          <p style="color: #666; font-size: 12px; margin: 5px 0;">${shopLocation}</p>
+          ${shopGstNumber ? `<p style="color: #666; font-size: 12px; margin: 5px 0;">GSTIN: ${shopGstNumber}</p>` : ''}
+          ${shopFssaiNumber ? `<p style="color: #666; font-size: 12px; margin: 5px 0;">FSSAI: ${shopFssaiNumber}</p>` : ''}
+          <p style="color: #666; font-size: 12px; margin: 5px 0;">Phone: ${shopPhone}</p>
         </div>
       </div>
       

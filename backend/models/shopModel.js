@@ -12,6 +12,12 @@ const shopSchema = new mongoose.Schema({
   shopPhoneNumber: { // Add this new field
     type: String,
   },
+  gstNumber: { // Add GST number field
+    type: String,
+  },
+  fssaiNumber: { // Add FSSAI number field
+    type: String,
+  },
   shopCode: {
     type: String,
     unique: true,
