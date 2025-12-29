@@ -67,7 +67,7 @@ exports.updateStock = async (req, res) => {
       return res.status(404).json({ message: 'Product not found in this shop.' });
     }
 
-    product.stockLevel = newStockLevel;
+    product.stockLevel = parseFloat(newStockLevel);
     await product.save();
 
     res.status(200).json({ message: 'Stock updated successfully.', product });

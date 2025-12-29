@@ -60,7 +60,7 @@ exports.createBill = async (req, res) => {
         }
       }
       
-      if (product.stockLevel < itemQuantityInProductUnit) {
+      if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
         throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}`);
       }
 

@@ -136,8 +136,8 @@ function AddProduct({ baseUrl = '/admin' }) {
         name: productName,
         category,
         sku,
-        stockLevel: parseInt(stockLevel) || 0,
-        stockAlertThreshold: parseInt(stockAlertThreshold) || 0,
+        stockLevel: parseFloat(stockLevel) || 0,
+        stockAlertThreshold: parseFloat(stockAlertThreshold) || 0,
         prices: productUnits.map(unit => ({
           unit: unit.unit,
           netPrice: parseFloat(unit.netPrice),
@@ -298,7 +298,8 @@ function AddProduct({ baseUrl = '/admin' }) {
                   Stock Level
               </label>
               <input
-                  type="text"
+                  type="number"
+                  step="0.01"
                   className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   id="stockLevel"
                   value={stockLevel}
@@ -311,7 +312,8 @@ function AddProduct({ baseUrl = '/admin' }) {
                 Stock Alert Threshold
             </label>
             <input
-                type="text"
+                type="number"
+                step="0.01"
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 id="stockAlertThreshold"
                 value={stockAlertThreshold}

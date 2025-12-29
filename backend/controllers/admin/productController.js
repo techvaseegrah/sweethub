@@ -15,14 +15,14 @@ exports.addProduct = async (req, res) => {
     
     if (existingProduct) {
       // If product exists, update its stock level by adding the new quantity
-      const newStockLevel = (parseInt(existingProduct.stockLevel) || 0) + (parseInt(stockLevel) || 0);
+      const newStockLevel = (parseFloat(existingProduct.stockLevel) || 0) + (parseFloat(stockLevel) || 0);
       
       // Update the existing product
       existingProduct = await Product.findByIdAndUpdate(
         existingProduct._id, 
         { 
           stockLevel: newStockLevel,
-          stockAlertThreshold: parseInt(stockAlertThreshold) || existingProduct.stockAlertThreshold,
+          stockAlertThreshold: parseFloat(stockAlertThreshold) || existingProduct.stockAlertThreshold,
           prices: prices // Update prices as well
         }, 
         { new: true }
@@ -30,7 +30,7 @@ exports.addProduct = async (req, res) => {
       
       // Record product history for the update with added quantity and current stock
       try {
-        await createProductHistory(existingProduct, 'Updated', adminId, parseInt(stockLevel), existingProduct.stockLevel);
+        await createProductHistory(existingProduct, 'Updated', adminId, parseFloat(stockLevel), existingProduct.stockLevel);
       } catch (historyError) {
         console.error('Failed to create product history:', historyError);
       }
@@ -61,8 +61,8 @@ exports.addProduct = async (req, res) => {
       name,
       category,
       sku,
-      stockLevel: parseInt(stockLevel) || 0,
-      stockAlertThreshold: parseInt(stockAlertThreshold) || 0,
+      stockLevel: parseFloat(stockLevel) || 0,
+      stockAlertThreshold: parseFloat(stockAlertThreshold) || 0,
       prices, // Include the prices array
       admin: adminId, // Assign the admin's ID
     });
@@ -117,7 +117,16 @@ exports.updateProduct = async (req, res) => {
     }
 
     // Proceed with the update
-    const updatedProduct = await Product.findByIdAndUpdate(id, req.body, { new: true });
+    // Handle decimal values for stockLevel and stockAlertThreshold if they exist in the request
+    const updateData = { ...req.body };
+    if (req.body.stockLevel !== undefined) {
+      updateData.stockLevel = parseFloat(req.body.stockLevel);
+    }
+    if (req.body.stockAlertThreshold !== undefined) {
+      updateData.stockAlertThreshold = parseFloat(req.body.stockAlertThreshold);
+    }
+    
+    const updatedProduct = await Product.findByIdAndUpdate(id, updateData, { new: true });
     
     // Record product history with current stock
     try {

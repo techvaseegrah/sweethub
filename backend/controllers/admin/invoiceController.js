@@ -44,7 +44,7 @@ exports.createInvoice = async (req, res) => {
     const invoiceItems = [];
 
     for (const item of items) {
-      const quantity = parseInt(item.quantity, 10);
+      const quantity = parseFloat(item.quantity);
       const unitPrice = parseFloat(item.unitPrice);
       const unit = item.unit; // Extract unit from the item
 
@@ -66,7 +66,7 @@ exports.createInvoice = async (req, res) => {
       // if (product.stockLevel < quantity) throw new Error(`Not enough stock for "${product.name}". Available: ${product.stockLevel}, Requested: ${quantity}.`);
 
       // The stock level is still decreased as before
-      product.stockLevel -= quantity;
+      product.stockLevel = parseFloat(product.stockLevel) - parseFloat(quantity);
       await product.save({ session });
       
       const totalPrice = unitPrice * quantity;

@@ -55,7 +55,7 @@ exports.createBill = async (req, res) => {
         }
       }
       
-      if (product.stockLevel < itemQuantityInProductUnit) {
+      if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}` });

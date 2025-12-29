@@ -31,9 +31,18 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
     setInvoiceItems(prevItems =>
       prevItems.map(item => {
         if (item.product._id === productId && item.unit === unit) {
-          // Ensure we handle empty string correctly, defaulting to 0 for calculation
-          const numericValue = parseInt(value, 10);
-          return { ...item, [field]: isNaN(numericValue) ? '' : numericValue };
+          // Handle partial decimal inputs - if the value ends with a dot but is not just a dot
+          if (value.endsWith('.') && value !== '.') {
+            // Store the partial input as a string to allow continued typing
+            return { ...item, [field]: value };
+          } else if (value === ".") {
+            // Handle just a dot by itself
+            return { ...item, [field]: value };
+          } else {
+            // For complete numbers, parse as float
+            const numericValue = parseFloat(value);
+            return { ...item, [field]: isNaN(numericValue) || numericValue < 0 ? '' : numericValue };
+          }
         }
         return item;
       })
@@ -43,7 +52,11 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
   // --- FIX 3: Calculate subtotal, taxAmount, and grandTotal ---
   const { subtotal, taxAmount, grandTotal } = useMemo(() => {
     const sub = invoiceItems.reduce((acc, item) => {
-      const quantity = parseInt(item.quantity, 10) || 0;
+      // Handle partial decimal inputs
+      if (typeof item.quantity === 'string' && (item.quantity === '0.' || item.quantity === '.')) {
+        return acc + item.unitPrice * 0; // Treat partial inputs as 0 for calculation
+      }
+      const quantity = parseFloat(item.quantity) || 0;
       return acc + item.unitPrice * quantity;
     }, 0);
     const tax = sub * ((parseFloat(taxRate) || 0) / 100);
@@ -113,7 +126,22 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
 
     setIsSubmitting(true);
 
-    const hasInvalidQuantity = invoiceItems.some(item => !item.quantity || parseInt(item.quantity, 10) <= 0);
+    // Check for partial decimal inputs
+    const hasPartialInputs = invoiceItems.some(item => 
+      typeof item.quantity === 'string' && (item.quantity === '0.' || item.quantity === '.')
+    );
+    
+    if (hasPartialInputs) {
+      setError('Please complete all quantity fields. Partial decimal entries (like "0." or ".") are not allowed.');
+      setIsSubmitting(false);
+      return;
+    }
+    
+    const hasInvalidQuantity = invoiceItems.some(item => {
+      // For numeric values, check if they're valid (greater than 0)
+      const quantityValue = parseFloat(item.quantity);
+      return !item.quantity || isNaN(quantityValue) || quantityValue <= 0;
+    });
     if (hasInvalidQuantity) {
         setError('All products in the invoice must have a quantity greater than 0.');
         setIsSubmitting(false); // Stop the submission from proceeding
@@ -264,7 +292,7 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
                             className="w-20 sm:w-24 input-style no-spinner" 
                           />
                         </td>
-                        <td className="td-style font-semibold">₹{(item.unitPrice * (parseInt(item.quantity, 10) || 0)).toFixed(2)}</td>
+                        <td className="td-style font-semibold">₹{(item.unitPrice * (typeof item.quantity === 'string' && (item.quantity === '0.' || item.quantity === '.') ? 0 : parseFloat(item.quantity) || 0)).toFixed(2)}</td>
                       </tr>
                     ))
                   )}

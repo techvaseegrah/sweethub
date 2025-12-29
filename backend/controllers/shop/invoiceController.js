@@ -109,7 +109,7 @@ exports.confirmInvoice = async (req, res) => {
       if (isConfirmed) {
         // Set the received quantity for the item
         const receivedQty = receivedQuantities && receivedQuantities[item.product.toString()] 
-          ? parseInt(receivedQuantities[item.product.toString()], 10) 
+          ? parseFloat(receivedQuantities[item.product.toString()]) 
           : 0;
         
         item.receivedQuantity = receivedQty;
@@ -122,7 +122,7 @@ exports.confirmInvoice = async (req, res) => {
         if (shopProduct) {
           // If product exists, just increase the stock level with the received quantity
           console.log(`Updating existing product ${item.productSku}: ${shopProduct.stockLevel} + ${receivedQty}`);
-          shopProduct.stockLevel += receivedQty;
+          shopProduct.stockLevel = parseFloat(shopProduct.stockLevel) + parseFloat(receivedQty);
           await shopProduct.save({ session });
           console.log(`Updated stock level: ${shopProduct.stockLevel}`);
         } else {
