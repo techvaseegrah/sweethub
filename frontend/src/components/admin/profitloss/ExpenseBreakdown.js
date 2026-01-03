@@ -5,7 +5,7 @@ import { LuX, LuDollarSign, LuShoppingCart, LuUsers, LuTruck, LuEllipsis, LuRefr
 function ExpenseBreakdown({ shop, dateRange, onClose }) {
   const [expenseData, setExpenseData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('purchases');
+  const [activeTab, setActiveTab] = useState('other');
 
   // Fetch detailed expense breakdown
   const fetchExpenseBreakdown = async () => {
@@ -87,40 +87,6 @@ function ExpenseBreakdown({ shop, dateRange, onClose }) {
         <div className="border-b">
           <nav className="flex space-x-8 px-6">
             <button
-              onClick={() => setActiveTab('purchases')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'purchases'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <LuShoppingCart className="h-4 w-4" />
-                <span>Purchases</span>
-                <span className="bg-gray-200 text-gray-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {expenses.purchases.length}
-                </span>
-              </div>
-            </button>
-            
-            <button
-              onClick={() => setActiveTab('salaries')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'salaries'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <LuUsers className="h-4 w-4" />
-                <span>Salaries</span>
-                <span className="bg-gray-200 text-gray-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {expenses.salaries.length}
-                </span>
-              </div>
-            </button>
-            
-            <button
               onClick={() => setActiveTab('other')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'other'
@@ -130,7 +96,7 @@ function ExpenseBreakdown({ shop, dateRange, onClose }) {
             >
               <div className="flex items-center space-x-2">
                 <LuEllipsis className="h-4 w-4" />
-                <span>Other Expenses</span>
+                <span>Expenses</span>
               </div>
             </button>
           </nav>
@@ -138,123 +104,9 @@ function ExpenseBreakdown({ shop, dateRange, onClose }) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'purchases' && (
-            <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4">Purchase Invoices</h4>
-              
-              {expenses.purchases.length === 0 ? (
-                <div className="text-center py-12">
-                  <LuShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Purchases</h3>
-                  <p className="text-gray-500">No purchase invoices found for this period.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {expenses.purchases.map((invoice, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {invoice.invoiceNumber}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {formatDate(invoice.date)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {invoice.adminName}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {invoice.itemCount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
-                            {formatCurrency(invoice.amount)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50">
-                      <tr>
-                        <td colSpan="4" className="px-6 py-3 text-sm font-medium text-gray-900">
-                          Total Purchase Expenses
-                        </td>
-                        <td className="px-6 py-3 text-sm font-bold text-gray-900 text-right">
-                          {formatCurrency(expenses.purchases.reduce((sum, invoice) => sum + invoice.amount, 0))}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'salaries' && (
-            <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4">Worker Salaries</h4>
-              
-              {expenses.salaries.length === 0 ? (
-                <div className="text-center py-12">
-                  <LuUsers className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-600 mb-2">No Workers</h3>
-                  <p className="text-gray-500">No workers found for this shop.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Worker</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Monthly Salary</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Period Salary</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {expenses.salaries.map((worker, index) => (
-                        <tr key={index} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {worker.workerName}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {worker.department}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                            {formatCurrency(worker.monthlySalary)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
-                            {formatCurrency(worker.periodSalary)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50">
-                      <tr>
-                        <td colSpan="3" className="px-6 py-3 text-sm font-medium text-gray-900">
-                          Total Salary Expenses
-                        </td>
-                        <td className="px-6 py-3 text-sm font-bold text-gray-900 text-right">
-                          {formatCurrency(expenses.salaries.reduce((sum, worker) => sum + worker.periodSalary, 0))}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
           {activeTab === 'other' && (
             <div className="space-y-6">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4">Other Expenses</h4>
+              <h4 className="text-lg font-semibold text-gray-800 mb-4">Expenses</h4>
               
               {/* Expense categories */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -352,8 +204,8 @@ function ExpenseBreakdown({ shop, dateRange, onClose }) {
                 {expenses.actualExpenses.length === 0 ? (
                   <div className="p-6 text-center">
                     <LuFileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Other Expenses</h3>
-                    <p className="text-gray-500">No other expenses recorded for this period.</p>
+                    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Expenses</h3>
+                    <p className="text-gray-500">No expenses recorded for this period.</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -391,7 +243,7 @@ function ExpenseBreakdown({ shop, dateRange, onClose }) {
                       <tfoot className="bg-gray-50">
                         <tr>
                           <td colSpan="4" className="px-6 py-3 text-sm font-medium text-gray-900">
-                            Total Other Expenses
+                            Total Expenses
                           </td>
                           <td className="px-6 py-3 text-sm font-bold text-gray-900 text-right">
                             {formatCurrency(

@@ -88,40 +88,28 @@ exports.addWorker = async (req, res) => {
         // If batchId is provided, fetch batch settings and apply them
         if (batchId) {
             try {
-                // Fetch batch settings
-                const batchSettings = await Setting.find({ key: { $regex: `^batch_${batchId}_` } });
+                // Fetch batch settings - using the correct key format
+                const batchSettings = await Setting.find({ key: `batch_${batchId}`, type: 'admin' });
                 
-                // Process batch settings
-                batchSettings.forEach(setting => {
-                    const settingType = setting.key.replace(`batch_${batchId}_`, '');
-                    let value = setting.value;
-                    
-                    // Parse JSON values
-                    if (typeof setting.value === 'string' && setting.value.startsWith('{')) {
-                        try {
-                            value = JSON.parse(setting.value);
-                        } catch (e) {
-                            // If parsing fails, keep the original value
-                            console.warn(`Failed to parse batch setting value for ${setting.key}:`, e.message);
-                        }
-                    }
+                // Process batch settings if they exist
+                if (batchSettings && batchSettings.length > 0) {
+                    const batchSetting = batchSettings[0]; // Get the first (and should be only) batch setting
+                    const batchValue = typeof batchSetting.value === 'string' ? JSON.parse(batchSetting.value) : batchSetting.value;
                     
                     // Apply settings based on type
-                    switch (settingType) {
-                        case 'workingHours':
-                            workerData.workingHours = value;
-                            break;
-                        case 'lunchBreak':
-                            workerData.lunchBreak = value;
-                            break;
-                        case 'breakTime':
-                            workerData.breakTime = value;
-                            break;
+                    if (batchValue.workingHours) {
+                        workerData.workingHours = batchValue.workingHours;
                     }
-                });
-            } catch (batchError) {
-                console.warn('Error processing batch settings:', batchError.message);
-                // Continue without batch settings rather than failing
+                    if (batchValue.lunchBreak) {
+                        workerData.lunchBreak = batchValue.lunchBreak;
+                    }
+                    if (batchValue.breakTime) {
+                        workerData.breakTime = batchValue.breakTime;
+                    }
+                }
+            } catch (error) {
+                console.error('Error applying batch settings:', error);
+                // Continue without batch settings if there's an error
             }
         }
         
@@ -306,36 +294,30 @@ exports.updateWorker = async (req, res) => {
         
         // If batchId is provided in the update, fetch batch settings and apply them
         if (updateData.batchId) {
-            // Fetch batch settings
-            const batchSettings = await Setting.find({ key: { $regex: `^batch_${updateData.batchId}_` } });
-            
-            // Process batch settings
-            batchSettings.forEach(setting => {
-                const settingType = setting.key.replace(`batch_${updateData.batchId}_`, '');
-                let value = setting.value;
+            try {
+                // Fetch batch settings - using the correct key format
+                const batchSettings = await Setting.find({ key: `batch_${updateData.batchId}`, type: 'admin' });
                 
-                // Parse JSON values
-                if (typeof setting.value === 'string' && setting.value.startsWith('{')) {
-                    try {
-                        value = JSON.parse(setting.value);
-                    } catch (e) {
-                        // If parsing fails, keep the original value
+                // Process batch settings if they exist
+                if (batchSettings && batchSettings.length > 0) {
+                    const batchSetting = batchSettings[0]; // Get the first (and should be only) batch setting
+                    const batchValue = typeof batchSetting.value === 'string' ? JSON.parse(batchSetting.value) : batchSetting.value;
+                    
+                    // Apply settings based on type
+                    if (batchValue.workingHours) {
+                        updateData.workingHours = batchValue.workingHours;
+                    }
+                    if (batchValue.lunchBreak) {
+                        updateData.lunchBreak = batchValue.lunchBreak;
+                    }
+                    if (batchValue.breakTime) {
+                        updateData.breakTime = batchValue.breakTime;
                     }
                 }
-                
-                // Apply settings based on type
-                switch (settingType) {
-                    case 'workingHours':
-                        updateData.workingHours = value;
-                        break;
-                    case 'lunchBreak':
-                        updateData.lunchBreak = value;
-                        break;
-                    case 'breakTime':
-                        updateData.breakTime = value;
-                        break;
-                }
-            });
+            } catch (error) {
+                console.error('Error applying batch settings:', error);
+                // Continue without batch settings if there's an error
+            }
         }
         
         // Remove batchId from updateData as it's now a field in the Worker model

@@ -4,7 +4,13 @@
 
 body {
   @apply bg-background text-text-primary;
+}
+
+/* Full screen bill mode - hide main page scroll */
+body.fullscreen-bill-mode {
   overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 /* Enhanced focus styles for better accessibility */

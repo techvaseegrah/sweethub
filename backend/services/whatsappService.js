@@ -17,7 +17,13 @@ const sendWhatsAppBill = async (billData, senderName) => {
       billDate
     } = billData;
 
-    // 2. Format Phone Number (Meta requires country code without +)
+    // 2. Check if customer mobile number exists and is valid
+    if (!customerMobileNumber || customerMobileNumber.toString().trim() === '') {
+      console.log('Customer mobile number is missing, skipping WhatsApp message');
+      return;
+    }
+
+    // 3. Format Phone Number (Meta requires country code without +)
     // Example: "+91 98765 43210" -> "919876543210"
     let formattedNumber = customerMobileNumber.toString().replace(/\D/g, ''); // Remove non-digits
     
@@ -30,16 +36,19 @@ const sendWhatsAppBill = async (billData, senderName) => {
         formattedNumber = '91' + formattedNumber.slice(1);
     }
 
-    // 3. Format Date
+    // 4. Format Date
     const dateObj = new Date(billDate);
     const formattedDate = dateObj.toLocaleDateString('en-IN', {
       day: '2-digit', month: '2-digit', year: 'numeric'
     });
     
-    // 4. Short Bill ID
+    // 5. Short Bill ID
     const shortBillId = _id.toString().slice(-6).toUpperCase();
 
-    // 5. Send Request
+    // 6. Handle customer name - use a default if not provided
+    const displayCustomerName = customerName && customerName.trim() !== '' ? customerName : 'Customer';
+
+    // 7. Send Request
     const url = `https://graph.facebook.com/v17.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
     const payload = {
@@ -54,7 +63,7 @@ const sendWhatsAppBill = async (billData, senderName) => {
           {
             type: 'body',
             parameters: [
-              { type: 'text', text: customerName },                 // {{1}} Customer Name
+              { type: 'text', text: displayCustomerName },                 // {{1}} Customer Name
               { type: 'text', text: senderName },                   // {{2}} Shop/Factory Name
               { type: 'text', text: shortBillId },                  // {{3}} Bill ID
               { type: 'text', text: totalAmount.toFixed(2) },       // {{4}} Amount

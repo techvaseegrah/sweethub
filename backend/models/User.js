@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    shop: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Shop',
+        required: false, // Not required to allow admin users without shop association
+    },
 }, {
     timestamps: true,
 });

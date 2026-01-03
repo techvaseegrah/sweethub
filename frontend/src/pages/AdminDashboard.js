@@ -47,9 +47,11 @@ import ExpenseHistory from '../components/admin/expense/ExpenseHistory';
 import CreateEWayBill from '../components/admin/eway-bills/CreateEWayBill';
 import EWayBillsHistory from '../components/admin/eway-bills/EWayBillsHistory';
 import ViewEWayBill from '../components/admin/eway-bills/ViewEWayBill';
+import { useFullScreenBill } from '../context/FullScreenBillContext';
 
 const AdminDashboardPage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const { isFullScreenBill } = useFullScreenBill();
 
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
@@ -72,30 +74,34 @@ const AdminDashboardPage = () => {
         <div className="flex h-screen bg-gray-100">
             {/* --- MODIFIED: Sidebar layout for responsiveness --- */}
             {/* Overlay for mobile */}
-            {isSidebarOpen && (
+            {isSidebarOpen && !isFullScreenBill && (
                 <div
                     className="fixed inset-0 bg-black opacity-50 z-30 lg:hidden"
                     onClick={toggleSidebar}
                 ></div>
             )}
 
-            {/* Sidebar */}
-            <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-                             lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-40`}>
-                <Sidebar />
-            </div>
+            {/* Sidebar - only show if not in full screen bill mode */}
+            {!isFullScreenBill && (
+                <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+                                 lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-40`}>
+                    <Sidebar />
+                </div>
+            )}
 
             {/* --- MODIFIED: Main content area for responsiveness --- */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Mobile and Tablet header */}
-                <header className="lg:hidden bg-white shadow-sm p-4 flex items-center justify-between">
-                    <button onClick={toggleSidebar} className="text-gray-500 focus:outline-none">
-                        <LuMenu size={24} />
-                    </button>
-                    <h1 className="text-xl font-bold text-gray-800">Admin Panel</h1>
-                </header>
+            <div className={`flex-1 flex flex-col overflow-hidden ${isFullScreenBill ? 'w-full' : ''}`}>
+                {/* Mobile and Tablet header - only show if not in full screen bill mode */}
+                {!isFullScreenBill && (
+                    <header className="lg:hidden bg-white shadow-sm p-4 flex items-center justify-between">
+                        <button onClick={toggleSidebar} className="text-gray-500 focus:outline-none">
+                            <LuMenu size={24} />
+                        </button>
+                        <h1 className="text-xl font-bold text-gray-800">Admin Panel</h1>
+                    </header>
+                )}
 
-                <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 md:p-6">
+                <main className={`flex-1 overflow-x-hidden ${isFullScreenBill ? 'overflow-hidden p-0 m-0' : 'overflow-y-auto p-4 md:p-6'}`}>
                     <Routes>
                         <Route path="dashboard" element={<AdminDashboard />} />
                         <Route path="workers/add" element={<AddWorker />} />

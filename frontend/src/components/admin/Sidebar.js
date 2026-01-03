@@ -90,29 +90,38 @@ const Sidebar = () => {
     const [materialStockAlerts, setMaterialStockAlerts] = useState(0);
     const [sweetItems, setSweetItems] = useState([]);
 
+    const { authState, logout } = useContext(AuthContext);
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
+
     useEffect(() => {
         const fetchTotalStockAlerts = async () => {
             try {
-                const response = await axios.get('/admin/products/stock-alerts/count');
-                setTotalStockAlerts(response.data.totalCount);
+                // Only fetch if not an attendance-only user
+                if (authState?.role !== 'attendance-only') {
+                    const response = await axios.get('/admin/products/stock-alerts/count');
+                    setTotalStockAlerts(response.data.totalCount);
+                }
             } catch (err) {
                 console.error('Failed to fetch total stock alert count:', err);
             }
         };
         fetchTotalStockAlerts();
-    }, []);
+    }, [authState?.role]);
 
     useEffect(() => {
         const fetchMaterialStockAlerts = async () => {
             try {
-                const response = await axios.get('/admin/warehouse/material-stock-alerts');
-                setMaterialStockAlerts(response.data.length);
+                // Only fetch if not an attendance-only user
+                if (authState?.role !== 'attendance-only') {
+                    const response = await axios.get('/admin/warehouse/material-stock-alerts');
+                    setMaterialStockAlerts(response.data.length);
+                }
             } catch (err) {
                 console.error('Failed to fetch material stock alert count:', err);
             }
         };
         fetchMaterialStockAlerts();
-    }, []);
+    }, [authState?.role]);
 
     const toggleProductMenu = () => {
         setIsProductMenuOpen(!isProductMenuOpen);
@@ -133,9 +142,6 @@ const Sidebar = () => {
     const iconColor = 'text-gray-400';
     const iconActive = 'text-white';
     const alertBadge = 'bg-yellow-400 text-gray-800';
-
-    const { logout } = useContext(AuthContext);
-    const [showLogoutModal, setShowLogoutModal] = useState(false);
 
     const handleLogout = () => {
         setShowLogoutModal(true);
@@ -215,6 +221,7 @@ const Sidebar = () => {
 
             <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
                 {/* Dashboard */}
+                {authState?.role !== 'attendance-only' && (
                 <NavLink
                     to="/admin/dashboard"
                     className={({ isActive }) =>
@@ -238,8 +245,10 @@ const Sidebar = () => {
                         </>
                     )}
                 </NavLink>
+                )}
 
                 {/* Worker Management */}
+                {authState?.role !== 'attendance-only' ? (
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -332,7 +341,35 @@ const Sidebar = () => {
 
                     </nav>
                 </details>
+                ) : (
+                // For attendance-only users, show only attendance - redirect based on userType
+                <NavLink
+                    to={authState?.userType === 'shop' ? "/shop/workers/attendance" : "/admin/workers/attendance"}
+                    className={({ isActive }) =>
+                        `flex items-center px-3 py-2.5 rounded-lg ${
+                            isActive 
+                                ? activeRed
+                                : `${textPrimary} ${hoverBg}`
+                        }`
+                    }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
+                >
+                    {({ isActive }) => (
+                        <>
+                            <LuUsers className={`mr-3 text-lg ${isActive ? iconActive : iconColor}`} />
+                            <span className="font-medium">Attendance</span>
+                        </>
+                    )}
+                </NavLink>
+                )}
 
+                {authState?.role !== 'attendance-only' && (
+                <>
                 {/* Department Management */}
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -377,7 +414,11 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                </>
+                )}
 
+                {authState?.role !== 'attendance-only' && (
+                <>
                 {/* Product Management */}
                 <details className="group" open={isProductMenuOpen} onToggle={toggleProductMenu}>
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -482,7 +523,11 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                </>
+                )}
 
+                {authState?.role !== 'attendance-only' && (
+                <>
                 {/* Warehouse Management */}
                 <details className="group" open={isWarehouseMenuOpen} onToggle={toggleWarehouseMenu}>
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -675,7 +720,11 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                </>
+                )}
 
+                {authState?.role !== 'attendance-only' && (
+                <>
                 {/* Shop Management */}
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -720,7 +769,11 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                </>
+                )}
 
+                {authState?.role !== 'attendance-only' && (
+                <>
                 {/* Task Management */}
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -765,7 +818,11 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                </>
+                )}
 
+                {authState?.role !== 'attendance-only' && (
+                <>
                 {/* Billing Management */}
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -810,7 +867,11 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                </>
+                )}
 
+                {authState?.role !== 'attendance-only' && (
+                <>
                 {/* E-Way Bill Management */}
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -855,8 +916,10 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                </>
+                )}
 
-                {/* Invoice Management */}
+                {authState?.role !== 'attendance-only' && (
                 <NavLink
                     to="/admin/invoices/history"
                     className={({ isActive }) =>
@@ -880,8 +943,9 @@ const Sidebar = () => {
                         </>
                     )}
                 </NavLink>
+                )}
                 
-                {/* Return Products */}
+                {authState?.role !== 'attendance-only' && (
                 <NavLink
                     to="/admin/warehouse/return-products"
                     className={({ isActive }) =>
@@ -905,8 +969,9 @@ const Sidebar = () => {
                         </>
                     )}
                 </NavLink>
+                )}
                 
-                {/* Expenses Module */}
+                {authState?.role !== 'attendance-only' && (
                 <NavLink
                     to="/admin/expenses"
                     className={({ isActive }) =>
@@ -930,10 +995,11 @@ const Sidebar = () => {
                         </>
                     )}
                 </NavLink>
+                )}
                 
                 {/* Removed Face Service Diagnostic */}
                 
-                {/* Profit & Loss */}
+                {authState?.role !== 'attendance-only' && (
                 <NavLink
                     to="/admin/profit-loss"
                     className={({ isActive }) =>
@@ -957,8 +1023,9 @@ const Sidebar = () => {
                         </>
                     )}
                 </NavLink>
+                )}
                 
-                {/* Settings */}
+                {authState?.role !== 'attendance-only' && (
                 <NavLink
                     to="/admin/settings"
                     className={({ isActive }) =>
@@ -982,6 +1049,7 @@ const Sidebar = () => {
                         </>
                     )}
                 </NavLink>
+                )}
             </nav>
             
             {/* Logout Button */}

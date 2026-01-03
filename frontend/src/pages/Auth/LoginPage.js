@@ -4,6 +4,7 @@ import { AuthContext } from '../../context/AuthContext';
 import axios from '../../api/axios';
 
 const LOGIN_URL = '/auth/login';
+const ATTENDANCE_ONLY_LOGIN_URL = '/auth/attendance-only-login';
 
 function LoginPage() {
   const { login } = useContext(AuthContext);
@@ -30,11 +31,20 @@ function LoginPage() {
         }
       );
 
-      const { token, role } = response.data;
-      login(token, role);
+      const { token, role, userType } = response.data;
+      login(token, role, userType);
 
       if (role === 'admin') {
         navigate('/admin');
+      } else if (role === 'attendance-only') {
+        // Redirect attendance-only users to the appropriate attendance page
+        // based on their user type (admin or shop)
+        if (userType === 'shop') {
+          navigate('/shop/workers/attendance');
+        } else {
+          // Default to admin attendance if userType is not specified
+          navigate('/admin/workers/attendance');
+        }
       } else {
         navigate('/shop');
       }

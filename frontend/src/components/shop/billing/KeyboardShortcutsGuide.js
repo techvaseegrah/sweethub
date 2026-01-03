@@ -62,7 +62,7 @@ const KeyboardShortcutsGuide = () => {
           </div>
           <div className="flex items-center">
             <kbd className="bg-gray-200 text-gray-800 px-2 py-1 rounded mr-2 font-mono">F2</kbd>
-            <span className="text-gray-700 ml-2">Edit Quantity</span>
+            <span className="text-gray-700 ml-2">New Bill in New Tab</span>
           </div>
           <div className="flex items-center">
             <kbd className="bg-gray-200 text-gray-800 px-2 py-1 rounded mr-2 font-mono">Ctrl</kbd>

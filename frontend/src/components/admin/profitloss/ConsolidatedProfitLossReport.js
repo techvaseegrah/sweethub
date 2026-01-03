@@ -77,45 +77,35 @@ const ConsolidatedProfitLossReport = () => {
             [`Period: ${startDate} to ${endDate}`],
             [''],
             ['Revenue Summary'],
-            ['Shop Name', 'Customer Sales', 'Invoice Sales', 'Total Revenue'],
+            ['Shop Name', 'Total Revenue'],
             ...reportData.shopDetails.map(shop => [
                 shop.shopName,
-                shop.revenueBreakdown?.customerSales?.amount || 0,
-                shop.revenueBreakdown?.invoiceSales?.amount || 0,
                 shop.totalRevenue
             ]),
             [''],
             ['Expense Summary'],
-            ['Shop Name', 'Product Costs', 'Manufacturing', 'Materials', 'Salaries', 'Transport', 'Utilities', 'Total Expenses'],
+            ['Shop Name', 'Total Expenses'],
             ...reportData.shopDetails.map(shop => [
                 shop.shopName,
-                shop.expenseBreakdown?.directCosts?.productCosts || 0,
-                shop.expenseBreakdown?.directCosts?.manufacturingCosts || 0,
-                shop.expenseBreakdown?.directCosts?.materialCosts || 0,
-                shop.expenseBreakdown?.indirectCosts?.salaryCosts || 0,
-                shop.expenseBreakdown?.indirectCosts?.transportCosts || 0,
-                shop.expenseBreakdown?.indirectCosts?.utilityCosts || 0,
                 shop.totalExpenses
             ]),
             [''],
             ['Profit Summary'],
-            ['Shop Name', 'Gross Profit', 'Net Profit', 'Profit Margin %'],
+            ['Shop Name', 'Net Profit', 'Profit Margin %'],
             ...reportData.shopDetails.map(shop => [
                 shop.shopName,
-                shop.grossProfit,
                 shop.netProfit,
                 shop.profitMargin.toFixed(2)
             ]),
             [''],
             ['Overall Totals'],
-            ['Total Revenue', 'Total Expenses', 'Gross Profit', 'Net Profit'],
+            ['Total Revenue', 'Total Expenses', 'Net Profit'],
             [
                 reportData.overallTotals.totalRevenue,
                 reportData.overallTotals.totalExpenses,
-                reportData.overallTotals.grossProfit,
                 reportData.overallTotals.netProfit
             ]
-        ].map(row => row.join(',')).join('\\n');
+        ].map(row => row.join(',')).join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);
@@ -236,18 +226,6 @@ const ConsolidatedProfitLossReport = () => {
                                 </p>
                             </div>
                             
-                            <div className={`p-4 rounded-lg border ${getProfitBgClass(reportData.overallTotals.grossProfit)}`}>
-                                <p className="text-sm font-medium">Gross Profit</p>
-                                <p className={`text-2xl font-bold mt-1 ${getProfitClass(reportData.overallTotals.grossProfit)}`}>
-                                    {formatCurrency(reportData.overallTotals.grossProfit)}
-                                </p>
-                                <p className="text-xs mt-1">
-                                    {reportData.overallTotals.totalRevenue > 0 
-                                        ? ((reportData.overallTotals.grossProfit / reportData.overallTotals.totalRevenue) * 100).toFixed(2) 
-                                        : '0.00'}% margin
-                                </p>
-                            </div>
-                            
                             <div className={`p-4 rounded-lg border ${getProfitBgClass(reportData.overallTotals.netProfit)}`}>
                                 <p className="text-sm font-medium">Net Profit/Loss</p>
                                 <p className={`text-2xl font-bold mt-1 ${getProfitClass(reportData.overallTotals.netProfit)}`}>
@@ -257,6 +235,16 @@ const ConsolidatedProfitLossReport = () => {
                                     {reportData.overallTotals.totalRevenue > 0 
                                         ? ((reportData.overallTotals.netProfit / reportData.overallTotals.totalRevenue) * 100).toFixed(2) 
                                         : '0.00'}% margin
+                                </p>
+                            </div>
+                            
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <p className="text-sm font-medium">Total Shops</p>
+                                <p className="text-2xl font-bold text-gray-700 mt-1">
+                                    {reportData.shopDetails.length}
+                                </p>
+                                <p className="text-xs mt-1">
+                                    {reportData.shopDetails.filter(shop => shop.netProfit > 0).length} profitable
                                 </p>
                             </div>
                         </div>
@@ -303,12 +291,6 @@ const ConsolidatedProfitLossReport = () => {
                                                     Shop
                                                 </th>
                                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Customer Sales
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Invoice Sales
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     Total Revenue
                                                 </th>
                                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -321,12 +303,6 @@ const ConsolidatedProfitLossReport = () => {
                                                 <tr key={shop.shopId} className="hover:bg-gray-50">
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                         {shop.shopName}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.revenueBreakdown?.customerSales?.amount || 0)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.revenueBreakdown?.invoiceSales?.amount || 0)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                                                         {formatCurrency(shop.totalRevenue)}
@@ -342,16 +318,6 @@ const ConsolidatedProfitLossReport = () => {
                                         <tfoot className="bg-gray-100 font-semibold">
                                             <tr>
                                                 <td className="px-6 py-4 text-sm text-gray-900">TOTAL</td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.revenueBreakdown?.customerSales?.amount || 0), 0
-                                                    ))}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.revenueBreakdown?.invoiceSales?.amount || 0), 0
-                                                    ))}
-                                                </td>
                                                 <td className="px-6 py-4 text-sm text-gray-900 text-right">
                                                     {formatCurrency(reportData.overallTotals.totalRevenue)}
                                                 </td>
@@ -391,25 +357,10 @@ const ConsolidatedProfitLossReport = () => {
                                                     Shop
                                                 </th>
                                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Product Costs
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Manufacturing
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Materials
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Salaries
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Transport
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Utilities
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     Total Expenses
+                                                </th>
+                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    % of Total
                                                 </th>
                                             </tr>
                                         </thead>
@@ -419,26 +370,13 @@ const ConsolidatedProfitLossReport = () => {
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                         {shop.shopName}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.expenseBreakdown?.directCosts?.productCosts || 0)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.expenseBreakdown?.directCosts?.manufacturingCosts || 0)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.expenseBreakdown?.directCosts?.materialCosts || 0)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.expenseBreakdown?.indirectCosts?.salaryCosts || 0)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.expenseBreakdown?.indirectCosts?.transportCosts || 0)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        {formatCurrency(shop.expenseBreakdown?.indirectCosts?.utilityCosts || 0)}
-                                                    </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 text-right">
                                                         {formatCurrency(shop.totalExpenses)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                                                        {reportData.overallTotals.totalExpenses > 0 
+                                                            ? ((shop.totalExpenses / reportData.overallTotals.totalExpenses) * 100).toFixed(1)
+                                                            : '0.0'}%
                                                     </td>
                                                 </tr>
                                             ))}
@@ -447,81 +385,14 @@ const ConsolidatedProfitLossReport = () => {
                                             <tr>
                                                 <td className="px-6 py-4 text-sm text-gray-900">TOTAL</td>
                                                 <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.expenseBreakdown?.directCosts?.productCosts || 0), 0
-                                                    ))}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.expenseBreakdown?.directCosts?.manufacturingCosts || 0), 0
-                                                    ))}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.expenseBreakdown?.directCosts?.materialCosts || 0), 0
-                                                    ))}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.expenseBreakdown?.indirectCosts?.salaryCosts || 0), 0
-                                                    ))}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.expenseBreakdown?.indirectCosts?.transportCosts || 0), 0
-                                                    ))}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                        sum + (shop.expenseBreakdown?.indirectCosts?.utilityCosts || 0), 0
-                                                    ))}
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
                                                     {formatCurrency(reportData.overallTotals.totalExpenses)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
+                                                    100.0%
                                                 </td>
                                             </tr>
                                         </tfoot>
                                     </table>
-                                </div>
-                                
-                                <div className="mt-6">
-                                    <h4 className="font-medium text-gray-800 mb-3">Expense Distribution</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="bg-orange-50 p-3 rounded border border-orange-200">
-                                            <p className="text-xs text-orange-800">Direct Costs</p>
-                                            <p className="font-bold text-orange-700">
-                                                {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                    sum + (shop.expenseBreakdown?.directCosts?.productCosts || 0) +
-                                                        (shop.expenseBreakdown?.directCosts?.manufacturingCosts || 0) +
-                                                        (shop.expenseBreakdown?.directCosts?.materialCosts || 0), 0
-                                                ))}
-                                            </p>
-                                        </div>
-                                        <div className="bg-red-50 p-3 rounded border border-red-200">
-                                            <p className="text-xs text-red-800">Salaries</p>
-                                            <p className="font-bold text-red-700">
-                                                {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                    sum + (shop.expenseBreakdown?.indirectCosts?.salaryCosts || 0), 0
-                                                ))}
-                                            </p>
-                                        </div>
-                                        <div className="bg-red-50 p-3 rounded border border-red-200">
-                                            <p className="text-xs text-red-800">Transport</p>
-                                            <p className="font-bold text-red-700">
-                                                {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                    sum + (shop.expenseBreakdown?.indirectCosts?.transportCosts || 0), 0
-                                                ))}
-                                            </p>
-                                        </div>
-                                        <div className="bg-red-50 p-3 rounded border border-red-200">
-                                            <p className="text-xs text-red-800">Utilities</p>
-                                            <p className="font-bold text-red-700">
-                                                {formatCurrency(reportData.shopDetails.reduce((sum, shop) => 
-                                                    sum + (shop.expenseBreakdown?.indirectCosts?.utilityCosts || 0), 0
-                                                ))}
-                                            </p>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         )}
@@ -557,9 +428,6 @@ const ConsolidatedProfitLossReport = () => {
                                                     Expenses
                                                 </th>
                                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Gross Profit
-                                                </th>
-                                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                     Net Profit
                                                 </th>
                                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -581,11 +449,6 @@ const ConsolidatedProfitLossReport = () => {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                                                         {formatCurrency(shop.totalExpenses)}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                                                        <span className={getProfitClass(shop.grossProfit)}>
-                                                            {formatCurrency(shop.grossProfit)}
-                                                        </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-right">
                                                         <span className={getProfitClass(shop.netProfit)}>
@@ -621,11 +484,6 @@ const ConsolidatedProfitLossReport = () => {
                                                     {formatCurrency(reportData.overallTotals.totalExpenses)}
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-900 text-right">
-                                                    <span className={getProfitClass(reportData.overallTotals.grossProfit)}>
-                                                        {formatCurrency(reportData.overallTotals.grossProfit)}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900 text-right">
                                                     <span className={getProfitClass(reportData.overallTotals.netProfit)}>
                                                         {formatCurrency(reportData.overallTotals.netProfit)}
                                                     </span>
@@ -657,22 +515,24 @@ const ConsolidatedProfitLossReport = () => {
                                         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                                             <p className="text-sm text-blue-800">Best Performing Shop</p>
                                             <p className="font-bold text-blue-700 mt-1">
-                                                {reportData.shopDetails.reduce((prev, current) => 
+                                                {reportData.shopDetails.length > 0 ? reportData.shopDetails.reduce((prev, current) => 
                                                     (prev.netProfit > current.netProfit) ? prev : current
-                                                ).shopName}
+                                                ).shopName : 'N/A'}
                                             </p>
                                             <p className="text-xs text-blue-600">
-                                                {formatCurrency(reportData.shopDetails.reduce((prev, current) => 
+                                                {reportData.shopDetails.length > 0 ? formatCurrency(reportData.shopDetails.reduce((prev, current) => 
                                                     (prev.netProfit > current.netProfit) ? prev : current
-                                                ).netProfit)} profit
+                                                ).netProfit) : 'N/A'} profit
                                             </p>
                                         </div>
                                         
                                         <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
                                             <p className="text-sm text-orange-800">Average Profit Margin</p>
                                             <p className="font-bold text-orange-700 mt-1">
-                                                {(reportData.shopDetails.reduce((sum, shop) => 
-                                                    sum + shop.profitMargin, 0) / reportData.shopDetails.length).toFixed(2)}%
+                                                {reportData.shopDetails.length > 0 
+                                                    ? (reportData.shopDetails.reduce((sum, shop) => 
+                                                        sum + shop.profitMargin, 0) / reportData.shopDetails.length).toFixed(2)
+                                                    : '0.00'}%
                                             </p>
                                         </div>
                                         

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
-import { LuTrendingUp, LuTrendingDown, LuDollarSign, LuChartPie, LuChartBar, LuCalendar, LuRefreshCw } from 'react-icons/lu';
+import { LuTrendingUp, LuTrendingDown, LuDollarSign, LuChartPie, LuChartBar, LuCalendar, LuRefreshCw, LuDownload } from 'react-icons/lu';
 import ProfitLossChart from './ProfitLossChart';
 import ExpenseBreakdown from './ExpenseBreakdown';
+import ProfitLossCharts from './ProfitLossCharts';
+import { generateProfitLossReportPdf } from '../../../utils/generateProfitLossReportPdf';
 
 function ProfitLoss() {
   const [profitLossData, setProfitLossData] = useState(null);
@@ -31,6 +33,13 @@ function ProfitLoss() {
       console.error('Error fetching P&L data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Export to PDF
+  const exportToPDF = () => {
+    if (profitLossData) {
+      generateProfitLossReportPdf(profitLossData, dateRange.startDate, dateRange.endDate);
     }
   };
 
@@ -148,13 +157,23 @@ function ProfitLoss() {
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <button
-              onClick={fetchProfitLossData}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <LuRefreshCw className="h-4 w-4" />
-              <span>Refresh</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchProfitLossData}
+                className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <LuRefreshCw className="h-4 w-4" />
+                <span>Refresh</span>
+              </button>
+              <button
+                onClick={exportToPDF}
+                disabled={loading}
+                className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                <LuDownload className="h-4 w-4" />
+                <span>PDF</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -239,12 +258,11 @@ function ProfitLoss() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="text-sm font-medium text-gray-900">{formatCurrency(shop.revenue.totalSales)}</div>
+                      <div className="text-sm font-medium text-gray-900">{formatCurrency(shop.revenue.totalBillingProfit)}</div>
                       <div className="text-xs text-gray-500">{shop.revenue.totalBills} bills</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="text-sm font-medium text-gray-900">{formatCurrency(shop.expenses.totalExpenses)}</div>
-                      <div className="text-xs text-gray-500">{shop.metrics.totalInvoices} invoices</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className={`flex items-center justify-end space-x-1`}>
@@ -276,7 +294,9 @@ function ProfitLoss() {
       </div>
 
       {/* Charts Section */}
-      <ProfitLossChart shopData={shopData} />
+      {shopData && shopData.length > 0 && (
+        <ProfitLossCharts shopData={shopData} />
+      )}
 
       {/* Expense Breakdown Modal */}
       {showExpenseModal && selectedShop && (

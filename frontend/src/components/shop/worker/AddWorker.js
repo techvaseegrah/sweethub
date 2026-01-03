@@ -149,16 +149,17 @@ const AddWorker = () => {
         }
 
         // Prepare working hours and lunch break data
-        // For now, we'll use default values or get them from the selected batch
-        let workingHours = { from: '09:00', to: '18:00' };
-        let lunchBreak = { from: '13:00', to: '14:00' };
-        
         // If a batch is selected, get the working hours and lunch break from it
+        let workingHours = null;
+        let lunchBreak = null;
+        let breakTime = null;
+        
         if (formData.selectedBatch) {
             const selectedBatch = batches.find(batch => batch.id === formData.selectedBatch);
             if (selectedBatch) {
-                workingHours = selectedBatch.workingHours || workingHours;
-                lunchBreak = selectedBatch.lunchBreak || lunchBreak;
+                workingHours = selectedBatch.workingHours || null;
+                lunchBreak = selectedBatch.lunchBreak || null;
+                breakTime = selectedBatch.breakTime || null;
             }
         }
 
@@ -166,6 +167,7 @@ const AddWorker = () => {
             ...formData,
             workingHours, // Include working hours
             lunchBreak,   // Include lunch break
+            breakTime,    // Include break time
             createRFID, // Include the createRFID flag
             ...(createRFID && { rfid: generatedRFID }), // Include the generated RFID in the payload
             batchId: formData.selectedBatch // Include batch ID
@@ -447,6 +449,7 @@ const AddWorker = () => {
                                         <div>
                                             <p>Working Hours: {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}</p>
                                             <p>Lunch Break: {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}</p>
+                                            <p>Break Time: {batch.breakTime?.startTime ? formatTimeTo12Hour(batch.breakTime.startTime) : '--:--'} - {batch.breakTime?.endTime ? formatTimeTo12Hour(batch.breakTime.endTime) : '--:--'}</p>
                                         </div>
                                     ) : null;
                                 })()}

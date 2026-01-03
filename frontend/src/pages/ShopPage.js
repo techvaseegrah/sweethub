@@ -44,11 +44,12 @@ import HolidayManagement from '../components/shop/worker/HolidayManagement';
 // Import return products components
 import ReturnProductsPage from '../components/shop/returnproducts/ReturnProductsPage';
 
-// Import admin products view component
-import ViewAdminProducts from '../components/shop/admin-products/ViewAdminProducts';
+
+import { useFullScreenBill } from '../context/FullScreenBillContext';
 
 const ShopPage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const { isFullScreenBill } = useFullScreenBill();
 
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
@@ -70,33 +71,37 @@ const ShopPage = () => {
     return (
         <div className="flex h-screen bg-background">
             {/* Overlay for mobile */}
-            {isSidebarOpen && (
+            {isSidebarOpen && !isFullScreenBill && (
                 <div
                     className="fixed inset-0 bg-black opacity-50 z-30 lg:hidden"
                     onClick={toggleSidebar}
                 ></div>
             )}
 
-            {/* Sidebar */}
-            <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
-                             lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-40`}>
-                <ShopSidebar />
-            </div>
+            {/* Sidebar - only show if not in full screen bill mode */}
+            {!isFullScreenBill && (
+                <div className={`fixed inset-y-0 left-0 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} 
+                                 lg:relative lg:translate-x-0 transition-transform duration-300 ease-in-out z-40`}>
+                    <ShopSidebar />
+                </div>
+            )}
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Mobile header */}
-                <header className="lg:hidden bg-white shadow-sm p-4 flex items-center justify-between">
-                    <button
-                        onClick={toggleSidebar}
-                        className="text-gray-500 hover:text-gray-700 focus:outline-none"
-                    >
-                        <Menu className="h-6 w-6" />
-                    </button>
-                    <h1 className="text-xl font-semibold text-gray-800">SweetHub</h1>
-                </header>
+            <div className={`flex-1 flex flex-col overflow-hidden ${isFullScreenBill ? 'w-full' : ''}`}>
+                {/* Mobile header - only show if not in full screen bill mode */}
+                {!isFullScreenBill && (
+                    <header className="lg:hidden bg-white shadow-sm p-4 flex items-center justify-between">
+                        <button
+                            onClick={toggleSidebar}
+                            className="text-gray-500 hover:text-gray-700 focus:outline-none"
+                        >
+                            <Menu className="h-6 w-6" />
+                        </button>
+                        <h1 className="text-xl font-semibold text-gray-800">SweetHub</h1>
+                    </header>
+                )}
 
-                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-background p-4 lg:p-6">
+                <main className={`flex-1 overflow-x-hidden ${isFullScreenBill ? 'overflow-hidden p-0 m-0' : 'overflow-y-auto bg-background p-4 lg:p-6'}`}>
                     <Routes>
                         {/* Dashboard Route */}
                         <Route path="dashboard" element={<ShopDashboard />} />
@@ -120,7 +125,6 @@ const ShopPage = () => {
                         <Route path="products/add" element={<AddProduct baseUrl="/shop" />} />
                         <Route path="products/category" element={<AddCategory baseUrl="/shop" />} />
                         <Route path="products/view" element={<ViewProducts baseUrl="/shop" />} />
-                        <Route path="products/admin" element={<ViewAdminProducts />} />
                         <Route path="warehouse/stock" element={<TrackStock baseUrl="/shop" />} />
                         <Route path="warehouse/alerts" element={<StockAlerts baseUrl="/shop" />} />
                         {/* Removed packing materials route as per user request

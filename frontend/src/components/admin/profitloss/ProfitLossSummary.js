@@ -105,7 +105,7 @@ const ProfitLossSummary = () => {
                 `${shop.profitMargin.toFixed(2)}%`
             ]),
             ['TOTAL', profitLossData.overallTotals.totalRevenue, profitLossData.overallTotals.totalExpenses, profitLossData.overallTotals.grossProfit, profitLossData.overallTotals.netProfit, '']
-        ].map(row => row.join(',')).join('\\n');
+        ].map(row => row.join(',')).join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const url = window.URL.createObjectURL(blob);

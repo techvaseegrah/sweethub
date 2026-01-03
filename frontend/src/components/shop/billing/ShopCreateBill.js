@@ -1,19 +1,90 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../../../api/axios';
 import { generateInvoicePdf, printInvoice } from '../../../utils/generateInvoicePdf';
 import { generateBillPdf, printBill } from '../../../utils/generateBillPdf';
 import { getAvailableUnits, convertUnit, areRelatedUnits } from '../../../utils/unitConversion';
 import CustomModal from '../../CustomModal'; // Added import for CustomModal
 import KeyboardShortcutsGuide from './KeyboardShortcutsGuide'; // Import keyboard shortcuts guide
+import { useFullScreenBill } from '../../../context/FullScreenBillContext'; // Import the context
+import MessageAlert from '../../MessageAlert'; // Import MessageAlert component
 
 function CreateBill({ baseUrl = '/shop' }) {
+  const location = useLocation();
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [originalBillId, setOriginalBillId] = useState(null);
+  
+  // Check if we're in edit mode and get the bill data from location state
+  useEffect(() => {
+    if (location.state && location.state.billData && location.state.isEditMode) {
+      const bill = location.state.billData;
+      setIsEditMode(true);
+      setOriginalBillId(bill._id);
+      
+      // Pre-fill customer details
+      setCustomerMobileNumber(bill.customerMobileNumber || '');
+      
+      // Pre-fill bill items
+      const formattedItems = bill.items.map(item => ({
+        product: typeof item.product === 'object' ? item.product : { _id: item.product, name: item.productName, sku: item.sku },
+        productName: item.productName,
+        sku: item.sku,
+        unit: item.unit,
+        quantity: item.quantity,
+        price: item.price,
+        baseUnitPrice: item.price,
+        baseUnit: item.unit,
+      }));
+      setBillItems(formattedItems);
+      
+      // Pre-fill discount information
+      setDiscountType(bill.discountType || 'none');
+      setDiscountValue(bill.discountValue?.toString() || '');
+      
+      // Pre-fill payment information
+      setPaymentMethod(bill.paymentMethod || 'Cash');
+      setAmountPaid(bill.amountPaid?.toString() || '');
+    }
+  }, [location.state]);
+  const navigate = useNavigate();
+  const { enterFullScreenBill, exitFullScreenBill } = useFullScreenBill();
+  
+  // Effect to handle F2 keyboard shortcut for opening new bill in new tab
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'F2') {
+        event.preventDefault(); // Prevent default F2 behavior
+        // Open a new tab with a fresh bill form
+        const newUrl = window.location.pathname + '?new=1';
+        window.open(newUrl, '_blank');
+      }
+    };
+
+    // Add event listener to the document
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Clean up the event listener when component unmounts
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [customerMobileNumber, setCustomerMobileNumber] = useState('');
-  const [customerName, setCustomerName] = useState('');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [modalSearchTerm, setModalSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+
+  // Enter full screen mode when component mounts
+  useEffect(() => {
+    enterFullScreenBill();
+    
+    // Clean up function to exit full screen mode when component unmounts
+    return () => {
+      exitFullScreenBill();
+    };
+  }, [enterFullScreenBill, exitFullScreenBill]);
 
   const [currentItem, setCurrentItem] = useState({
     product: null,
@@ -45,13 +116,18 @@ function CreateBill({ baseUrl = '/shop' }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   
+  // State for notification messages
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationType, setNotificationType] = useState('success');
+  
   // States for out of stock modals
   const [showOutOfStockModal, setShowOutOfStockModal] = useState(false);
   const [showConfirmOutOfStockModal, setShowConfirmOutOfStockModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [stockQuantity, setStockQuantity] = useState(0);
   const customerMobileRef = useRef(null);
-  const customerNameRef = useRef(null);
+
   const productSearchRef = useRef(null);
   const quantityRef = useRef(null);
   const discountTypeRef = useRef(null);
@@ -458,8 +534,8 @@ function CreateBill({ baseUrl = '/shop' }) {
     setMessage('');
     setError('');
 
-    if (!customerMobileNumber || !customerName) {
-      setError('Please enter customer details.');
+    if (!customerMobileNumber) {
+      setError('Please enter customer mobile number.');
       return;
     }
     if (billItems.length === 0) {
@@ -492,58 +568,135 @@ function CreateBill({ baseUrl = '/shop' }) {
       return;
     }
     
-    const BILL_URL = `${baseUrl}/billing`;
-
     try {
-      const payload = {
-        customerMobileNumber,
-        customerName,
-        items: billItems,
-        baseAmount: gstPercentage > 0 ? netAmount / (1 + gstPercentage / 100) : netAmount, // Base amount is before GST
-        gstPercentage,
-        gstAmount,
-        totalAmount,
-        paymentMethod,
-        amountPaid: amountPaidNumber,
-        // Add discount information
-        discountType,
-        discountValue: discountValue ? parseFloat(discountValue) : 0,
-        discountAmount
-      };
-
-      const response = await axios.post(
-        BILL_URL,
-        payload,
-        {
-          headers: { 'Content-Type': 'application/json' },
-          withCredentials: true,
+      if (isEditMode && originalBillId) {
+        // Update existing bill
+        const UPDATE_BILL_URL = `${baseUrl}/billing/${originalBillId}`;
+        
+        const payload = {
+          customerMobileNumber,
+          customerName: '', // Customer name is optional
+          items: billItems,
+          baseAmount: gstPercentage > 0 ? netAmount / (1 + gstPercentage / 100) : netAmount, // Base amount is before GST
+          gstPercentage,
+          gstAmount,
+          totalAmount,
+          paymentMethod,
+          amountPaid: amountPaidNumber,
+          // Add discount information
+          discountType,
+          discountValue: discountValue ? parseFloat(discountValue) : 0,
+          discountAmount
+        };
+        
+        const response = await axios.put(
+          UPDATE_BILL_URL,
+          payload,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            withCredentials: true,
+          }
+        );
+        
+        // Show success notification
+        setNotificationMessage('Bill updated successfully!');
+        setNotificationType('success');
+        setShowNotification(true);
+        
+        // Auto-hide notification after 5 seconds
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 5000);
+        
+        if (autoDownload) {
+          generateBillPdf(response.data, {
+            name: response.data.shopName,
+            address: response.data.shopAddress,
+            gstNumber: response.data.shopGstNumber,
+            fssaiNumber: response.data.shopFssaiNumber,
+            phone: response.data.shopPhone
+          });
         }
-      );
-
-      setMessage('Bill created successfully!');
-
-      if (autoDownload) {
-        generateBillPdf(response.data, {
-          name: response.data.shopName,
-          address: response.data.shopAddress,
-          gstNumber: response.data.shopGstNumber,
-          fssaiNumber: response.data.shopFssaiNumber,
-          phone: response.data.shopPhone
-        });
+        
+        if (autoPrint) {
+          printBill(response.data, {
+            name: response.data.shopName,
+            address: response.data.shopAddress,
+            gstNumber: response.data.shopGstNumber,
+            fssaiNumber: response.data.shopFssaiNumber,
+            phone: response.data.shopPhone
+          });
+        }
+      } else {
+        // Create new bill
+        const BILL_URL = `${baseUrl}/billing`;
+        
+        const payload = {
+          customerMobileNumber,
+          customerName: '', // Customer name is optional
+          items: billItems,
+          baseAmount: gstPercentage > 0 ? netAmount / (1 + gstPercentage / 100) : netAmount, // Base amount is before GST
+          gstPercentage,
+          gstAmount,
+          totalAmount,
+          paymentMethod,
+          amountPaid: amountPaidNumber,
+          // Add discount information
+          discountType,
+          discountValue: discountValue ? parseFloat(discountValue) : 0,
+          discountAmount
+        };
+        
+        const response = await axios.post(
+          BILL_URL,
+          payload,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            withCredentials: true,
+          }
+        );
+        
+        // Show success notification
+        setNotificationMessage('Bill created successfully!');
+        setNotificationType('success');
+        setShowNotification(true);
+        
+        // Auto-hide notification after 5 seconds
+        setTimeout(() => {
+          setShowNotification(false);
+        }, 5000);
+        
+        // Auto-scroll to top and focus on customer mobile number field
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => {
+          if (customerMobileRef && customerMobileRef.current) {
+            customerMobileRef.current.focus();
+          }
+        }, 100);
+        
+        if (autoDownload) {
+          generateBillPdf(response.data, {
+            name: response.data.shopName,
+            address: response.data.shopAddress,
+            gstNumber: response.data.shopGstNumber,
+            fssaiNumber: response.data.shopFssaiNumber,
+            phone: response.data.shopPhone
+          });
+        }
+        
+        if (autoPrint) {
+          printBill(response.data, {
+            name: response.data.shopName,
+            address: response.data.shopAddress,
+            gstNumber: response.data.shopGstNumber,
+            fssaiNumber: response.data.shopFssaiNumber,
+            phone: response.data.shopPhone
+          });
+        }
       }
       
-      if (autoPrint) {
-        printBill(response.data, {
-          name: response.data.shopName,
-          address: response.data.shopAddress,
-          gstNumber: response.data.shopGstNumber,
-          fssaiNumber: response.data.shopFssaiNumber,
-          phone: response.data.shopPhone
-        });
-      }
-
+      // Reset form after successful submission
       setCustomerMobileNumber('');
-      setCustomerName('');
       setBillItems([]);
       setSubtotal(0);
       setDiscountType('none');
@@ -556,9 +709,23 @@ function CreateBill({ baseUrl = '/shop' }) {
       setAmountPaid('');
       setSearchTerm('');
       setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '' });
-
+      
+      // Scroll up and focus on customer mobile number after successful submission
+      setTimeout(() => {
+        if (customerMobileRef.current) {
+          customerMobileRef.current.focus();
+          scrollToElement(customerMobileRef.current);
+        }
+      }, 100);
+      
+      // If in edit mode, redirect back to view bills
+      if (isEditMode) {
+        setTimeout(() => {
+          navigate(baseUrl === '/admin' ? '/admin/bills/view' : '/shop/billing/view');
+        }, 1000);
+      }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create bill. Please try again.');
+      setError(err.response?.data?.message || 'Failed to process bill. Please try again.');
       console.error(err);
     }
   };
@@ -581,7 +748,6 @@ function CreateBill({ baseUrl = '/shop' }) {
       if (event.ctrlKey && event.key === 'n') {
         event.preventDefault();
         setCustomerMobileNumber('');
-        setCustomerName('');
         setBillItems([]);
         setSubtotal(0);
         setDiscountType('none');
@@ -718,9 +884,32 @@ function CreateBill({ baseUrl = '/shop' }) {
   }
 
   return (
-    <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md">
-      <h3 className="text-xl sm:text-2xl font-semibold mb-4 text-text-primary">Create Bill</h3>
+    <div className="bg-white h-screen flex flex-col">
+      {/* Header - Fixed at top */}
+      <div className="p-4 sm:p-6 border-b flex justify-between items-center bg-white z-10 sticky top-0">
+        <h3 className="text-xl sm:text-2xl font-semibold text-text-primary">Create Bill</h3>
+        <button 
+          onClick={() => navigate(baseUrl === '/admin' ? '/admin/bills/view' : '/shop/billing/view')}
+          className="text-gray-500 hover:text-gray-700 text-2xl focus:outline-none"
+          aria-label="Close full screen bill"
+        >
+          ✕
+        </button>
+      </div>
+      
+      {/* Notification Message */}
+      {showNotification && (
+        <div className="fixed top-4 right-4 z-50">
+          <MessageAlert 
+            type={notificationType} 
+            message={notificationMessage} 
+            onClose={() => setShowNotification(false)} 
+          />
+        </div>
+      )}
       <KeyboardShortcutsGuide />
+      {/* Main Content Area - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-h-[calc(100vh-150px)]">
       
       {/* Out of Stock Modal */}
       <CustomModal
@@ -803,40 +992,14 @@ function CreateBill({ baseUrl = '/shop' }) {
               onKeyDown={(e) => {
                 if (e.key === 'Tab' && !e.shiftKey) {
                   e.preventDefault();
-                  if (customerNameRef.current) {
-                    customerNameRef.current.focus();
-                  }
-                }
-              }}
-            />
-          </div>
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="customerName">
-              Customer Name
-            </label>
-            <input
-              type="text"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="customerName"
-              ref={customerNameRef}
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              required
-              onKeyDown={(e) => {
-                if (e.key === 'Tab' && !e.shiftKey) {
-                  e.preventDefault();
                   if (productSearchRef.current) {
                     productSearchRef.current.focus();
                   }
-                } else if (e.key === 'Tab' && e.shiftKey) {
-                  e.preventDefault();
-                  if (customerMobileRef.current) {
-                    customerMobileRef.current.focus();
-                  }
                 }
               }}
             />
           </div>
+
         </div>
       </div>
       
@@ -1422,7 +1585,7 @@ function CreateBill({ baseUrl = '/shop' }) {
       </div>
 
       {/* Bill Options */}
-      <div className="mb-6 p-4 border rounded-lg bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+      <div className="p-4 border rounded-lg bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <label htmlFor="autoDownload" className="text-gray-700 font-bold">Auto Download Bill after Creation</label>
         <input
           type="checkbox"
@@ -1433,7 +1596,7 @@ function CreateBill({ baseUrl = '/shop' }) {
         />
       </div>
       
-      <div className="mb-6 p-4 border rounded-lg bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+      <div className="p-4 border rounded-lg bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
         <label htmlFor="autoPrint" className="text-gray-700 font-bold">Auto Print Bill after Creation</label>
         <input
           type="checkbox"
@@ -1447,7 +1610,7 @@ function CreateBill({ baseUrl = '/shop' }) {
       <button
         type="submit"
         onClick={handleSubmit}
-        className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline"
+        className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:shadow-outline text-lg mb-4"
         ref={createBillButtonRef}
         onKeyDown={(e) => {
           if (e.key === 'Tab' && e.shiftKey) {
@@ -1460,9 +1623,9 @@ function CreateBill({ baseUrl = '/shop' }) {
       >
         Create Bill
       </button>
-      {message && <p className="mt-4 text-green-500">{message}</p>}
       {error && <p className="mt-4 text-red-500">{error}</p>}
     </div>
+  </div>
   );
 }
 

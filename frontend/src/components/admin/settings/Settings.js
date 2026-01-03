@@ -31,7 +31,8 @@ const Settings = () => {
   });
   const [editingBatchId, setEditingBatchId] = useState(null);
   const [selectedBatch, setSelectedBatch] = useState(null);
-
+  const [deleteConfirmation, setDeleteConfirmation] = useState(null); // State for delete confirmation modal
+  
   // Fetch current GST settings on component mount
   useEffect(() => {
     const fetchGstSettings = async () => {
@@ -149,10 +150,10 @@ const Settings = () => {
   };
   
   const handleDeleteBatch = async (batchId) => {
-    if (!window.confirm('Are you sure you want to delete this batch?')) {
-      return;
-    }
-    
+    setDeleteConfirmation(batchId);
+  };
+
+  const confirmDeleteBatch = async (batchId) => {
     try {
       const response = await axios.delete(`/admin/settings/batches/${batchId}`);
       setMessage(response.data.message);
@@ -174,7 +175,13 @@ const Settings = () => {
         setMessage('Failed to delete batch. Please try again.');
       }
       setMessageType('error');
+    } finally {
+      setDeleteConfirmation(null);
     }
+  };
+
+  const cancelDeleteBatch = () => {
+    setDeleteConfirmation(null);
   };
 
   // Calculate example values for display
@@ -529,6 +536,45 @@ const Settings = () => {
           )}
         </div>
       </div>
+      
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mt-4">
+                Delete Batch
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  Are you sure you want to delete this batch?
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
+              <button
+                type="button"
+                onClick={() => confirmDeleteBatch(deleteConfirmation)}
+                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:col-start-2 sm:text-sm"
+              >
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={cancelDeleteBatch}
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

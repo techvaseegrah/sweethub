@@ -166,9 +166,27 @@ const AddWorker = () => {
         // Generate username from name if not provided
         const username = formData.name.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
         
+        // Prepare working hours and lunch break data
+        // If a batch is selected, get the working hours, lunch break, and break time from it
+        let workingHours = null;
+        let lunchBreak = null;
+        let breakTime = null;
+        
+        if (formData.selectedBatch) {
+            const selectedBatch = batches.find(batch => batch.id === formData.selectedBatch);
+            if (selectedBatch) {
+                workingHours = selectedBatch.workingHours || null;
+                lunchBreak = selectedBatch.lunchBreak || null;
+                breakTime = selectedBatch.breakTime || null;
+            }
+        }
+        
         const submitData = {
             ...formData,
             username: username, // Explicitly include username
+            workingHours, // Include working hours
+            lunchBreak,   // Include lunch break
+            breakTime,    // Include break time
             createRFID,
             ...(createRFID && { rfid: generatedRFID }),
             batchId: formData.selectedBatch
@@ -514,6 +532,7 @@ const AddWorker = () => {
                                         <div>
                                             <p>Working Hours: {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}</p>
                                             <p>Lunch Break: {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}</p>
+                                            <p>Break Time: {batch.breakTime?.startTime ? formatTimeTo12Hour(batch.breakTime.startTime) : '--:--'} - {batch.breakTime?.endTime ? formatTimeTo12Hour(batch.breakTime.endTime) : '--:--'}</p>
                                         </div>
                                     ) : null;
                                 })()}

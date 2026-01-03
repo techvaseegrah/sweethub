@@ -55,9 +55,11 @@ exports.updateDepartment = async (req, res) => {
     const { id } = req.params;
     const { name } = req.body;
     try {
-        const updatedDepartment = await Department.findByIdAndUpdate(id, { name }, { new: true });
+        // Apply shop filter for shop users
+        const filter = req.shopId ? { _id: id, shop: req.shopId } : { _id: id };
+        const updatedDepartment = await Department.findOneAndUpdate(filter, { name }, { new: true });
         if (!updatedDepartment) {
-            return res.status(404).json({ message: 'Department not found' });
+            return res.status(404).json({ message: 'Department not found or not authorized' });
         }
         res.json(updatedDepartment);
     } catch (error) {

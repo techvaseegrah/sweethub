@@ -12,7 +12,7 @@ const {
   enrollFace,
   getFaceRecognitionStatus
 } = require('../../controllers/shop/shopAttendanceController');
-const { shopAuth } = require('../../middleware/auth');
+const { shopAttendanceAuth } = require('../../middleware/auth'); // Updated to use shopAttendanceAuth
 const multer = require('multer');
 
 // Configure multer for face enrollment
@@ -32,20 +32,20 @@ const upload = multer({
   }
 });
 
-router.get('/', shopAuth, getTodaysAttendance);
-router.post('/checkin', shopAuth, checkIn);
-router.post('/checkout', shopAuth, checkOut);
-router.get('/monthly/:year/:month', shopAuth, getMonthlyAttendance);
+router.get('/', shopAttendanceAuth, getTodaysAttendance);
+router.post('/checkin', shopAttendanceAuth, checkIn);
+router.post('/checkout', shopAttendanceAuth, checkOut);
+router.get('/monthly/:year/:month', shopAttendanceAuth, getMonthlyAttendance);
 
 // RFID attendance route for shop (shop-specific)
-router.post('/rfid-attendance', shopAuth, recordRFIDAttendance);
+router.post('/rfid-attendance', shopAttendanceAuth, recordRFIDAttendance);
 
 // Manual correction for missing punches
-router.post('/correct-missing-punch', shopAuth, correctMissingPunch);
+router.post('/correct-missing-punch', shopAttendanceAuth, correctMissingPunch);
 
 // Face recognition routes for shop (shop-specific)
-router.post('/enroll-face', shopAuth, upload.array('faces', 5), enrollFace);
-router.post('/recognize-face', shopAuth, recognizeFaceForAttendance);
-router.get('/face-status', shopAuth, getFaceRecognitionStatus);
+router.post('/enroll-face', shopAttendanceAuth, upload.array('faces', 5), enrollFace);
+router.post('/recognize-face', shopAttendanceAuth, recognizeFaceForAttendance);
+router.get('/face-status', shopAttendanceAuth, getFaceRecognitionStatus);
 
 module.exports = router;

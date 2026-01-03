@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
+import { AuthContext } from '../../../context/AuthContext'; // Import AuthContext
 import RFIDAttendance from './RFIDAttendance';
 import FaceAttendance from './FaceAttendance'; // Import FaceAttendance component
 import CustomModal from '../../../components/CustomModal'; // Import CustomModal
 import * as XLSX from 'xlsx'; // Import xlsx library
+import CreateAttendanceAccountModal from './CreateAttendanceAccountModal'; // Import Create Attendance Account Modal
 
-const ATTENDANCE_URL = '/shop/attendance';
+// ATTENDANCE_URL will be determined dynamically based on user type
 
 // Utility function to format time in 12-hour format with AM/PM
 const formatTime = (dateString) => {
@@ -198,6 +200,20 @@ const isMissedPunchOut = (record, currentDate) => {
 };
 
 function AttendanceTracking() {
+  const { authState } = useContext(AuthContext); // Get auth state to determine user type
+  
+  // Determine the attendance API URL based on user type
+  const getAttendanceUrl = () => {
+    if (authState?.role === 'attendance-only') {
+      if (authState?.userType === 'shop') {
+        return '/shop/attendance';
+      } else {
+        return '/admin/attendance';
+      }
+    }
+    return '/shop/attendance'; // Default for shop users
+  };
+  
   const [todaysAttendanceData, setTodaysAttendanceData] = useState([]);
   const [displayedAttendanceData, setDisplayedAttendanceData] = useState([]);
   const [visibleDays, setVisibleDays] = useState(2); // Show only 2 days by default
@@ -209,10 +225,12 @@ function AttendanceTracking() {
   const [showMissingPunchModal, setShowMissingPunchModal] = useState(false); // State for Missing Punch Modal
   const [selectedWorkerForCorrection, setSelectedWorkerForCorrection] = useState(null); // Worker needing correction
   const [missingPunchOutTime, setMissingPunchOutTime] = useState(''); // Time for missing punch out
+  const [showCreateAccountModal, setShowCreateAccountModal] = useState(false); // State for Create Account Modal
 
   const fetchTodaysAttendance = useCallback(async () => {
       try {
-          const response = await axios.get(ATTENDANCE_URL, { withCredentials: true });
+          const attendanceUrl = getAttendanceUrl();
+          const response = await axios.get(attendanceUrl, { withCredentials: true });
           console.log('Attendance data received:', response.data);
           setTodaysAttendanceData(response.data);
           setLoading(false);
@@ -332,7 +350,10 @@ function AttendanceTracking() {
     }
 
     try {
-      const response = await axios.post('/shop/attendance/correct-missing-punch', {
+      const attendanceUrl = getAttendanceUrl();
+      // Use the appropriate URL for the missing punch correction endpoint
+      const correctPunchUrl = attendanceUrl.replace('/attendance', '/attendance/correct-missing-punch');
+      const response = await axios.post(correctPunchUrl, {
         workerId: selectedWorkerForCorrection.worker._id,
         checkOutTime: missingPunchOutTime
       }, { withCredentials: true });
@@ -564,6 +585,12 @@ function AttendanceTracking() {
                 >
                     Download 
                 </button>
+                <button 
+                    onClick={() => setShowCreateAccountModal(true)}
+                    className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors text-sm sm:text-base"
+                >
+                    Create Account
+                </button>
             </div>
         </div>
 
@@ -632,6 +659,22 @@ function AttendanceTracking() {
                     </button>
                 </div>
             </div>
+        </CustomModal>
+
+        {/* Create Account Modal */}
+        <CustomModal
+            isOpen={showCreateAccountModal}
+            onClose={() => setShowCreateAccountModal(false)}
+            title="Create Attendance Account"
+        >
+            <CreateAttendanceAccountModal 
+                onClose={() => setShowCreateAccountModal(false)} 
+                onAccountCreated={() => {
+                    setShowCreateAccountModal(false);
+                    // Optionally refresh data
+                }}
+                isShop={authState?.role === 'shop' || authState?.userType === 'shop'}
+            />
         </CustomModal>
 
         {/* Search Bar */}

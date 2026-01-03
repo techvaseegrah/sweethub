@@ -24,6 +24,18 @@ const BillDetailView = ({ bill, onClose }) => {
               <p className="text-gray-600"><span className="font-medium">Bill ID:</span> {bill.billId || bill._id}</p>
               <p className="text-gray-600"><span className="font-medium">Date:</span> {new Date(bill.billDate).toLocaleDateString()}</p>
               <p className="text-gray-600"><span className="font-medium">Payment Method:</span> {bill.paymentMethod}</p>
+              {bill.isDeleted && (
+                <div className="mt-2 p-3 bg-red-100 rounded-lg">
+                  <p className="text-red-800 font-semibold">Status: Deleted</p>
+                  <p className="text-red-700 text-sm mt-1"><span className="font-medium">Reason:</span> {bill.deletionReason}</p>
+                  <p className="text-red-700 text-sm mt-1">
+                    <span className="font-medium">Deleted by:</span> {bill.deletedBy?.name || bill.deletedBy || 'Unknown'}
+                  </p>
+                  <p className="text-red-700 text-sm mt-1">
+                    <span className="font-medium">Deleted at:</span> {bill.deletedAt ? new Date(bill.deletedAt).toLocaleString() : 'N/A'}
+                  </p>
+                </div>
+              )}
             </div>
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Customer Information</h3>

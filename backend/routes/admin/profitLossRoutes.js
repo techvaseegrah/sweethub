@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getProfitLossData, getShopExpenseBreakdown } = require('../../controllers/admin/profitLossController');
+const { getProfitLossData, getShopExpenseBreakdown, getConsolidatedReport, getShopDetailedReport, getProfitLossTrends } = require('../../controllers/admin/profitLossController');
 const { adminAuth } = require('../../middleware/auth');
 
 // @route   GET /api/admin/profit-loss
@@ -12,5 +12,20 @@ router.get('/', adminAuth, getProfitLossData);
 // @desc    Get detailed expense breakdown for a specific shop
 // @access  Private (Admin only)
 router.get('/shop/:shopId/expenses', adminAuth, getShopExpenseBreakdown);
+
+// @route   GET /api/admin/profit-loss/report
+// @desc    Get consolidated profit & loss report
+// @access  Private (Admin only)
+router.get('/report', adminAuth, getConsolidatedReport);
+
+// @route   GET /api/admin/profit-loss/shop/:shopId
+// @desc    Get detailed report for a specific shop
+// @access  Private (Admin only)
+router.get('/shop/:shopId', adminAuth, getShopDetailedReport);
+
+// @route   GET /api/admin/profit-loss/trends
+// @desc    Get profit & loss trends
+// @access  Private (Admin only)
+router.get('/trends', adminAuth, getProfitLossTrends);
 
 module.exports = router;

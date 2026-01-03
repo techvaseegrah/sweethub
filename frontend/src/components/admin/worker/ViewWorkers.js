@@ -31,6 +31,7 @@ function ViewWorkers() {
   const [editingWorker, setEditingWorker] = useState(null);
   const [editedWorkerData, setEditedWorkerData] = useState({});
   const [departments, setDepartments] = useState([]);
+  const [batches, setBatches] = useState([]);
   
   // State for face enrollment
   const [isFaceEnrollmentOpen, setIsFaceEnrollmentOpen] = useState(false);
@@ -62,12 +63,14 @@ function ViewWorkers() {
   // Create a function to fetch data that can be called externally
   const fetchData = async () => {
     try {
-      const [workersResponse, departmentsResponse] = await Promise.all([
+      const [workersResponse, departmentsResponse, batchesResponse] = await Promise.all([
         axios.get(WORKER_URL, { withCredentials: true }),
-        axios.get('/admin/departments', { withCredentials: true })
+        axios.get('/admin/departments', { withCredentials: true }),
+        axios.get('/admin/settings/batches', { withCredentials: true })
       ]);
       setWorkers(workersResponse.data);
       setDepartments(departmentsResponse.data);
+      setBatches(batchesResponse.data);
     } catch (err) {
       setError('Failed to fetch data.');
       console.error(err);
@@ -102,7 +105,8 @@ function ViewWorkers() {
     setEditingWorker(worker);
     setEditedWorkerData({ 
       ...worker, 
-      department: worker.department?._id || worker.department || '' 
+      department: worker.department?._id || worker.department || '',
+      selectedBatch: worker.batchId || ''
     });
     setIsEditModalOpen(true);
   };
@@ -116,7 +120,43 @@ function ViewWorkers() {
 
   // Handle input changes in the edit form
   const handleInputChange = (e, field) => {
-    setEditedWorkerData({ ...editedWorkerData, [field]: e.target.value });
+    const { value } = e.target;
+    
+    // Handle nested properties like workingHours.from
+    if (field.includes('.')) {
+      const [parent, child] = field.split('.');
+      setEditedWorkerData(prev => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: value
+        }
+      }));
+    } else if (field === 'selectedBatch') {
+      // When batch is changed, update working hours and lunch break from the selected batch
+      setEditedWorkerData(prev => {
+        const selectedBatch = batches.find(batch => batch.id === value);
+        if (selectedBatch) {
+          return {
+            ...prev,
+            selectedBatch: value,
+            workingHours: selectedBatch.workingHours || null,
+            lunchBreak: selectedBatch.lunchBreak || null,
+            breakTime: selectedBatch.breakTime || null
+          };
+        } else {
+          return {
+            ...prev,
+            selectedBatch: value,
+            workingHours: null,
+            lunchBreak: null,
+            breakTime: null
+          };
+        }
+      });
+    } else {
+      setEditedWorkerData({ ...editedWorkerData, [field]: value });
+    }
   };
 
   // Handle department change
@@ -130,6 +170,11 @@ function ViewWorkers() {
     try {
       // Preserve face enrollment data during worker update
       const updateData = { ...editedWorkerData };
+      
+      // Map selectedBatch to batchId for backend
+      if (editedWorkerData.selectedBatch !== undefined) {
+        updateData.batchId = editedWorkerData.selectedBatch || null;
+      }
       
       // If the worker already has face data, preserve it during the update
       if (editingWorker && editingWorker.faceEncodings) {
@@ -401,6 +446,11 @@ function ViewWorkers() {
                           ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
                           : 'Not set'}
                       </div>
+                      <div>
+                        Break Time: {worker.breakTime?.startTime && worker.breakTime?.endTime 
+                          ? `${formatTimeTo12Hour(worker.breakTime.startTime)} - ${formatTimeTo12Hour(worker.breakTime.endTime)}` 
+                          : 'Not set'}
+                      </div>
                     </div>
                   ) : (
                     <div>
@@ -412,6 +462,11 @@ function ViewWorkers() {
                       <div>
                         Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
                           ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
+                          : 'Not set'}
+                      </div>
+                      <div>
+                        Break Time: {worker.breakTime?.startTime && worker.breakTime?.endTime 
+                          ? `${formatTimeTo12Hour(worker.breakTime.startTime)} - ${formatTimeTo12Hour(worker.breakTime.endTime)}` 
                           : 'Not set'}
                       </div>
                     </div>
@@ -480,6 +535,38 @@ function ViewWorkers() {
                 onChange={(e) => handleInputChange(e, 'rfid')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
+            </div>
+            
+            {/* Batch Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
+              <select
+                value={editedWorkerData.selectedBatch || ''}
+                onChange={(e) => handleInputChange(e, 'selectedBatch')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">No Batch</option>
+                {batches.map(batch => (
+                  <option key={batch.id} value={batch.id}>{batch.name}</option>
+                ))}
+              </select>
+              
+              {/* Display selected batch details */}
+              {editedWorkerData.selectedBatch && (
+                <div className="mt-2 p-2 bg-gray-100 rounded text-sm">
+                  <p className="font-medium">Batch Details:</p>
+                  {(() => {
+                    const batch = batches.find(b => b.id === editedWorkerData.selectedBatch);
+                    return batch ? (
+                      <div>
+                        <p>Working Hours: {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}</p>
+                        <p>Lunch Break: {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}</p>
+                        <p>Break Time: {batch.breakTime?.from ? formatTimeTo12Hour(batch.breakTime.from) : '--:--'} - {batch.breakTime?.to ? formatTimeTo12Hour(batch.breakTime.to) : '--:--'}</p>
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+              )}
             </div>
             
             {/* Face Enrollment Section */}

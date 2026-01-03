@@ -11,7 +11,7 @@ const {
   getMonthlyAttendance,
   correctMissingPunch
 } = require('../../controllers/admin/attendanceController');
-const { adminAuth } = require('../../middleware/auth');
+const { adminAttendanceAuth } = require('../../middleware/auth'); // Updated to use adminAttendanceAuth
 const multer = require('multer');
 
 // Configure multer for face enrollment
@@ -32,20 +32,20 @@ const upload = multer({
 });
 
 // Face recognition routes
-router.post('/enroll-face', adminAuth, upload.array('faces', 5), enrollFace);
-router.post('/recognize-face', adminAuth, recognizeFaceForAttendance);
-router.get('/face-status', adminAuth, getFaceRecognitionStatus);
+router.post('/enroll-face', adminAttendanceAuth, upload.array('faces', 5), enrollFace);
+router.post('/recognize-face', adminAttendanceAuth, recognizeFaceForAttendance);
+router.get('/face-status', adminAttendanceAuth, getFaceRecognitionStatus);
 
 // Attendance routes
-router.get('/', adminAuth, getTodaysAttendance);
-router.post('/checkin', adminAuth, checkIn);
-router.post('/checkout', adminAuth, checkOut);
-router.get('/monthly/:year/:month', adminAuth, getMonthlyAttendance);
+router.get('/', adminAttendanceAuth, getTodaysAttendance);
+router.post('/checkin', adminAttendanceAuth, checkIn);
+router.post('/checkout', adminAttendanceAuth, checkOut);
+router.get('/monthly/:year/:month', adminAttendanceAuth, getMonthlyAttendance);
 
 // RFID attendance route
-router.post('/rfid-attendance', adminAuth, recordRFIDAttendance);
+router.post('/rfid-attendance', adminAttendanceAuth, recordRFIDAttendance);
 
 // Manual correction for missing punches
-router.post('/correct-missing-punch', adminAuth, correctMissingPunch);
+router.post('/correct-missing-punch', adminAttendanceAuth, correctMissingPunch);
 
 module.exports = router;

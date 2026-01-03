@@ -60,10 +60,14 @@ const getBatchSettings = async (req, res) => {
     });
     
     // Transform the settings into the expected format
-    const batches = settings.map(setting => ({
-      id: setting._id,
-      ...setting.value
-    }));
+    const batches = settings.map(setting => {
+      // Extract the original batchId from the key (e.g., "batch_1234567890" -> "1234567890")
+      const batchId = setting.key.replace('batch_', '');
+      return {
+        id: batchId,
+        ...setting.value
+      };
+    });
     
     res.json(batches);
   } catch (error) {
@@ -100,7 +104,8 @@ const updateBatchSettings = async (req, res) => {
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
     
-    res.json({ message: 'Batch settings updated successfully', batch: { id: setting._id, ...setting.value } });
+    // Return the original batchId in the response
+    res.json({ message: 'Batch settings updated successfully', batch: { id: batchId, ...setting.value } });
   } catch (error) {
     console.error('Error updating batch settings:', error);
     res.status(500).json({ message: 'Server Error' });
@@ -112,7 +117,7 @@ const deleteBatchSettings = async (req, res) => {
   try {
     const { batchId } = req.params;
     
-    // Delete the setting for admin only
+    // Delete the setting for admin only using the batchId parameter
     const result = await Setting.deleteOne({ 
       key: `batch_${batchId}`,
       type: 'admin'

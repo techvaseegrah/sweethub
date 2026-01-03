@@ -40,6 +40,14 @@ db.once('open', async () => {
       console.log('Created shop role');
     }
     
+    // Check if attendance-only role exists, create if not
+    let attendanceOnlyRole = await Role.findOne({ name: 'attendance-only' });
+    if (!attendanceOnlyRole) {
+      attendanceOnlyRole = new Role({ name: 'attendance-only' });
+      await attendanceOnlyRole.save();
+      console.log('Created attendance-only role');
+    }
+    
     // Check if admin user exists
     const adminUser = await User.findOne({ username: process.env.ADMIN_USERNAME });
     

@@ -34,49 +34,35 @@ ChartJS.register(
     Filler
 );
 
-const ProfitLossCharts = () => {
-    const [chartData, setChartData] = useState(null);
+const ProfitLossCharts = ({ shopData }) => {
     const [trendsData, setTrendsData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [chartType, setChartType] = useState('bar'); // 'bar' or 'line'
     const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
     const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
-    const [trendPeriod, setTrendPeriod] = useState('monthly'); // 'daily', 'weekly', 'monthly'
+    const [trendPeriod, setTrendPeriod] = useState('daily'); // 'daily', 'weekly', 'monthly'
 
     useEffect(() => {
-        fetchChartData();
         fetchTrendsData();
     }, [startDate, endDate, trendPeriod]);
 
-    const fetchChartData = async () => {
+    const fetchTrendsData = async () => {
         if (!startDate || !endDate) return;
         
         setLoading(true);
         setError('');
         try {
-            const response = await axios.get('/admin/profit-loss/report', {
-                params: { startDate, endDate },
-                withCredentials: true,
-            });
-            setChartData(response.data);
-        } catch (err) {
-            setError('Failed to fetch chart data.');
-            console.error('Chart data error:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchTrendsData = async () => {
-        try {
             const response = await axios.get('/admin/profit-loss/trends', {
-                params: { period: trendPeriod },
+                params: { startDate, endDate },
                 withCredentials: true,
             });
             setTrendsData(response.data);
         } catch (err) {
+            setError('Failed to fetch trends data.');
             console.error('Trends data error:', err);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -89,14 +75,14 @@ const ProfitLossCharts = () => {
         }).format(amount || 0);
     };
 
-    // Prepare comparison chart data
+    // Prepare comparison chart data from shopData prop
     const getComparisonChartData = () => {
-        if (!chartData || !chartData.shopDetails) return null;
+        if (!shopData) return null;
 
-        const shopNames = chartData.shopDetails.map(shop => shop.shopName);
-        const revenues = chartData.shopDetails.map(shop => shop.totalRevenue);
-        const expenses = chartData.shopDetails.map(shop => shop.totalExpenses);
-        const netProfits = chartData.shopDetails.map(shop => shop.netProfit);
+        const shopNames = shopData.map(shop => shop.shopName);
+        const revenues = shopData.map(shop => shop.revenue.totalBillingProfit);
+        const expenses = shopData.map(shop => shop.expenses.totalExpenses);
+        const netProfits = shopData.map(shop => shop.profitability.netProfit);
 
         const chartConfig = {
             labels: shopNames,
@@ -128,12 +114,12 @@ const ProfitLossCharts = () => {
         return chartConfig;
     };
 
-    // Prepare profit margin chart data
+    // Prepare profit margin chart data from shopData prop
     const getProfitMarginChartData = () => {
-        if (!chartData || !chartData.shopDetails) return null;
+        if (!shopData) return null;
 
-        const shopNames = chartData.shopDetails.map(shop => shop.shopName);
-        const margins = chartData.shopDetails.map(shop => shop.profitMargin);
+        const shopNames = shopData.map(shop => shop.shopName);
+        const margins = shopData.map(shop => shop.profitability.profitMargin);
 
         return {
             labels: shopNames,
@@ -155,46 +141,44 @@ const ProfitLossCharts = () => {
 
     // Prepare trends chart data
     const getTrendsChartData = () => {
-        if (!trendsData || !trendsData.trends) return null;
+        if (!trendsData || !trendsData.netProfitTrend) return null;
 
-        // Get all unique periods from all shops
-        const allPeriods = new Set();
-        trendsData.trends.forEach(shop => {
-            shop.trendData.forEach(period => allPeriods.add(period.period));
-        });
-        const periods = Array.from(allPeriods).sort();
-
-        const datasets = trendsData.trends.map((shop, index) => {
-            const colors = [
-                'rgba(59, 130, 246, 1)',   // Blue
-                'rgba(34, 197, 94, 1)',    // Green
-                'rgba(239, 68, 68, 1)',    // Red
-                'rgba(168, 85, 247, 1)',   // Purple
-                'rgba(245, 158, 11, 1)',   // Amber
-            ];
-            
-            const color = colors[index % colors.length];
-            
-            // Map trend data to periods
-            const data = periods.map(period => {
-                const periodData = shop.trendData.find(t => t.period === period);
-                return periodData ? periodData.netProfit : 0;
-            });
-
-            return {
-                label: shop.shopName,
-                data: data,
-                borderColor: color,
-                backgroundColor: color.replace('1)', '0.1)'),
-                borderWidth: 2,
-                fill: false,
-                tension: 0.4,
-            };
-        });
+        const dates = trendsData.netProfitTrend.map(item => item.date);
+        const netProfits = trendsData.netProfitTrend.map(item => item.netProfit);
+        const revenues = trendsData.revenueTrend.map(item => item.revenue);
+        const expenses = trendsData.expenseTrend.map(item => item.expenses);
 
         return {
-            labels: periods.map(period => format(new Date(period), 'MMM yyyy')),
-            datasets: datasets
+            labels: dates,
+            datasets: [
+                {
+                    label: 'Revenue',
+                    data: revenues,
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                },
+                {
+                    label: 'Expenses',
+                    data: expenses,
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                },
+                {
+                    label: 'Net Profit',
+                    data: netProfits,
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                }
+            ]
         };
     };
 
@@ -305,7 +289,7 @@ const ProfitLossCharts = () => {
                         </div>
 
                         <button
-                            onClick={() => { fetchChartData(); fetchTrendsData(); }}
+                            onClick={fetchTrendsData}
                             disabled={loading}
                             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 flex items-center"
                         >
@@ -364,9 +348,9 @@ const ProfitLossCharts = () => {
                             onChange={(e) => setTrendPeriod(e.target.value)}
                             className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                            <option value="daily">Daily (Last 30 days)</option>
-                            <option value="weekly">Weekly (Last 12 weeks)</option>
-                            <option value="monthly">Monthly (Last 12 months)</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
                         </select>
                     </div>
                 </div>
@@ -397,7 +381,7 @@ const ProfitLossCharts = () => {
             </div>
 
             {/* Performance Insights */}
-            {chartData && (
+            {shopData && shopData.length > 0 && (
                 <div className="bg-white rounded-xl shadow-lg p-6">
                     <h3 className="text-xl font-semibold text-gray-900 mb-4">
                         Performance Insights
@@ -406,18 +390,18 @@ const ProfitLossCharts = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {/* Top Performer */}
                         {(() => {
-                            const topShop = chartData.shopDetails.reduce((prev, current) => 
-                                (prev.netProfit > current.netProfit) ? prev : current
+                            const topShop = shopData.reduce((prev, current) => 
+                                (prev.profitability.netProfit > current.profitability.netProfit) ? prev : current
                             );
                             return (
                                 <div className="bg-green-50 p-4 rounded-lg">
                                     <h4 className="font-semibold text-green-800 mb-2">Top Performer</h4>
                                     <p className="text-lg font-bold text-green-700">{topShop.shopName}</p>
                                     <p className="text-sm text-green-600">
-                                        Net Profit: {formatCurrency(topShop.netProfit)}
+                                        Net Profit: {formatCurrency(topShop.profitability.netProfit)}
                                     </p>
                                     <p className="text-sm text-green-600">
-                                        Margin: {topShop.profitMargin.toFixed(2)}%
+                                        Margin: {topShop.profitability.profitMargin.toFixed(2)}%
                                     </p>
                                 </div>
                             );
@@ -425,15 +409,15 @@ const ProfitLossCharts = () => {
 
                         {/* Highest Revenue */}
                         {(() => {
-                            const highestRevenueShop = chartData.shopDetails.reduce((prev, current) => 
-                                (prev.totalRevenue > current.totalRevenue) ? prev : current
+                            const highestRevenueShop = shopData.reduce((prev, current) => 
+                                (prev.revenue.totalBillingProfit > current.revenue.totalBillingProfit) ? prev : current
                             );
                             return (
                                 <div className="bg-blue-50 p-4 rounded-lg">
                                     <h4 className="font-semibold text-blue-800 mb-2">Highest Revenue</h4>
                                     <p className="text-lg font-bold text-blue-700">{highestRevenueShop.shopName}</p>
                                     <p className="text-sm text-blue-600">
-                                        Revenue: {formatCurrency(highestRevenueShop.totalRevenue)}
+                                        Revenue: {formatCurrency(highestRevenueShop.revenue.totalBillingProfit)}
                                     </p>
                                 </div>
                             );
@@ -441,18 +425,18 @@ const ProfitLossCharts = () => {
 
                         {/* Needs Attention */}
                         {(() => {
-                            const needsAttentionShop = chartData.shopDetails.reduce((prev, current) => 
-                                (prev.profitMargin < current.profitMargin) ? prev : current
+                            const needsAttentionShop = shopData.reduce((prev, current) => 
+                                (prev.profitability.profitMargin < current.profitability.profitMargin) ? prev : current
                             );
                             return (
                                 <div className="bg-orange-50 p-4 rounded-lg">
                                     <h4 className="font-semibold text-orange-800 mb-2">Needs Attention</h4>
                                     <p className="text-lg font-bold text-orange-700">{needsAttentionShop.shopName}</p>
                                     <p className="text-sm text-orange-600">
-                                        Margin: {needsAttentionShop.profitMargin.toFixed(2)}%
+                                        Margin: {needsAttentionShop.profitability.profitMargin.toFixed(2)}%
                                     </p>
                                     <p className="text-sm text-orange-600">
-                                        Net Profit: {formatCurrency(needsAttentionShop.netProfit)}
+                                        Net Profit: {formatCurrency(needsAttentionShop.profitability.netProfit)}
                                     </p>
                                 </div>
                             );

@@ -17,7 +17,7 @@ const billSchema = new mongoose.Schema({
   },
   customerName: {
     type: String,
-    required: true,
+    required: false,
   },
   items: [{
     product: {
@@ -102,9 +102,28 @@ const billSchema = new mongoose.Schema({
   shopAddress: String,
   shopGstNumber: String,
   shopFssaiNumber: String,
-  shopPhone: String
+  shopPhone: String,
+  
+  // Soft delete fields
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletionReason: String,
+  deletedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  deletedAt: Date,
+  isEdited: {
+    type: Boolean,
+    default: false
+  }
 }, {
   timestamps: true,
 });
+
+// Add index for soft deletes
+billSchema.index({ isDeleted: 1 });
 
 module.exports = mongoose.model('Bill', billSchema);

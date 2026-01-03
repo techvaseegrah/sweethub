@@ -3,6 +3,7 @@ const User = require('../../models/User');
 const Role = require('../../models/Role');
 const Shop = require('../../models/shopModel');
 const Department = require('../../models/departmentModel');
+const Setting = require('../../models/settingModel');
 const bcrypt = require('bcrypt');
 const mongoose = require('mongoose');
 
@@ -47,7 +48,7 @@ exports.getWorkerById = async (req, res) => {
 // @route   POST /api/shop/workers
 // @access  Private (Shop)
 exports.addWorker = async (req, res) => {
-    let { name, username, email, department, workingHours, lunchBreak, salary, rfid } = req.body;
+    let { name, username, email, department, workingHours, lunchBreak, salary, rfid, batchId } = req.body;
     const shopId = req.shopId; // Get shop ID from the authenticated token
     const tempPassword = Math.random().toString(36).slice(-8);
     const session = await mongoose.startSession();
@@ -55,14 +56,35 @@ exports.addWorker = async (req, res) => {
 
     try {
         // Validate required fields
-        if (!name || !department || !workingHours || !salary) {
+        if (!name || !department || !salary) {
             await session.abortTransaction();
             session.endSession();
-            return res.status(400).json({ message: 'Please fill all required fields: name, department, working hours, and salary.' });
+            return res.status(400).json({ message: 'Please fill all required fields: name, department, and salary.' });
         }
         
-        // Validate workingHours structure
-        if (!workingHours.from || !workingHours.to) {
+        // If batchId is provided, get the working hours and lunch break from the batch
+        if (batchId) {
+            const batchSetting = await Setting.findOne({ 
+                key: `batch_${batchId}`, 
+                type: 'shop', 
+                shop: req.shopId 
+            });
+            
+            if (batchSetting) {
+                const batchValue = typeof batchSetting.value === 'string' ? JSON.parse(batchSetting.value) : batchSetting.value;
+                
+                // Override workingHours and lunchBreak with batch values if they exist in the batch
+                if (batchValue.workingHours) {
+                    workingHours = batchValue.workingHours;
+                }
+                if (batchValue.lunchBreak) {
+                    lunchBreak = batchValue.lunchBreak;
+                }
+            }
+        }
+        
+        // Validate workingHours structure if provided
+        if (workingHours && (!workingHours.from || !workingHours.to)) {
             await session.abortTransaction();
             session.endSession();
             return res.status(400).json({ message: 'Working hours must include both from and to times' });
@@ -129,10 +151,11 @@ exports.addWorker = async (req, res) => {
             username,
             ...(email && { email }), // Only add email if it exists
             department,
-            workingHours,
+            ...(workingHours && { workingHours }), // Only add workingHours if it exists
             ...(lunchBreak && { lunchBreak }), // Only add lunchBreak if it exists
             salary,
             shop: shopId, // Associate worker with the shop
+            batchId, // Store the batchId
             rfid: workerRfid
         });
         
@@ -232,9 +255,33 @@ exports.deleteWorker = async (req, res) => {
 // @access  Private (Shop)
 exports.updateWorker = async (req, res) => {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = { ...req.body };
 
     try {
+        // If batchId is provided, get the working hours and lunch break from the batch
+        if (updateData.batchId) {
+            const batchSetting = await Setting.findOne({ 
+                key: `batch_${updateData.batchId}`, 
+                type: 'shop', 
+                shop: req.shopId 
+            });
+            
+            if (batchSetting) {
+                const batchValue = typeof batchSetting.value === 'string' ? JSON.parse(batchSetting.value) : batchSetting.value;
+                
+                // Update working hours and lunch break based on batch
+                updateData.workingHours = batchValue.workingHours || null;
+                updateData.lunchBreak = batchValue.lunchBreak || null;
+                // Also update breakTime if it exists in the batch
+                updateData.breakTime = batchValue.breakTime || null;
+            }
+        } else if (updateData.batchId === null || updateData.batchId === '') {
+            // If batchId is explicitly set to null or empty, clear working hours and lunch break
+            updateData.workingHours = null;
+            updateData.lunchBreak = null;
+            updateData.breakTime = null;
+        }
+
         const filter = { _id: id, shop: req.shopId };
         const updatedWorker = await Worker.findOneAndUpdate(filter, updateData, { new: true })
             .select('+faceImages +faceEncodings'); // Include face data in the response

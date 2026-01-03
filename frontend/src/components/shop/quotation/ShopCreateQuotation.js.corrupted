@@ -1,0 +1,134 @@
+  const handleSaveQuotation = async (e) => {
+    e.preventDefault();
+
+    if (quotationItems.length === 0) {
+      alert('Please add at least one product to the quotation');
+      return;
+    }
+
+    try {
+      // Fix: Use correct API endpoint without extra /api
+      const QUOTATION_URL = `${baseUrl.replace('/api', '')}/quotations`;
+      
+      // Calculate discount amount
+      let discountAmount = 0;
+      if (discountType === 'percentage' && discountValue) {
+        discountAmount = (parseFloat(discountValue) / 100) * baseAmount;
+      } else if (discountType === 'amount' && discountValue) {
+        discountAmount = parseFloat(discountValue);
+      }
+      
+      // Ensure discount doesn't exceed base amount
+      discountAmount = Math.min(discountAmount, baseAmount);
+      
+      // Calculate GST amount based on discounted amount
+      const discountedAmount = baseAmount - discountAmount;
+      const gstAmount = (discountedAmount * gstPercentage) / 100;
+      
+      // Calculate final total
+      const finalTotal = discountedAmount + gstAmount;
+      
+      const payload = {
+        customerName,
+        customerMobileNumber,
+        customerAddress,
+        items: quotationItems.map(item => ({
+          product: item.product._id,
+          productName: item.productName,
+          sku: item.sku,
+          unit: item.unit,
+          quantity: item.quantity,
+          price: item.price,
+          totalPrice: item.totalPrice,
+        })),
+        baseAmount,
+        gstPercentage,
+        gstAmount,
+        totalAmount: finalTotal,
+        // Add discount information
+        discountType,
+        discountValue: discountValue ? parseFloat(discountValue) : 0,
+        discountAmount
+      };
+
+      let response;
+      if (isEditMode && originalQuotationId) {
+        // Update existing quotation
+        response = await axios.put(
+          `${QUOTATION_URL}/${originalQuotationId}`,
+          payload,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            withCredentials: true,
+          }
+        );
+        
+        setNotificationMessage('Quotation updated successfully!');
+      } else {
+        // Create new quotation
+        response = await axios.post(
+          QUOTATION_URL,
+          payload,
+          {
+            headers: { 'Content-Type': 'application/json' },
+            withCredentials: true,
+          }
+        );
+        
+        setNotificationMessage('Quotation created successfully!');
+      }
+
+      // Auto-download PDF if checked
+      if (autoDownload || autoPrint) {
+        const shopDetails = {
+          name: response.data.shopName || response.data.shop?.name,
+          address: response.data.shopAddress || response.data.shop?.location,
+          gstNumber: response.data.shopGstNumber || response.data.shop?.gstNumber,
+          fssaiNumber: response.data.shopFssaiNumber || response.data.shop?.fssaiNumber,
+          phone: response.data.shopPhone || response.data.shop?.shopPhoneNumber
+        };
+        
+        if (autoDownload) {
+          generateQuotationPdf(response.data, shopDetails);
+        }
+        
+        if (autoPrint) {
+          printQuotation(response.data, shopDetails);
+        }
+      }
+
+      // Reset form for new quotation (if not in edit mode)
+      if (!isEditMode) {
+        setCustomerName('');
+        setCustomerMobileNumber('');
+        setCustomerAddress('');
+        setQuotationItems([]);
+        setDiscountType('none');
+        setDiscountValue('');
+        setGstPercentage(0);
+        
+        // Auto-scroll to top and focus on customer name field
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setTimeout(() => {
+          if (customerMobileRef && customerMobileRef.current) {
+            customerMobileRef.current.focus();
+          }
+        }, 100);
+      } else {
+        // For edit mode, navigate back to view page after update
+        setTimeout(() => {
+          navigate(`${baseUrl.replace('/api', '')}/quotations/view`);
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Save Quotation Error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to save quotation';
+      setNotificationMessage(errorMessage);
+      setNotificationType('error');
+      setShowNotification(true);
+      
+      setTimeout(() => {
+        setShowNotification(false);
+      }, 5000);
+    }
+  };

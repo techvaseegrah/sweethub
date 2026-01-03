@@ -34,103 +34,37 @@ exports.getProfitLossData = async (req, res) => {
       console.log(`Processing shop: ${shop.name}`);
       
       try {
-        // 1. Calculate total sales (revenue) from bills
-        const salesData = await Bill.aggregate([
-          {
-            $match: {
-              shop: shop._id,
-              billDate: { $gte: start, $lte: end }
-            }
-          },
-          {
-            $group: {
-              _id: null,
-              totalSales: { $sum: '$totalAmount' },
-              totalBills: { $sum: 1 }
+        // 1. Calculate billing profit (Revenue) from bills - (Sell Price - Net Price) * Quantity
+        // First, get all bills with their items for the date range
+        const bills = await Bill.find({
+          shop: shop._id,
+          billDate: { $gte: start, $lte: end }
+        }).populate({
+          path: 'items.product',
+          select: 'prices'
+        });
+
+        let totalBillingProfit = 0;
+        let totalBills = 0;
+
+        if (bills.length > 0) {
+          totalBills = bills.length;
+          
+          // Calculate profit for each item in each bill
+          for (const bill of bills) {
+            for (const item of bill.items) {
+              // Find the price for the specific unit in the product's prices array
+              const unitPrice = item.product.prices.find(price => price.unit === item.unit);
+              
+              if (unitPrice) {
+                const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
+                totalBillingProfit += profitPerItem;
+              }
             }
           }
-        ]);
-
-        const totalSales = salesData.length > 0 ? salesData[0].totalSales : 0;
-        const totalBills = salesData.length > 0 ? salesData[0].totalBills : 0;
-
-        // 2. Calculate total purchase costs from confirmed invoices
-        const purchaseCosts = await Invoice.aggregate([
-          {
-            $match: {
-              shop: shop._id,
-              status: 'Confirmed',
-              confirmedDate: { $gte: start, $lte: end }
-            }
-          },
-          {
-            $group: {
-              _id: null,
-              totalPurchaseCost: { $sum: '$grandTotal' },
-              totalInvoices: { $sum: 1 }
-            }
-          }
-        ]);
-
-        const totalPurchaseCost = purchaseCosts.length > 0 ? purchaseCosts[0].totalPurchaseCost : 0;
-        const totalInvoices = purchaseCosts.length > 0 ? purchaseCosts[0].totalInvoices : 0;
-
-        // 3. Calculate salary expenses for shop workers
-        const workers = await Worker.find({ shop: shop._id });
-        const totalSalaryExpense = workers.reduce((total, worker) => {
-          const monthlySalary = parseFloat(worker.salary) || 0;
-          // Calculate daily salary and multiply by days in period
-          const daysInPeriod = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-          const dailySalary = monthlySalary / 30; // Assuming 30 days per month
-          return total + (dailySalary * daysInPeriod);
-        }, 0);
-
-        // 4. Calculate production costs (estimated based on product costs)
-        let totalProductionCost = 0;
-        try {
-          const productionCosts = await Bill.aggregate([
-            {
-              $match: {
-                shop: shop._id,
-                billDate: { $gte: start, $lte: end }
-              }
-            },
-            {
-              $unwind: '$items'
-            },
-            {
-              $lookup: {
-                from: 'products',
-                localField: 'items.product',
-                foreignField: '_id',
-                as: 'productDetails'
-              }
-            },
-            {
-              $unwind: '$productDetails'
-            },
-            {
-              $group: {
-                _id: null,
-                totalProductionCost: {
-                  $sum: {
-                    $multiply: [
-                      '$items.quantity',
-                      { $ifNull: [{ $arrayElemAt: ['$productDetails.prices.netPrice', 0] }, 0] }
-                    ]
-                  }
-                }
-              }
-            }
-          ]);
-
-          totalProductionCost = productionCosts.length > 0 ? productionCosts[0].totalProductionCost : 0;
-        } catch (productionError) {
-          console.error(`Error calculating production costs for shop ${shop.name}:`, productionError);
-          totalProductionCost = 0;
         }
 
-        // 5. Get actual expenses from expense module for this shop
+        // 2. Calculate actual expenses from expense module for this shop (only actual expenses, not product costs)
         const shopExpenses = await Expense.aggregate([
           {
             $match: {
@@ -177,18 +111,20 @@ exports.getProfitLossData = async (req, res) => {
           }
         });
 
-        // Calculate total actual expenses
+        // Calculate total actual expenses (only from expense module)
         const totalActualExpenses = transportExpense + petrolDieselExpense + electricityExpense + 
                                   rawMaterialsExpense + maintenanceExpense + miscellaneousExpense;
 
-        // 6. Calculate totals (using actual expenses instead of estimates)
-        const totalExpenses = totalPurchaseCost + totalSalaryExpense + totalProductionCost + totalActualExpenses;
-        const grossProfit = totalSales - totalPurchaseCost;
-        const netProfit = totalSales - totalExpenses;
-        const profitMargin = totalSales > 0 ? ((netProfit / totalSales) * 100) : 0;
+        // 3. Calculate totals with accurate logic
+        const totalRevenue = totalBillingProfit; // Only billing profit as revenue
+        const totalExpenses = totalActualExpenses; // Only actual expenses from expense module
+        const netProfit = totalRevenue - totalExpenses;
+
+        // Calculate profit margin based on revenue
+        const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100) : 0;
 
         // Add to consolidated totals
-        totalConsolidatedRevenue += totalSales;
+        totalConsolidatedRevenue += totalRevenue;
         totalConsolidatedExpenses += totalExpenses;
 
         const shopData = {
@@ -196,13 +132,10 @@ exports.getProfitLossData = async (req, res) => {
           shopName: shop.name,
           location: shop.location,
           revenue: {
-            totalSales: totalSales,
+            totalBillingProfit: totalRevenue,
             totalBills: totalBills
           },
           expenses: {
-            purchaseCosts: totalPurchaseCost,
-            salaryExpense: totalSalaryExpense,
-            productionCost: totalProductionCost,
             transportExpense: transportExpense,
             petrolDieselExpense: petrolDieselExpense,
             electricityExpense: electricityExpense,
@@ -212,13 +145,11 @@ exports.getProfitLossData = async (req, res) => {
             totalExpenses: totalExpenses
           },
           profitability: {
-            grossProfit: grossProfit,
             netProfit: netProfit,
             profitMargin: profitMargin
           },
           metrics: {
-            totalInvoices: totalInvoices,
-            workerCount: workers.length
+            totalBills: totalBills
           }
         };
 
@@ -297,9 +228,6 @@ exports.getShopExpenseBreakdown = async (req, res) => {
       shopName: shop.name,
       period: { startDate: start, endDate: end },
       expenses: {
-        purchases: [],
-        salaries: [],
-        production: [],
         // Actual expenses from expense module
         actualExpenses: [],
         transport: 0,
@@ -310,38 +238,6 @@ exports.getShopExpenseBreakdown = async (req, res) => {
         miscellaneous: 0
       }
     };
-
-    // Get detailed purchase expenses
-    const invoices = await Invoice.find({
-      shop: shopId,
-      status: 'Confirmed',
-      confirmedDate: { $gte: start, $lte: end }
-    }).populate('admin', 'name');
-
-    expenseBreakdown.expenses.purchases = invoices.map(invoice => ({
-      invoiceNumber: invoice.invoiceNumber,
-      date: invoice.confirmedDate,
-      amount: invoice.grandTotal,
-      adminName: invoice.admin.name,
-      itemCount: invoice.items.length
-    }));
-
-    // Get worker salary details
-    const workers = await Worker.find({ shop: shopId }).populate('department', 'name');
-    const daysInPeriod = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    
-    expenseBreakdown.expenses.salaries = workers.map(worker => {
-      const monthlySalary = parseFloat(worker.salary) || 0;
-      const dailySalary = monthlySalary / 30;
-      const periodSalary = dailySalary * daysInPeriod;
-      
-      return {
-        workerName: worker.name,
-        department: worker.department?.name || 'N/A',
-        monthlySalary: monthlySalary,
-        periodSalary: periodSalary
-      };
-    });
 
     // Get actual expenses from expense module
     const actualExpenses = await Expense.find({
@@ -387,5 +283,337 @@ exports.getShopExpenseBreakdown = async (req, res) => {
   } catch (error) {
     console.error('Error getting expense breakdown:', error);
     res.status(500).json({ message: 'Failed to get expense breakdown', error: error.message });
+  }
+};
+
+/**
+ * Get consolidated profit & loss report data
+ */
+exports.getConsolidatedReport = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'Start date and end date are required.' });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // Get all shops
+    const shops = await Shop.find({}).select('_id name location');
+
+    const shopDetails = [];
+    let overallTotalRevenue = 0;
+    let overallTotalExpenses = 0;
+    let overallGrossProfit = 0;
+    let overallNetProfit = 0;
+
+    for (const shop of shops) {
+      // Calculate billing profit (Revenue) from bills - (Sell Price - Net Price) * Quantity
+      const bills = await Bill.find({
+        shop: shop._id,
+        billDate: { $gte: start, $lte: end }
+      }).populate({
+        path: 'items.product',
+        select: 'prices'
+      });
+
+      let totalRevenue = 0;
+      let totalBills = 0;
+
+      if (bills.length > 0) {
+        totalBills = bills.length;
+        
+        // Calculate profit for each item in each bill
+        for (const bill of bills) {
+          for (const item of bill.items) {
+            // Find the price for the specific unit in the product's prices array
+            const unitPrice = item.product.prices.find(price => price.unit === item.unit);
+            
+            if (unitPrice) {
+              const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
+              totalRevenue += profitPerItem;
+            }
+          }
+        }
+      }
+
+      // Calculate actual expenses from expense module for this shop
+      const shopExpenses = await Expense.aggregate([
+        {
+          $match: {
+            shop: shop._id,
+            date: { $gte: start, $lte: end }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalExpenses: { $sum: '$amount' }
+          }
+        }
+      ]);
+
+      const totalExpenses = shopExpenses.length > 0 ? shopExpenses[0].totalExpenses : 0;
+      const netProfit = totalRevenue - totalExpenses;
+      const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100) : 0;
+
+      // Add to overall totals
+      overallTotalRevenue += totalRevenue;
+      overallTotalExpenses += totalExpenses;
+      overallNetProfit += netProfit;
+
+      const shopDetail = {
+        shopId: shop._id,
+        shopName: shop.name,
+        totalRevenue,
+        totalExpenses,
+        grossProfit: totalRevenue, // In our new model, revenue is the gross profit from billing
+        netProfit,
+        profitMargin
+      };
+
+      shopDetails.push(shopDetail);
+    }
+
+    const overallTotals = {
+      totalRevenue: overallTotalRevenue,
+      totalExpenses: overallTotalExpenses,
+      grossProfit: overallTotalRevenue, // In our new model, revenue is the gross profit from billing
+      netProfit: overallNetProfit
+    };
+
+    const response = {
+      shopDetails,
+      overallTotals,
+      period: {
+        startDate: start,
+        endDate: end
+      }
+    };
+
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Error generating consolidated report:', error);
+    res.status(500).json({ message: 'Failed to generate consolidated report', error: error.message });
+  }
+};
+
+/**
+ * Get detailed shop data for report
+ */
+exports.getShopDetailedReport = async (req, res) => {
+  try {
+    const { shopId } = req.params;
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'Start date and end date are required.' });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const shop = await Shop.findById(shopId);
+    if (!shop) {
+      return res.status(404).json({ message: 'Shop not found' });
+    }
+
+    // Calculate billing profit (Revenue) from bills - (Sell Price - Net Price) * Quantity
+    const bills = await Bill.find({
+      shop: shopId,
+      billDate: { $gte: start, $lte: end }
+    }).populate({
+      path: 'items.product',
+      select: 'prices'
+    });
+
+    let totalRevenue = 0;
+    let totalBills = 0;
+
+    if (bills.length > 0) {
+      totalBills = bills.length;
+      
+      // Calculate profit for each item in each bill
+      for (const bill of bills) {
+        for (const item of bill.items) {
+          // Find the price for the specific unit in the product's prices array
+          const unitPrice = item.product.prices.find(price => price.unit === item.unit);
+          
+          if (unitPrice) {
+            const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
+            totalRevenue += profitPerItem;
+          }
+        }
+      }
+    }
+
+    // Calculate actual expenses from expense module for this shop
+    const shopExpenses = await Expense.aggregate([
+      {
+        $match: {
+          shop: shopId,
+          date: { $gte: start, $lte: end }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalExpenses: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    const totalExpenses = shopExpenses.length > 0 ? shopExpenses[0].totalExpenses : 0;
+    const netProfit = totalRevenue - totalExpenses;
+    const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100) : 0;
+
+    const response = {
+      shopId: shop._id,
+      shopName: shop.name,
+      totalRevenue,
+      totalExpenses,
+      grossProfit: totalRevenue, // In our new model, revenue is the gross profit from billing
+      netProfit,
+      profitMargin,
+      revenueBreakdown: {
+        customerSales: {
+          amount: totalRevenue,
+          transactions: totalBills
+        }
+      },
+      expenseBreakdown: {
+        directCosts: {
+          productCosts: 0,
+          manufacturingCosts: 0,
+          materialCosts: 0
+        },
+        indirectCosts: {
+          salaryCosts: 0,
+          transportCosts: 0,
+          utilityCosts: 0
+        }
+      }
+    };
+
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error('Error generating shop detailed report:', error);
+    res.status(500).json({ message: 'Failed to generate shop detailed report', error: error.message });
+  }
+};
+
+/**
+ * Get profit & loss trends
+ */
+exports.getProfitLossTrends = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'Start date and end date are required.' });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    // Get all shops
+    const shops = await Shop.find({}).select('_id name');
+
+    // Get bills for the period
+    const bills = await Bill.find({
+      billDate: { $gte: start, $lte: end }
+    }).populate({
+      path: 'items.product',
+      select: 'prices'
+    });
+
+    // Calculate daily revenue (billing profit)
+    const dailyRevenue = {};
+    const dailyExpenses = {};
+    const dailyNetProfit = {};
+
+    // Process bills to calculate daily revenue
+    for (const bill of bills) {
+      const billDate = bill.billDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+      
+      if (!dailyRevenue[billDate]) {
+        dailyRevenue[billDate] = 0;
+      }
+
+      for (const item of bill.items) {
+        const unitPrice = item.product.prices.find(price => price.unit === item.unit);
+        
+        if (unitPrice) {
+          const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
+          dailyRevenue[billDate] += profitPerItem;
+        }
+      }
+    }
+
+    // Process expenses to calculate daily expenses
+    const expenses = await Expense.find({
+      date: { $gte: start, $lte: end }
+    });
+
+    for (const expense of expenses) {
+      const expenseDate = expense.date.toISOString().split('T')[0];
+      
+      if (!dailyExpenses[expenseDate]) {
+        dailyExpenses[expenseDate] = 0;
+      }
+      
+      dailyExpenses[expenseDate] += expense.amount;
+    }
+
+    // Calculate daily net profit
+    const allDates = new Set([
+      ...Object.keys(dailyRevenue),
+      ...Object.keys(dailyExpenses)
+    ]);
+
+    for (const date of allDates) {
+      const revenue = dailyRevenue[date] || 0;
+      const expenses = dailyExpenses[date] || 0;
+      dailyNetProfit[date] = revenue - expenses;
+    }
+
+    // Sort dates
+    const sortedDates = Array.from(allDates).sort();
+
+    const revenueTrend = sortedDates.map(date => ({
+      date,
+      revenue: dailyRevenue[date] || 0
+    }));
+
+    const expenseTrend = sortedDates.map(date => ({
+      date,
+      expenses: dailyExpenses[date] || 0
+    }));
+
+    const netProfitTrend = sortedDates.map(date => ({
+      date,
+      netProfit: dailyNetProfit[date] || 0
+    }));
+
+    res.status(200).json({
+      revenueTrend,
+      expenseTrend,
+      netProfitTrend,
+      period: {
+        startDate: start,
+        endDate: end
+      }
+    });
+
+  } catch (error) {
+    console.error('Error getting profit & loss trends:', error);
+    res.status(500).json({ message: 'Failed to get profit & loss trends', error: error.message });
   }
 };

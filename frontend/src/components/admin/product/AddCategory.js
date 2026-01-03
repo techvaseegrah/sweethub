@@ -35,7 +35,7 @@ function AddCategory({ baseUrl = '/admin' }) {
     try {
       const payload = {
         name: categoryName,
-        shop: null, 
+        // Don't set shop for shop users, let backend handle it based on auth
       };
 
       await axios.post(

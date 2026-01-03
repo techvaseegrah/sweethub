@@ -171,7 +171,19 @@ function ShopSidebar() {
   //   return () => clearInterval(interval);
   // }, []);
 
-  const { logout } = useContext(AuthContext);
+  const { logout, authState } = useContext(AuthContext);
+
+  // Don't render if authState is not properly initialized yet
+  if (!authState || authState.isAuthenticated === undefined) {
+    return (
+      <div className="h-screen w-64 bg-white flex items-center justify-center border-r border-gray-200">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto"></div>
+          <p className="mt-2 text-gray-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = () => {
     setShowLogoutModal(true);
@@ -189,8 +201,11 @@ function ShopSidebar() {
   useEffect(() => {
     const checkPendingInvoice = async () => {
       try {
-        const response = await axios.get('/shop/invoices/pending');
-        setHasPendingInvoice(!!response.data);
+        // Only fetch if not an attendance-only user
+        if (authState?.role !== 'attendance-only') {
+          const response = await axios.get('/shop/invoices/pending');
+          setHasPendingInvoice(!!response.data);
+        }
       } catch (err) {
         console.error('Failed to check for pending invoices:', err);
       }
@@ -198,11 +213,14 @@ function ShopSidebar() {
 
     const fetchLowStockCount = async () => {
       try {
-        const response = await axios.get('/shop/products');
-        const lowStock = response.data.filter(
-          (product) => product.stockLevel <= (product.stockAlertThreshold || 0)
-        );
-        setLowStockCount(lowStock.length);
+        // Only fetch if not an attendance-only user
+        if (authState?.role !== 'attendance-only') {
+          const response = await axios.get('/shop/products');
+          const lowStock = response.data.filter(
+            (product) => product.stockLevel <= (product.stockAlertThreshold || 0)
+          );
+          setLowStockCount(lowStock.length);
+        }
       } catch (err) {
         console.error('Failed to fetch low stock count:', err);
       }
@@ -210,8 +228,11 @@ function ShopSidebar() {
 
     const fetchShopDetails = async () => {
       try {
-        const response = await axios.get('/shop/details');
-        setShopName(response.data.name);
+        // Only fetch if not an attendance-only user
+        if (authState?.role !== 'attendance-only') {
+          const response = await axios.get('/shop/details');
+          setShopName(response.data.name);
+        }
       } catch (err) {
         console.error('Failed to fetch shop name:', err);
       }
@@ -220,7 +241,7 @@ function ShopSidebar() {
     checkPendingInvoice();
     fetchLowStockCount();
     fetchShopDetails();
-  }, []);
+  }, [authState?.role]);
 
   const toggleProductMenu = () => {
     setIsProductMenuOpen(!isProductMenuOpen);
@@ -299,6 +320,7 @@ function ShopSidebar() {
       </div>
 
       <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
+        {authState?.role !== 'attendance-only' && (
         <NavLink
           to="/shop/dashboard"
           className={({ isActive }) =>
@@ -320,7 +342,9 @@ function ShopSidebar() {
             </>
           )}
         </NavLink>
+        )}
 
+        {authState?.role !== 'attendance-only' && (
         <details className="group">
           <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
             <div className="flex items-center">
@@ -350,7 +374,9 @@ function ShopSidebar() {
               </NavLink>
            </nav>
         </details>
+        )}
 
+        {authState?.role !== 'attendance-only' && (
         <details className="group">
           <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
             <div className="flex items-center">
@@ -368,7 +394,9 @@ function ShopSidebar() {
               </NavLink>
           </nav>
         </details>
+        )}
 
+        {authState?.role !== 'attendance-only' && (
         <details className="group" open={isProductMenuOpen} onToggle={toggleProductMenu}>
           <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
             <div className="flex items-center">
@@ -385,8 +413,11 @@ function ShopSidebar() {
             </div>
           </summary>
           <nav className="mt-1 ml-6 space-y-1">
-            <NavLink to="/shop/products/admin" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-              <span className="font-medium">Admin Products</span>
+            <NavLink to="/shop/products/category" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+              <span className="font-medium">Add Category</span>
+            </NavLink>
+            <NavLink to="/shop/products/add" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+              <span className="font-medium">Add Product</span>
             </NavLink>
             <NavLink to="/shop/products/view" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
               <span className="font-medium">View Products</span>
@@ -404,7 +435,9 @@ function ShopSidebar() {
             </NavLink>
           </nav>
         </details>
+        )}
 
+        {authState?.role !== 'attendance-only' && (
         <NavLink
           to="/shop/invoice/view"
           className={({ isActive }) =>
@@ -429,7 +462,9 @@ function ShopSidebar() {
             </span>
           )}
         </NavLink>
+        )}
 
+        {authState?.role !== 'attendance-only' && (
         <details className="group">
           <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
             <div className="flex items-center">
@@ -447,8 +482,10 @@ function ShopSidebar() {
             </NavLink>
           </nav>
         </details>
+        )}
         
         {/* Expenses Module */}
+        {authState?.role !== 'attendance-only' && (
         <NavLink
           to="/shop/expenses"
           className={({ isActive }) =>
@@ -470,8 +507,10 @@ function ShopSidebar() {
             </>
           )}
         </NavLink>
+        )}
         
         {/* Return Products Module */}
+        {authState?.role !== 'attendance-only' && (
         <NavLink
           to="/shop/return-products"
           className={({ isActive }) =>
@@ -493,8 +532,10 @@ function ShopSidebar() {
             </>
           )}
         </NavLink>
+        )}
         
         {/* Settings Link - Moved to be right after Return Products */}
+        {authState?.role !== 'attendance-only' && (
         <NavLink
           to="/shop/settings"
           className={({ isActive }) =>
@@ -516,6 +557,7 @@ function ShopSidebar() {
             </>
           )}
         </NavLink>
+        )}
       </nav>
       
       {/* Logout Button */}

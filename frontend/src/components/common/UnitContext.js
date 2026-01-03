@@ -24,14 +24,22 @@ export const UnitProvider = ({ children }) => {
 
   // Determine the base URL based on user role
   const getBaseUrl = () => {
-    return authState.role === 'shop' ? '/shop' : '/admin';
+    if (authState?.role === 'shop') {
+      return '/shop';
+    } else if (authState?.role === 'attendance-only') {
+      // Attendance-only users should not need units, return shop as default to avoid 403
+      return '/shop';
+    } else {
+      return '/admin';
+    }
   };
 
   // Fetch units from the backend
   const fetchUnits = useCallback(async () => {
     // Only fetch units if user is authenticated and has a role
-    if (!authState.token || !authState.role) {
-      console.log('No authenticated user, using default units');
+    // Attendance-only users don't need units, so skip fetching for them
+    if (!authState.token || !authState?.role || authState?.role === 'attendance-only') {
+      console.log('No authenticated user or attendance-only user, using default units');
       setUnits(defaultUnits);
       setLoading(false);
       return;
@@ -64,7 +72,7 @@ export const UnitProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [defaultUnits, authState.token, authState.role]);
+  }, [defaultUnits, authState.token, authState?.role]);
 
   // Add a new unit
   const addUnit = async (unitName) => {
@@ -104,7 +112,7 @@ export const UnitProvider = ({ children }) => {
   // Check if a unit is in use
   const isUnitInUse = async (unitName) => {
     // Only check if user is authenticated
-    if (!authState.token || !authState.role) {
+    if (!authState.token || !authState?.role) {
       return false;
     }
 

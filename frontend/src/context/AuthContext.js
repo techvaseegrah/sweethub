@@ -7,6 +7,8 @@ export const AuthProvider = ({ children }) => {
   const [authState, setAuthState] = useState({
     token: null,
     role: null,
+    userType: null, // 'admin' or 'shop'
+    isAuthenticated: false,
   });
 
   const navigate = useNavigate();
@@ -14,23 +16,28 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('role');
+    const userType = localStorage.getItem('userType');
     if (token && role) {
-      setAuthState({ token, role });
+      setAuthState({ token, role, userType, isAuthenticated: true });
     }
   }, []);
 
-  const login = (token, role) => {
-    console.log('Logging in with token and role:', { token, role });
+  const login = (token, role, userType = null) => {
+    console.log('Logging in with token, role, and userType:', { token, role, userType });
     localStorage.setItem('token', token);
     localStorage.setItem('role', role);
-    setAuthState({ token, role });
+    if (userType) {
+      localStorage.setItem('userType', userType);
+    }
+    setAuthState({ token, role, userType, isAuthenticated: true });
   };
 
   const logout = () => {
     console.log('Logging out - clearing localStorage');
     localStorage.removeItem('token');
     localStorage.removeItem('role');
-    setAuthState({ token: null, role: null });
+    localStorage.removeItem('userType');
+    setAuthState({ token: null, role: null, userType: null, isAuthenticated: false });
     navigate('/');
   };
 

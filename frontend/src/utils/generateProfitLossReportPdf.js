@@ -1,29 +1,101 @@
 import html2pdf from 'html2pdf.js';
 
+// Transform data from main profit-loss endpoint to match PDF format
+export const transformProfitLossDataForPdf = (profitLossData) => {
+  if (!profitLossData || !profitLossData.shopData) {
+    return {
+      shopDetails: [],
+      overallTotals: {
+        totalRevenue: 0,
+        totalExpenses: 0,
+        grossProfit: 0,
+        netProfit: 0
+      }
+    };
+  }
+
+  // Transform shopData to shopDetails format expected by PDF
+  const shopDetails = profitLossData.shopData.map(shop => {
+    // Calculate gross profit (revenue - direct costs, but in our case revenue is already the profit)
+    const grossProfit = shop.revenue.totalBillingProfit;
+    const netProfit = shop.profitability.netProfit;
+    
+    return {
+      shopId: shop.shopId,
+      shopName: shop.shopName,
+      totalRevenue: shop.revenue.totalBillingProfit,
+      totalExpenses: shop.expenses.totalExpenses,
+      grossProfit: grossProfit,
+      netProfit: netProfit,
+      profitMargin: shop.profitability.profitMargin,
+      revenueBreakdown: {
+        customerSales: {
+          amount: shop.revenue.totalBillingProfit,
+          transactions: shop.revenue.totalBills
+        }
+      },
+      expenseBreakdown: {
+        directCosts: {
+          productCosts: 0,
+          manufacturingCosts: 0,
+          materialCosts: 0
+        },
+        indirectCosts: {
+          salaryCosts: shop.expenses.miscellaneousExpense || 0, // Map to appropriate expense types
+          transportCosts: shop.expenses.transportExpense || 0,
+          utilityCosts: (shop.expenses.electricityExpense || 0) + (shop.expenses.petrolDieselExpense || 0)
+        }
+      }
+    };
+  });
+
+  // Calculate overall totals
+  const overallTotals = {
+    totalRevenue: profitLossData.consolidated.totalRevenue,
+    totalExpenses: profitLossData.consolidated.totalExpenses,
+    grossProfit: profitLossData.consolidated.totalRevenue, // In our model, revenue is the gross profit
+    netProfit: profitLossData.consolidated.netProfit
+  };
+
+  return {
+    shopDetails,
+    overallTotals,
+    period: profitLossData.period
+  };
+};
+
 export const generateProfitLossReportPdf = (reportData, startDate, endDate) => {
+  // Check if we need to transform the data (if it's from the main profit-loss endpoint)
+  let processedReportData = reportData;
+  
+  // If the data structure doesn't match the expected format, transform it
+  if (reportData.shopData && reportData.consolidated) {
+    processedReportData = transformProfitLossDataForPdf(reportData);
+  }
+
   // Format the date
   const currentDate = new Date().toLocaleDateString();
   
   // Calculate summary statistics
-  const totalShops = reportData?.shopDetails?.length || 0;
-  const profitableShops = reportData?.shopDetails?.filter(shop => shop.netProfit > 0).length || 0;
-  const lossMakingShops = reportData?.shopDetails?.filter(shop => shop.netProfit < 0).length || 0;
+  const totalShops = processedReportData?.shopDetails?.length || 0;
+  const profitableShops = processedReportData?.shopDetails?.filter(shop => shop.netProfit > 0).length || 0;
+  const lossMakingShops = processedReportData?.shopDetails?.filter(shop => shop.netProfit < 0).length || 0;
   
   // Generate revenue breakdown rows
-  const revenueRows = reportData?.shopDetails?.map(shop => {
+  const revenueRows = processedReportData?.shopDetails?.map(shop => {
     return `
       <tr>
         <td style="padding: 8px; border: 1px solid #ddd; font-size: 14px;">${shop.shopName}</td>
         <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-size: 14px;">₹${(shop.revenueBreakdown?.customerSales?.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
         <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-size: 14px;">₹${(shop.revenueBreakdown?.invoiceSales?.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
         <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-size: 14px; font-weight: bold;">₹${shop.totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-size: 14px;">${reportData.overallTotals.totalRevenue > 0 ? ((shop.totalRevenue / reportData.overallTotals.totalRevenue) * 100).toFixed(1) : '0.0'}%</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-size: 14px;">${processedReportData.overallTotals.totalRevenue > 0 ? ((shop.totalRevenue / processedReportData.overallTotals.totalRevenue) * 100).toFixed(1) : '0.0'}%</td>
       </tr>
     `;
   }).join('') || '';
   
   // Generate expense breakdown rows
-  const expenseRows = reportData?.shopDetails?.map(shop => {
+  const expenseRows = processedReportData?.shopDetails?.map(shop => {
     return `
       <tr>
         <td style="padding: 8px; border: 1px solid #ddd; font-size: 14px;">${shop.shopName}</td>
@@ -39,7 +111,7 @@ export const generateProfitLossReportPdf = (reportData, startDate, endDate) => {
   }).join('') || '';
   
   // Generate profit analysis rows
-  const profitRows = reportData?.shopDetails?.map(shop => {
+  const profitRows = processedReportData?.shopDetails?.map(shop => {
     const profitClass = shop.netProfit > 0 ? 'color: green;' : shop.netProfit < 0 ? 'color: red;' : 'color: #666;';
     return `
       <tr>
@@ -61,35 +133,35 @@ export const generateProfitLossReportPdf = (reportData, startDate, endDate) => {
   }).join('') || '';
   
   // Generate summary for total row
-  const totalRevenue = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalRevenue = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.revenueBreakdown?.customerSales?.amount || 0), 0
   ) || 0;
   
-  const totalInvoiceSales = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalInvoiceSales = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.revenueBreakdown?.invoiceSales?.amount || 0), 0
   ) || 0;
   
-  const totalProductCosts = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalProductCosts = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.expenseBreakdown?.directCosts?.productCosts || 0), 0
   ) || 0;
   
-  const totalManufacturingCosts = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalManufacturingCosts = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.expenseBreakdown?.directCosts?.manufacturingCosts || 0), 0
   ) || 0;
   
-  const totalMaterialCosts = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalMaterialCosts = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.expenseBreakdown?.directCosts?.materialCosts || 0), 0
   ) || 0;
   
-  const totalSalaryCosts = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalSalaryCosts = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.expenseBreakdown?.indirectCosts?.salaryCosts || 0), 0
   ) || 0;
   
-  const totalTransportCosts = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalTransportCosts = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.expenseBreakdown?.indirectCosts?.transportCosts || 0), 0
   ) || 0;
   
-  const totalUtilityCosts = reportData?.shopDetails?.reduce((sum, shop) => 
+  const totalUtilityCosts = processedReportData?.shopDetails?.reduce((sum, shop) => 
     sum + (shop.expenseBreakdown?.indirectCosts?.utilityCosts || 0), 0
   ) || 0;
 
@@ -116,19 +188,19 @@ export const generateProfitLossReportPdf = (reportData, startDate, endDate) => {
         <div style="display: flex; justify-content: space-around; text-align: center;">
           <div>
             <p style="font-size: 16px; color: #666; margin: 0;">Total Revenue</p>
-            <p style="font-size: 24px; font-weight: bold; color: #333; margin: 10px 0 0 0;">₹${reportData?.overallTotals?.totalRevenue?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
+            <p style="font-size: 24px; font-weight: bold; color: #333; margin: 10px 0 0 0;">₹${processedReportData?.overallTotals?.totalRevenue?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
           </div>
           <div>
             <p style="font-size: 16px; color: #666; margin: 0;">Total Expenses</p>
-            <p style="font-size: 24px; font-weight: bold; color: #333; margin: 10px 0 0 0;">₹${reportData?.overallTotals?.totalExpenses?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
+            <p style="font-size: 24px; font-weight: bold; color: #333; margin: 10px 0 0 0;">₹${processedReportData?.overallTotals?.totalExpenses?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
           </div>
           <div>
             <p style="font-size: 16px; color: #666; margin: 0;">Gross Profit</p>
-            <p style="font-size: 24px; font-weight: bold; color: ${reportData?.overallTotals?.grossProfit > 0 ? '#16a34a' : reportData?.overallTotals?.grossProfit < 0 ? '#dc2626' : '#666'}; margin: 10px 0 0 0;">₹${reportData?.overallTotals?.grossProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
+            <p style="font-size: 24px; font-weight: bold; color: ${processedReportData?.overallTotals?.grossProfit > 0 ? '#16a34a' : processedReportData?.overallTotals?.grossProfit < 0 ? '#dc2626' : '#666'}; margin: 10px 0 0 0;">₹${processedReportData?.overallTotals?.grossProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
           </div>
           <div>
             <p style="font-size: 16px; color: #666; margin: 0;">Net Profit/Loss</p>
-            <p style="font-size: 24px; font-weight: bold; color: ${reportData?.overallTotals?.netProfit > 0 ? '#16a34a' : reportData?.overallTotals?.netProfit < 0 ? '#dc2626' : '#666'}; margin: 10px 0 0 0;">₹${reportData?.overallTotals?.netProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
+            <p style="font-size: 24px; font-weight: bold; color: ${processedReportData?.overallTotals?.netProfit > 0 ? '#16a34a' : processedReportData?.overallTotals?.netProfit < 0 ? '#dc2626' : '#666'}; margin: 10px 0 0 0;">₹${processedReportData?.overallTotals?.netProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</p>
           </div>
         </div>
         <div style="margin-top: 15px; text-align: center;">
@@ -155,7 +227,7 @@ export const generateProfitLossReportPdf = (reportData, startDate, endDate) => {
               <td style="padding: 10px; border: 1px solid #ddd; font-size: 16px;">TOTAL</td>
               <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
               <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${totalInvoiceSales.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${reportData?.overallTotals?.totalRevenue?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${processedReportData?.overallTotals?.totalRevenue?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
               <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">100.0%</td>
             </tr>
           </tbody>
@@ -188,7 +260,7 @@ export const generateProfitLossReportPdf = (reportData, startDate, endDate) => {
               <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${totalSalaryCosts.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
               <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${totalTransportCosts.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
               <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${totalUtilityCosts.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${reportData?.overallTotals?.totalExpenses?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${processedReportData?.overallTotals?.totalExpenses?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
             </tr>
           </tbody>
         </table>
@@ -213,16 +285,16 @@ export const generateProfitLossReportPdf = (reportData, startDate, endDate) => {
             ${profitRows}
             <tr style="background-color: #f8f9fa; font-weight: bold;">
               <td style="padding: 10px; border: 1px solid #ddd; font-size: 16px;">TOTAL</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${reportData?.overallTotals?.totalRevenue?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${reportData?.overallTotals?.totalExpenses?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${reportData?.overallTotals?.grossProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${reportData?.overallTotals?.netProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
-              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">${reportData?.overallTotals?.totalRevenue > 0 ? ((reportData.overallTotals.netProfit / reportData.overallTotals.totalRevenue) * 100).toFixed(2) : '0.00'}%</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${processedReportData?.overallTotals?.totalRevenue?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${processedReportData?.overallTotals?.totalExpenses?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${processedReportData?.overallTotals?.grossProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">₹${processedReportData?.overallTotals?.netProfit?.toLocaleString('en-IN', { maximumFractionDigits: 0 }) || 0}</td>
+              <td style="padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 16px;">${processedReportData?.overallTotals?.totalRevenue > 0 ? ((processedReportData.overallTotals.netProfit / processedReportData.overallTotals.totalRevenue) * 100).toFixed(2) : '0.00'}%</td>
               <td style="padding: 10px; border: 1px solid #ddd; text-align: center; font-size: 16px;">
                 <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; ${
-                  reportData?.overallTotals?.netProfit > 0 ? 'background-color: #dcfce7; color: #166534;' : 'background-color: #fee2e2; color: #991b1b;'
+                  processedReportData?.overallTotals?.netProfit > 0 ? 'background-color: #dcfce7; color: #166534;' : 'background-color: #fee2e2; color: #991b1b;'
                 }">
-                  ${reportData?.overallTotals?.netProfit > 0 ? 'Profitable' : 'Loss'}
+                  ${processedReportData?.overallTotals?.netProfit > 0 ? 'Profitable' : 'Loss'}
                 </span>
               </td>
             </tr>

@@ -81,7 +81,12 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
   const confirmDelete = async () => {
     try {
-      await axios.delete(`${PRODUCT_URL}/${productToDelete}`, {
+      let deleteUrl = `${PRODUCT_URL}/${productToDelete}`;
+      if (baseUrl === '/shop') {
+        deleteUrl = `/shop/products/${productToDelete}`;
+      }
+      
+      await axios.delete(deleteUrl, {
         withCredentials: true,
       });
       // Refresh products after deletion
@@ -149,43 +154,47 @@ function ViewProducts({ baseUrl = '/admin' }) {
   const confirmUpdate = async () => {
     try {
       // Prepare the update payload, ensuring prices are properly formatted as numbers
-      let updatePayload = {};
+      const updatePayload = {
+        ...editedProduct,
+        prices: editedProduct.prices.map(price => ({
+          unit: price.unit,
+          netPrice: parseFloat(price.netPrice),
+          sellingPrice: parseFloat(price.sellingPrice)
+        }))
+      };
       
-      if (baseUrl === '/shop') {
-        // For shop side, only update prices
-        updatePayload = {
-          prices: editedProduct.prices.map(price => ({
-            unit: price.unit,
-            netPrice: parseFloat(price.netPrice),
-            sellingPrice: parseFloat(price.sellingPrice)
-          }))
-        };
+      let requestPromise;
+      
+      if (editedProduct._id) {
+        // Update existing product
+        let updateUrl = `${PRODUCT_URL}/${editedProduct._id}`;
+        if (baseUrl === '/shop') {
+          updateUrl = `/shop/products/${editedProduct._id}`;
+        }
+        requestPromise = axios.put(updateUrl, updatePayload, {
+          withCredentials: true,
+        });
       } else {
-        // For admin side, update all fields
-        updatePayload = {
-          ...editedProduct,
-          prices: editedProduct.prices.map(price => ({
-            unit: price.unit,
-            netPrice: parseFloat(price.netPrice),
-            sellingPrice: parseFloat(price.sellingPrice)
-          }))
-        };
+        // Create new product
+        let createUrl = PRODUCT_URL;
+        if (baseUrl === '/shop') {
+          createUrl = '/shop/products';
+        }
+        requestPromise = axios.post(createUrl, updatePayload, {
+          withCredentials: true,
+        });
       }
       
-      // Use different endpoints for admin vs shop
-      let updateUrl = `${PRODUCT_URL}/${editedProduct._id}`;
-      if (baseUrl === '/shop') {
-        updateUrl = `/shop/products/${editedProduct._id}`;
-      }
-      
-      await axios.put(updateUrl, updatePayload, {
-        withCredentials: true,
-      });
+      await requestPromise;
       fetchProducts();
       handleCancelEdit();
       setIsUpdateConfirmationOpen(false);
     } catch (err) {
-      setError('Failed to update product.');
+      if (editedProduct._id) {
+        setError('Failed to update product.');
+      } else {
+        setError('Failed to create product.');
+      }
       console.error(err);
     }
   };
@@ -253,9 +262,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl sm:text-2xl font-semibold text-gray-800">View Products</h3>
-          {/* Only show Create Invoice button for admin, not for shop */}
-          {baseUrl === '/admin' && (
-            <div className="flex gap-3">
+          <div className="flex gap-3">
+          {baseUrl === '/admin' ? (
+            <>
               <button
                   onClick={() => setIsHistoryModalOpen(true)}
                   className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
@@ -277,8 +286,19 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   </svg>
                   Download PDF
               </button>
-            </div>
+            </>
+          ) : (
+            <button
+              onClick={downloadProductReport}
+              className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+              Download PDF
+            </button>
           )}
+          </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-4">
@@ -309,7 +329,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
             <p className="text-gray-600 font-medium">No products found in your inventory.</p>
             <p className="text-gray-500 text-sm mt-1">
               {baseUrl === '/shop' 
-                ? 'Products will appear here when admin sends invoices and you confirm them.' 
+                ? 'Start by adding your first product to get started.' 
                 : 'Start by adding your first product to get started.'}
             </p>
           </div>
@@ -407,7 +427,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      Are you sure you want to update this product? This action cannot be undone.
+                      {editedProduct._id ? 'Are you sure you want to update this product? This action cannot be undone.' : 'Are you sure you want to create this product?'}
                     </p>
                   </div>
                   <div className="mt-6 flex justify-center gap-3">
@@ -423,7 +443,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                       onClick={confirmUpdate}
                       className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
-                      Update
+                      {editedProduct._id ? 'Update' : 'Create'}
                     </button>
                   </div>
                 </div>
@@ -481,9 +501,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
                 <input 
                   type="text" 
                   value={editedProduct.name} 
-                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'name') : null} 
-                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={baseUrl === '/shop'}
+                  onChange={(e) => handleInputChange(e, 'name')} 
+                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={false}
                 />
               </div>
               <div>
@@ -491,9 +511,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
                 <input 
                   type="text" 
                   value={editedProduct.sku} 
-                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'sku') : null} 
-                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={baseUrl === '/shop'}
+                  onChange={(e) => handleInputChange(e, 'sku')} 
+                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={false}
                 />
               </div>
               <div>
@@ -502,9 +522,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   type="number" 
                   step="0.01" 
                   value={editedProduct.stockLevel} 
-                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'stockLevel') : null} 
-                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={baseUrl === '/shop'}
+                  onChange={(e) => handleInputChange(e, 'stockLevel')} 
+                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={false}
                 />
               </div>
               <div>
@@ -513,19 +533,20 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   type="number"
                   step="0.01"
                   value={editedProduct.stockAlertThreshold || ''}
-                  onChange={(e) => baseUrl === '/admin' ? handleInputChange(e, 'stockAlertThreshold') : null}
-                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={baseUrl === '/shop'}
+                  onChange={(e) => handleInputChange(e, 'stockAlertThreshold')}
+                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  readOnly={false}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Category</label>
                 <select 
                   value={editedProduct.category} 
-                  onChange={(e) => baseUrl === '/admin' ? setEditedProduct({...editedProduct, category: e.target.value}) : null} 
-                  className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  disabled={baseUrl === '/shop'}
+                  onChange={(e) => setEditedProduct({...editedProduct, category: e.target.value})} 
+                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  disabled={false}
                 >
+                  <option value="">Select Category</option>
                   {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}</select>
               </div>
               
@@ -533,15 +554,13 @@ function ViewProducts({ baseUrl = '/admin' }) {
               <div className="mt-6">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-lg font-medium text-gray-800">Unit Configuration</h4>
-                  {baseUrl === '/admin' && (
-                    <button
-                      type="button"
-                      onClick={addNewPrice}
-                      className="text-sm bg-green-500 hover:bg-green-700 text-white py-1 px-3 rounded-md"
-                    >
-                      Add Unit
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={addNewPrice}
+                    className="text-sm bg-green-500 hover:bg-green-700 text-white py-1 px-3 rounded-md"
+                  >
+                    Add Unit
+                  </button>
                 </div>
                 
                 {editedProduct.prices && editedProduct.prices.map((price, index) => (
@@ -550,9 +569,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
                       <label className="block text-gray-700 text-xs font-bold mb-1">Unit</label>
                       <select
                         value={price.unit}
-                        onChange={(e) => baseUrl === '/admin' ? handlePriceChange(index, 'unit', e.target.value) : null}
-                        className={`mt-1 block w-full px-3 py-2 ${baseUrl === '/shop' ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white'} border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                        disabled={baseUrl === '/shop'}
+                        onChange={(e) => handlePriceChange(index, 'unit', e.target.value)}
+                        className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                        disabled={false}
                       >
                         <option value="piece">Piece</option>
                         <option value="kg">Kg</option>
@@ -587,18 +606,16 @@ function ViewProducts({ baseUrl = '/admin' }) {
                         required
                       />
                     </div>
-                    {baseUrl === '/admin' && (
-                      <div className="flex items-end">
-                        <button
-                          type="button"
-                          onClick={() => removePrice(index)}
-                          disabled={editedProduct.prices.length <= 1}
-                          className={`w-full py-2 px-3 rounded-md text-sm ${editedProduct.prices.length <= 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'}`}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={() => removePrice(index)}
+                        disabled={editedProduct.prices.length <= 1}
+                        className={`w-full py-2 px-3 rounded-md text-sm ${editedProduct.prices.length <= 1 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'}`}
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
