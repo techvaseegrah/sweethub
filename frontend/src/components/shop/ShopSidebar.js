@@ -173,31 +173,6 @@ function ShopSidebar() {
 
   const { logout, authState } = useContext(AuthContext);
 
-  // Don't render if authState is not properly initialized yet
-  if (!authState || authState.isAuthenticated === undefined) {
-    return (
-      <div className="h-screen w-64 bg-white flex items-center justify-center border-r border-gray-200">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto"></div>
-          <p className="mt-2 text-gray-500">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const handleLogout = () => {
-    setShowLogoutModal(true);
-  };
-
-  const confirmLogout = () => {
-    setShowLogoutModal(false);
-    logout();
-  };
-
-  const cancelLogout = () => {
-    setShowLogoutModal(false);
-  };
-
   useEffect(() => {
     const checkPendingInvoice = async () => {
       try {
@@ -238,10 +213,37 @@ function ShopSidebar() {
       }
     };
     
-    checkPendingInvoice();
-    fetchLowStockCount();
-    fetchShopDetails();
+    if (authState && authState.isAuthenticated !== undefined) {
+      checkPendingInvoice();
+      fetchLowStockCount();
+      fetchShopDetails();
+    }
   }, [authState?.role]);
+
+  // Don't render if authState is not properly initialized yet
+  if (!authState || authState.isAuthenticated === undefined) {
+    return (
+      <div className="h-screen w-64 bg-white flex items-center justify-center border-r border-gray-200">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto"></div>
+          <p className="mt-2 text-gray-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    logout();
+  };
+
+  const cancelLogout = () => {
+    setShowLogoutModal(false);
+  };
 
   const toggleProductMenu = () => {
     setIsProductMenuOpen(!isProductMenuOpen);
