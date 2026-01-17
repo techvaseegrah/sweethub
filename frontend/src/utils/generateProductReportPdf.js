@@ -93,7 +93,7 @@ export const generateProductReportPdf = (products, categories, selectedCategory 
   // Generate filter information
   const filterInfo = [];
   if (selectedCategory !== 'All') {
-    const categoryName = categories.find(cat => cat._id === selectedCategory)?.name || selectedCategory;
+    const categoryName = Array.isArray(categories) ? categories.find(cat => cat._id === selectedCategory)?.name || selectedCategory : selectedCategory;
     filterInfo.push(`Category: ${categoryName}`);
   }
 

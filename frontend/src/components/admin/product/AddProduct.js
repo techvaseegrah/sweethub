@@ -36,12 +36,12 @@ function AddProduct({ baseUrl = '/admin' }) {
           axios.get(PRODUCT_URL, { withCredentials: true })
         ]);
         
-        setCategories(categoriesResponse.data);
+        setCategories(Array.isArray(categoriesResponse.data) ? categoriesResponse.data : []);
         setAllProducts(productsResponse.data);
         setFilteredProducts(productsResponse.data);
         
         // Set a default category if available
-        if (categoriesResponse.data.length > 0) {
+        if (Array.isArray(categoriesResponse.data) && categoriesResponse.data.length > 0) {
           setCategory(categoriesResponse.data[0]._id);
         }
       } catch (err) {
@@ -267,7 +267,7 @@ function AddProduct({ baseUrl = '/admin' }) {
                 onChange={(e) => setCategory(e.target.value)}
                 required
               >
-                {categories.length > 0 ? (
+                {Array.isArray(categories) && categories.length > 0 ? (
                   categories.map((cat) => (
                     <option key={cat._id} value={cat._id}>
                       {cat.name}
@@ -298,7 +298,7 @@ function AddProduct({ baseUrl = '/admin' }) {
                   Stock Level
               </label>
               <input
-                  type="number"
+                  type="text"
                   step="0.01"
                   className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   id="stockLevel"
@@ -312,7 +312,7 @@ function AddProduct({ baseUrl = '/admin' }) {
                 Stock Alert Threshold
             </label>
             <input
-                type="number"
+                type="text"
                 step="0.01"
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 id="stockAlertThreshold"

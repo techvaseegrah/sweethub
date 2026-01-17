@@ -1,10 +1,10 @@
 import React from 'react';
 
-const CustomModal = ({ isOpen, onClose, title, children }) => {
+const CustomModal = ({ isOpen, onClose, title, children, customZIndex = "z-50" }) => {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+        <div className={`fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-2 sm:p-4 ${customZIndex} overflow-y-auto`}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-auto my-8 sm:my-16">
                 <div className="flex justify-between items-center p-4 border-b border-gray-200">
                     <h3 className="text-xl font-semibold text-gray-800">{title}</h3>

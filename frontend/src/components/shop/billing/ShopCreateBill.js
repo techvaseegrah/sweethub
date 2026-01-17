@@ -1,30 +1,211 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../../../api/axios';
-import { generateInvoicePdf, printInvoice } from '../../../utils/generateInvoicePdf';
-import { generateBillPdf, printBill } from '../../../utils/generateBillPdf';
-import { getAvailableUnits, convertUnit, areRelatedUnits } from '../../../utils/unitConversion';
-import CustomModal from '../../CustomModal'; // Added import for CustomModal
-import KeyboardShortcutsGuide from './KeyboardShortcutsGuide'; // Import keyboard shortcuts guide
-import { useFullScreenBill } from '../../../context/FullScreenBillContext'; // Import the context
-import MessageAlert from '../../MessageAlert'; // Import MessageAlert component
+import { getAvailableUnits, convertUnit, areRelatedUnits, formatDateToDDMMYYYY } from '../../../utils/unitConversion';
+import CustomModal from '../../CustomModal';
+import KeyboardShortcutsGuide from './KeyboardShortcutsGuide';
+import { useFullScreenBill } from '../../../context/FullScreenBillContext';
+import MessageAlert from '../../MessageAlert';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 function CreateBill({ baseUrl = '/shop' }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { enterFullScreenBill, exitFullScreenBill } = useFullScreenBill();
+  
+  // --- STATE ---
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalBillId, setOriginalBillId] = useState(null);
+  const [billType, setBillType] = useState("ORDINARY");
+  const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
+  const [customerMobileNumber, setCustomerMobileNumber] = useState('');
   
-  // Check if we're in edit mode and get the bill data from location state
+  // UI States
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [invoiceDate] = useState(formatDateToDDMMYYYY(new Date().toISOString().split('T')[0]));
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  
+  // To Info
+  const [toInfo, setToInfo] = useState({
+    name: '',
+    address: '',
+    gstin: '',
+    state: '',
+    stateCode: '',
+    phone: ''
+  });
+
+  // From Info (Fetched from shop details)
+  const [fromInfo, setFromInfo] = useState({
+    name: '',
+    address: '',
+    gstin: '',
+    fssaiNumber: '',
+    state: 'Tamil Nadu',
+    stateCode: '33',
+    phone: '',
+    email: 'sweetsfactory@gmail.com'
+  });
+
+  // Item Entry State
+  const [currentItem, setCurrentItem] = useState({
+    product: null,
+    unit: '',
+    quantity: '',
+    price: 0,
+    productName: '',
+    sku: '',
+    isDecimalAsGram: false,
+    rawInput: '',
+    expDate: '',
+    mfgDate: '',
+    discountPercent: 0,
+    discountAmount: 0
+  });
+
+  // Bill Data States
+  const [billItems, setBillItems] = useState([]);
+  const [subtotal, setSubtotal] = useState(0);
+  const [discountType, setDiscountType] = useState('none');
+  const [discountValue, setDiscountValue] = useState('');
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [netAmount, setNetAmount] = useState(0);
+  const [gstPercentage, setGstPercentage] = useState(0);
+  const [gstAmount, setGstAmount] = useState(0);
+  const [baseAmount, setBaseAmount] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [amountPaid, setAmountPaid] = useState('');
+  const [roundOff, setRoundOff] = useState(true);
+
+  // Aux States
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [autoDownload, setAutoDownload] = useState(true);
+  const [autoPrint, setAutoPrint] = useState(false);  // Keep for backward compatibility but don't expose UI
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  
+  // Modal States
+  const [showOutOfStockModal, setShowOutOfStockModal] = useState(false);
+  const [showConfirmOutOfStockModal, setShowConfirmOutOfStockModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [stockQuantity, setStockQuantity] = useState(0);
+  const [selectedProductIndex, setSelectedProductIndex] = useState(-1);
+  
+  // Worker Selection State
+  const [workers, setWorkers] = useState([]);
+  const [selectedWorker, setSelectedWorker] = useState('');
+  const [workerSearchTerm, setWorkerSearchTerm] = useState('');
+  const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
+  const [selectedWorkerIndex, setSelectedWorkerIndex] = useState(-1);
+
+  // Refs
+  const customerMobileRef = useRef(null);
+  const productSearchRef = useRef(null);
+  const quantityRef = useRef(null);
+  const amountPaidRef = useRef(null);
+  const createBillButtonRef = useRef(null);
+
+  // --- EFFECTS ---
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    enterFullScreenBill();
+    return () => exitFullScreenBill();
+  }, [enterFullScreenBill, exitFullScreenBill]);
+
+  // Auto focus on customer mobile number when component loads or navigates to create bill (not in edit mode)
+  useEffect(() => {
+    if (!isEditMode) {
+      // Wait for the component to fully render and settle, then scroll to top and focus
+      setTimeout(() => {
+        // FIX: Target the specific scroll container
+        const scrollContainer = document.getElementById('shop-bill-container');
+        if (scrollContainer) {
+            scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // Try multiple attempts to ensure focus works
+        const attemptFocus = (attempts = 0) => {
+          if (customerMobileRef.current && attempts < 5) {
+            customerMobileRef.current.focus();
+            // Verify the element received focus
+            if (document.activeElement !== customerMobileRef.current) {
+              setTimeout(() => attemptFocus(attempts + 1), 100);
+            }
+          } else if (attempts < 5) {
+            setTimeout(() => attemptFocus(attempts + 1), 100);
+          }
+        };
+        
+        attemptFocus();
+      }, 200);
+    }
+  }, [isEditMode, location.pathname]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [prodRes, gstRes, shopRes, workersRes] = await Promise.all([
+                axios.get(`${baseUrl}/products`, { withCredentials: true }),
+                axios.get(`${baseUrl}/settings/gst`),
+                axios.get(`${baseUrl}/details`, { withCredentials: true }),
+                axios.get(`${baseUrl}/workers`, { withCredentials: true }) 
+            ]);
+            setProducts(prodRes.data);
+            setGstPercentage(gstRes.data.gstPercentage || 0);
+            
+            // Set shop details for bill header
+            if (shopRes.data) {
+              setFromInfo({
+                name: shopRes.data.username || shopRes.data.name || 'Shop Name',
+                address: shopRes.data.location || shopRes.data.address || '',
+                gstin: shopRes.data.gstNumber || '',
+                fssaiNumber: shopRes.data.fssaiNumber || '',
+                state: 'Tamil Nadu', // You might want to fetch this too if available
+                stateCode: '33',
+                phone: shopRes.data.shopPhoneNumber || '',
+                email: shopRes.data.email || ''
+              });
+            }
+            
+            // Set workers
+            if (workersRes?.data) {
+              setWorkers(workersRes.data);
+            }
+        } catch (e) {
+            // Keep default/empty values if fetch fails
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+    fetchData();
+  }, [baseUrl]);
+
   useEffect(() => {
     if (location.state && location.state.billData && location.state.isEditMode) {
       const bill = location.state.billData;
       setIsEditMode(true);
       setOriginalBillId(bill._id);
-      
-      // Pre-fill customer details
       setCustomerMobileNumber(bill.customerMobileNumber || '');
+      if (bill.toInfo) setToInfo(bill.toInfo);
       
-      // Pre-fill bill items
       const formattedItems = bill.items.map(item => ({
         product: typeof item.product === 'object' ? item.product : { _id: item.product, name: item.productName, sku: item.sku },
         productName: item.productName,
@@ -34,439 +215,235 @@ function CreateBill({ baseUrl = '/shop' }) {
         price: item.price,
         baseUnitPrice: item.price,
         baseUnit: item.unit,
+        expDate: item.expDate || '',
+        mfgDate: item.mfgDate || '',
       }));
       setBillItems(formattedItems);
-      
-      // Pre-fill discount information
       setDiscountType(bill.discountType || 'none');
       setDiscountValue(bill.discountValue?.toString() || '');
-      
-      // Pre-fill payment information
       setPaymentMethod(bill.paymentMethod || 'Cash');
       setAmountPaid(bill.amountPaid?.toString() || '');
+      setBillType(bill.billType || 'ORDINARY');
     }
   }, [location.state]);
-  const navigate = useNavigate();
-  const { enterFullScreenBill, exitFullScreenBill } = useFullScreenBill();
-  
-  // Effect to handle F2 keyboard shortcut for opening new bill in new tab
+
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === 'F2') {
-        event.preventDefault(); // Prevent default F2 behavior
-        // Open a new tab with a fresh bill form
-        const newUrl = window.location.pathname + '?new=1';
-        window.open(newUrl, '_blank');
-      }
-    };
-
-    // Add event listener to the document
-    document.addEventListener('keydown', handleKeyDown);
-
-    // Clean up the event listener when component unmounts
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-  const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
-  const [customerMobileNumber, setCustomerMobileNumber] = useState('');
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [modalSearchTerm, setModalSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-
-  // Enter full screen mode when component mounts
-  useEffect(() => {
-    enterFullScreenBill();
+    const newSubtotal = billItems.reduce((acc, item) => {
+      const itemTotal = item.quantity * item.price;
+      let itemDiscount = 0;
+      if (item.discountPercent > 0) itemDiscount = (itemTotal * item.discountPercent) / 100;
+      else if (item.discountAmount > 0) itemDiscount = Math.min(item.discountAmount, itemTotal);
+      return acc + (itemTotal - itemDiscount);
+    }, 0);
     
-    // Clean up function to exit full screen mode when component unmounts
-    return () => {
-      exitFullScreenBill();
-    };
-  }, [enterFullScreenBill, exitFullScreenBill]);
-
-  const [currentItem, setCurrentItem] = useState({
-    product: null,
-    unit: '',
-    quantity: '',
-    price: 0,
-    productName: '',
-    sku: '',
-    isDecimalAsGram: false, // Track if decimal input was meant as grams
-    rawInput: '', // Track raw input to handle partial entries like "0."
-  });
-
-  const [billItems, setBillItems] = useState([]);
-  const [subtotal, setSubtotal] = useState(0); // Add subtotal state
-  const [discountType, setDiscountType] = useState('none'); // Add discount type state
-  const [discountValue, setDiscountValue] = useState(''); // Add discount value state
-  const [discountAmount, setDiscountAmount] = useState(0); // Add discount amount state
-  const [netAmount, setNetAmount] = useState(0); // Add net amount state
-  const [gstPercentage, setGstPercentage] = useState(0); // Add GST percentage state
-  const [gstAmount, setGstAmount] = useState(0); // Add GST amount state
-  const [totalAmount, setTotalAmount] = useState(0); // Update total amount calculation
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [amountPaid, setAmountPaid] = useState('');
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [autoDownload, setAutoDownload] = useState(true);
-  const [autoPrint, setAutoPrint] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showProductModal, setShowProductModal] = useState(false);
-  
-  // State for notification messages
-  const [showNotification, setShowNotification] = useState(false);
-  const [notificationMessage, setNotificationMessage] = useState('');
-  const [notificationType, setNotificationType] = useState('success');
-  
-  // States for out of stock modals
-  const [showOutOfStockModal, setShowOutOfStockModal] = useState(false);
-  const [showConfirmOutOfStockModal, setShowConfirmOutOfStockModal] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [stockQuantity, setStockQuantity] = useState(0);
-  const customerMobileRef = useRef(null);
-
-  const productSearchRef = useRef(null);
-  const quantityRef = useRef(null);
-  const discountTypeRef = useRef(null);
-  const discountValueRef = useRef(null);
-  const paymentMethodRef = useRef(null);
-  const amountPaidRef = useRef(null);
-  const createBillButtonRef = useRef(null);
-  
-  const PRODUCT_URL = `${baseUrl}/products`;
-
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get(PRODUCT_URL, {
-        headers: { 'Content-Type': 'application/json' },
-        withCredentials: true,
-      });
-      setProducts(response.data);
-    } catch (err) {
-      setError('Failed to fetch products.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [PRODUCT_URL]);
-
-  useEffect(() => {
-    const fetchProductsAndGst = async () => {
-      setLoading(true);
-      try {
-        await fetchProducts();
-        
-        // Fetch GST settings
-        const gstResponse = await axios.get('/shop/settings/gst');
-        setGstPercentage(gstResponse.data.gstPercentage || 0);
-      } catch (err) {
-        setError('Failed to fetch products or GST settings.');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchProductsAndGst();
-  }, [fetchProducts]);
-
-  // Calculate amounts when billItems, discount, or gst changes
-  useEffect(() => {
-    const newSubtotal = billItems.reduce((acc, item) => acc + (item.quantity * item.price), 0);
     setSubtotal(newSubtotal);
     
-    // Calculate discount
     let calculatedDiscountAmount = 0;
     if (discountType === 'percentage' && discountValue) {
-      const percentage = parseFloat(discountValue);
-      if (!isNaN(percentage) && percentage >= 0 && percentage <= 100) {
-        calculatedDiscountAmount = (newSubtotal * percentage) / 100;
-      }
+      calculatedDiscountAmount = (newSubtotal * parseFloat(discountValue || 0)) / 100;
     } else if (discountType === 'cash' && discountValue) {
-      const cash = parseFloat(discountValue);
-      if (!isNaN(cash) && cash >= 0 && cash <= newSubtotal) {
-        calculatedDiscountAmount = cash;
-      }
+      calculatedDiscountAmount = parseFloat(discountValue || 0);
     }
     
     setDiscountAmount(calculatedDiscountAmount);
-    
-    // Calculate net amount
     const newNetAmount = newSubtotal - calculatedDiscountAmount;
     setNetAmount(newNetAmount);
     
-    // Calculate GST and total amount
     if (gstPercentage > 0) {
-      // For GST included in total: base amount = total / (1 + gst%) and gst = total - base
-      const calculatedBaseAmount = newNetAmount / (1 + gstPercentage / 100);
-      const calculatedGstAmount = newNetAmount - calculatedBaseAmount;
-      
-      setGstAmount(calculatedGstAmount);
-      setTotalAmount(newNetAmount); // Total amount is the net amount (which includes GST)
+      const base = newNetAmount / (1 + gstPercentage / 100);
+      const tax = newNetAmount - base;
+      setBaseAmount(base);
+      setGstAmount(tax);
+      setTotalAmount(roundOff ? Math.round(newNetAmount) : newNetAmount);
     } else {
+      setBaseAmount(newNetAmount);
       setGstAmount(0);
-      setTotalAmount(newNetAmount); // Total is just net amount without GST
+      setTotalAmount(roundOff ? Math.round(newNetAmount) : newNetAmount);
     }
-  }, [billItems, discountType, discountValue, gstPercentage]);
+  }, [billItems, discountType, discountValue, gstPercentage, roundOff]);
 
+  // --- PDF GENERATION LOGIC ---
+  const handlePrintBill = (billData = null, forcePrint = false) => {
+    // Import the standard bill PDF generator
+    import('../../../utils/generateBillPdf').then(({ printBill, generateBillPdf }) => {
+      const dataToPrint = billData || {
+        invoiceNo: isEditMode ? "UPDATED" : (Math.floor(Math.random() * 90000) + 10000), 
+        date: invoiceDate,
+        time: currentTime,
+        items: billItems,
+        subtotal,
+        discountAmount,
+        gstAmount,
+        totalAmount,
+        amountPaid: parseFloat(amountPaid) || 0
+      };
+      
+      // Convert data to the format expected by the standard generator
+      const billDataFormatted = {
+        ...dataToPrint,
+        billId: billData?.billId || billData?._id || dataToPrint.invoiceNo, // Use the actual billId from the saved response if available
+        billDate: dataToPrint.date,
+        customerMobileNumber: customerMobileNumber,
+        customerName: toInfo.name || 'Walk-in Customer',
+        totalAmount: dataToPrint.totalAmount,
+        amountPaid: dataToPrint.amountPaid,
+        gstPercentage: gstPercentage,
+        gstAmount: gstAmount,
+        baseAmount: subtotal - discountAmount,
+        discountType: discountType,
+        discountValue: discountValue,
+        discountAmount: discountAmount,
+        toInfo: toInfo,
+      };
+      
+      const shopData = {
+        name: fromInfo.name,
+        address: fromInfo.address,
+        phone: fromInfo.phone,
+        gstNumber: fromInfo.gstin,
+        fssaiNumber: fromInfo.fssaiNumber,
+      };
+      
+      // Use the standard bill generator which creates 2-inch format
+      // If forcePrint is true (when Print button is clicked), open print dialog
+      // Also download PDF if autoDownload is true
+      if (forcePrint) {
+        // Print first
+        printBill(billDataFormatted, shopData);
+        // Also download if autoDownload is true
+        if (autoDownload) {
+          generateBillPdf(billDataFormatted, shopData);
+        }
+      } else if (autoDownload) {
+        generateBillPdf(billDataFormatted, shopData);
+      } else {
+        printBill(billDataFormatted, shopData);
+      }
+    }).catch(error => {
+      console.error('Error importing generateBillPdf:', error);
+    });
+  };
+
+  // --- HANDLERS ---
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
-    setShowDropdown(true); // Show dropdown when typing
-
+    setShowDropdown(true);
     if (value) {
-      const filtered = products.filter(
-        (product) =>
-          (product.name && product.name.toLowerCase().includes(value.toLowerCase())) ||
-          (product.sku && product.sku.toLowerCase().includes(value.toLowerCase()))
+      const filtered = products.filter(p => 
+        (p.name && p.name.toLowerCase().includes(value.toLowerCase())) ||
+        (p.sku && p.sku.toLowerCase().includes(value.toLowerCase()))
       );
       setFilteredProducts(filtered);
+      setSelectedProductIndex(0);
     } else {
       setFilteredProducts([]);
       setShowDropdown(false);
     }
   };
 
-  const handleToggleDropdown = () => {
-    setShowProductModal(!showProductModal);
-    setShowDropdown(false); // Hide dropdown when opening
-    
-    // Reset modal search and category when opening
-    if (!showProductModal) {
-      setModalSearchTerm('');
-      setSelectedCategory('All');
-    }
-  };
-
-  const handleInputFocus = () => {
-    // Don't show all products when focusing, only when typing
-  };
-
-  // Group products by category
-  const groupProductsByCategory = (products) => {
-    return products.reduce((groups, product) => {
-      const category = product.category || 'Uncategorized';
-      if (!groups[category]) {
-        groups[category] = [];
-      }
-      groups[category].push(product);
-      return groups;
-    }, {});
-  };
-
-  // Get unique categories from products
-  const getUniqueCategories = (products) => {
-    const categories = products.map(product => product.category?.name || 'Uncategorized');
-    return ['All', ...new Set(categories)];
-  };
-
-  // Close dropdowns when pressing Escape key
-  useEffect(() => {
-    const handleEscKey = (event) => {
-      if (event.key === 'Escape') {
-        setShowDropdown(false);
-        setShowProductModal(false);
-      }
-    };
-
-    document.addEventListener('keydown', handleEscKey);
-    return () => {
-      document.removeEventListener('keydown', handleEscKey);
-    };
-  }, []);
-  
-  // Keyboard navigation for product dropdown
-  const [selectedProductIndex, setSelectedProductIndex] = useState(-1);
-  
-  useEffect(() => {
-    if (showDropdown && filteredProducts.length > 0) {
-      setSelectedProductIndex(0);
-    } else {
-      setSelectedProductIndex(-1);
-    }
-  }, [showDropdown, filteredProducts]);
-  
-  const handleProductKeyDown = (event) => {
-    if (!showDropdown || filteredProducts.length === 0) return;
-    
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault();
-        setSelectedProductIndex(prev => 
-          prev < filteredProducts.length - 1 ? prev + 1 : 0
-        );
-        break;
-      case 'ArrowUp':
-        event.preventDefault();
-        setSelectedProductIndex(prev => 
-          prev > 0 ? prev - 1 : filteredProducts.length - 1
-        );
-        break;
-      case 'Enter':
-        event.preventDefault();
-        if (selectedProductIndex >= 0 && filteredProducts[selectedProductIndex]) {
-          handleSelectProduct(filteredProducts[selectedProductIndex]);
-        }
-        break;
-      case 'Tab':
-        // Allow normal tab behavior
-        break;
-      default:
-        // For other keys, reset to first item if needed
-        if (selectedProductIndex === -1 && filteredProducts.length > 0) {
-          setSelectedProductIndex(0);
-        }
-    }
-  };
-
   const handleSelectProduct = (product) => {
-    // Check if product is out of stock
     if (product.stockLevel <= 0) {
-      // Show out of stock modal
       setSelectedProduct(product);
       setStockQuantity(product.stockLevel);
-      setShowProductModal(false); // Close the product selection modal first
-      setTimeout(() => {
-        setShowOutOfStockModal(true); // Show out of stock modal after a brief delay
-      }, 100);
+      setShowProductModal(false);
+      setTimeout(() => setShowOutOfStockModal(true), 100);
       return;
     }
-    
-    setSearchTerm(`${product.name} (${product.sku})`);
+    setupProductSelection(product);
+  };
+
+  const setupProductSelection = (product) => {
+    setSearchTerm(`${product.name}`);
     setShowProductModal(false);
-    setShowDropdown(false); // Hide dropdown when product is selected
+    setShowDropdown(false);
     setModalSearchTerm('');
     setSelectedCategory('All');
     
     if (product.prices && product.prices.length > 0) {
       const availableUnits = getAvailableUnits(product.prices);
       setCurrentItem({
+        ...currentItem,
         product,
         unit: availableUnits[0],
         quantity: '',
         price: product.prices.find(p => p.unit === availableUnits[0])?.sellingPrice || product.prices[0].sellingPrice,
         productName: product.name,
         sku: product.sku,
+        expDate: '',
+        mfgDate: ''
       });
       setError('');
+      setTimeout(() => quantityRef.current?.focus(), 50);
     } else {
-      setError(`Product "${product.name}" has no purchase rates set. Please add them first.`);
-      setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '' });
+      setError(`Product "${product.name}" has no purchase rates.`);
     }
   };
-  
-  // Handle confirming out of stock product selection
+
   const handleConfirmOutOfStock = () => {
     setShowOutOfStockModal(false);
     setShowConfirmOutOfStockModal(true);
   };
   
-  // Handle final confirmation to add out of stock product
   const handleFinalConfirmOutOfStock = () => {
     setShowConfirmOutOfStockModal(false);
-    
-    if (selectedProduct) {
-      setSearchTerm(`${selectedProduct.name} (${selectedProduct.sku})`);
-      setShowProductModal(false);
-      setShowDropdown(false);
-      setModalSearchTerm('');
-      setSelectedCategory('All');
-      
-      if (selectedProduct.prices && selectedProduct.prices.length > 0) {
-        setCurrentItem({
-          product: selectedProduct,
-          unit: selectedProduct.prices[0].unit,
-          quantity: '',
-          price: selectedProduct.prices[0].sellingPrice,
-          productName: selectedProduct.name,
-          sku: selectedProduct.sku,
-        });
-        setError('');
-      } else {
-        setError(`Product "${selectedProduct.name}" has no purchase rates set. Please add them first.`);
-        setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '' });
-      }
-    }
+    if (selectedProduct) setupProductSelection(selectedProduct);
   };
 
   const handleUnitChange = (e) => {
     const selectedUnit = e.target.value;
     const priceInfo = currentItem.product.prices.find(p => p.unit === selectedUnit);
-    
-    // If the selected unit exists in the product's prices, use its price
     if (priceInfo) {
       setCurrentItem(prev => ({ ...prev, unit: priceInfo.unit, price: priceInfo.sellingPrice }));
     } else {
-      // If it's a related unit (like gram for a kg product), use the price from the base unit
-      // For example, if product is priced in kg, the price remains per kg regardless of unit selected
-      const baseUnitInfo = currentItem.product.prices[0]; // Use the first available unit's price
+      const baseUnitInfo = currentItem.product.prices[0];
       setCurrentItem(prev => ({ ...prev, unit: selectedUnit, price: baseUnitInfo.sellingPrice }));
     }
   };
 
   const handleQuantityChange = (e) => {
     const value = e.target.value;
-    
-    // Always update the raw input value to allow proper typing
     const numValue = parseFloat(value);
     
-    // If it's a valid number or a partial input like "0."
     if (value === "" || value === "0." || value === "." || (!isNaN(numValue) && numValue >= 0)) {
       if (value === "0." || value === ".") {
-        // For partial inputs like "0." or ".", store the string in rawInput and keep quantity as empty
         setCurrentItem(prev => ({ ...prev, quantity: '', rawInput: value, isDecimalAsGram: false }));
       } else if (value === "") {
-        // For empty input
         setCurrentItem(prev => ({ ...prev, quantity: '', rawInput: '', isDecimalAsGram: false }));
       } else if (!isNaN(numValue) && numValue >= 0) {
-        // If the product is priced in kg and user enters a decimal < 1, 
-        // assume they mean grams and set the unit to gram automatically
-        if (currentItem.product && 
-            currentItem.product.prices && 
-            currentItem.product.prices.length > 0 &&
-            currentItem.product.prices[0].unit === 'kg' &&
-            numValue < 1 && 
-            value.includes('.') && numValue > 0) {  // Only convert if value > 0
-          // Convert the decimal to actual grams value
-          // e.g., user enters 0.25 -> means 250g -> store as 250 in quantity but unit as gram
+        // Gram conversion logic
+        if (currentItem.product?.prices?.[0]?.unit === 'kg' && numValue < 1 && value.includes('.') && numValue > 0) {
           const gramValue = numValue * 1000;
-          setCurrentItem(prev => ({ ...prev, quantity: gramValue, rawInput: value, unit: 'gram', isDecimalAsGram: true }));
-          
-          // Update the price if needed based on the gram unit
           const priceInfo = currentItem.product?.prices?.find(p => p.unit === 'gram');
-          if (priceInfo) {
-            setCurrentItem(prev => ({ ...prev, price: priceInfo.sellingPrice }));
-          }
+          setCurrentItem(prev => ({ 
+            ...prev, 
+            quantity: gramValue, 
+            rawInput: value, 
+            unit: 'gram', 
+            isDecimalAsGram: true,
+            price: priceInfo ? priceInfo.sellingPrice : prev.price
+          }));
         } else {
           setCurrentItem(prev => ({ ...prev, quantity: numValue, rawInput: value, isDecimalAsGram: false }));
         }
       }
     }
   };
-  
+
   const handleAddItem = () => {
-    // Check if we have a valid quantity
     let finalQuantity;
     let isValid = false;
     
-    // If decimal-to-gram conversion happened (isDecimalAsGram is true), use the processed quantity
-    if (currentItem.isDecimalAsGram && typeof currentItem.quantity === 'number' && currentItem.quantity !== '') {
-      // Use the processed quantity (e.g., 250 for input 0.25 interpreted as 250g)
+    if (currentItem.isDecimalAsGram && typeof currentItem.quantity === 'number') {
       finalQuantity = parseFloat(currentItem.quantity);
       isValid = true;
-    } else if (currentItem.rawInput && currentItem.rawInput !== '') {
-      // Otherwise, if rawInput exists, try to parse it
+    } else if (currentItem.rawInput) {
       const parsedRaw = parseFloat(currentItem.rawInput);
       if (!isNaN(parsedRaw) && isFinite(parsedRaw) && parsedRaw >= 0) {
         finalQuantity = parsedRaw;
         isValid = true;
       }
     } else if (currentItem.quantity !== '') {
-      // Finally, use the quantity field if rawInput doesn't exist
       const parsedQuantity = parseFloat(currentItem.quantity);
       if (!isNaN(parsedQuantity) && isFinite(parsedQuantity) && parsedQuantity >= 0) {
         finalQuantity = parsedQuantity;
@@ -474,27 +451,18 @@ function CreateBill({ baseUrl = '/shop' }) {
       }
     }
     
-    if (!isValid) {
-      setError('Please enter a valid quantity number.');
+    if (!isValid || !currentItem.product || finalQuantity <= 0) {
+      setError('Invalid product or quantity.');
       return;
     }
     
-    if (!currentItem.product || finalQuantity <= 0) {
-      setError('Please select a valid product and quantity.');
-      return;
-    }
-    
-    // Calculate the price per unit based on the selected unit
-    // If the selected unit is different from the product's base unit, we need to adjust the price
+    // Price conversion logic
     let pricePerUnit = currentItem.price;
-    if (currentItem.product.prices && currentItem.product.prices.length > 0) {
+    if (currentItem.product.prices?.length > 0) {
       const baseUnit = currentItem.product.prices[0].unit;
       if (currentItem.unit !== baseUnit && areRelatedUnits(currentItem.unit, baseUnit)) {
-        // Convert the base price to the selected unit
-        // For example, if base price is ₹100/kg and user selects gram, price per gram = ₹0.10
-        // To convert: if base price is per kg, and we want per gram, we divide by 1000
-        const conversionFactor = convertUnit(1, currentItem.unit, baseUnit); // Convert 1 of selected unit to base unit
-        pricePerUnit = currentItem.price * conversionFactor; // This will be smaller for smaller units
+        const conversionFactor = convertUnit(1, currentItem.unit, baseUnit);
+        pricePerUnit = currentItem.price * conversionFactor;
       }
     }
     
@@ -504,1128 +472,688 @@ function CreateBill({ baseUrl = '/shop' }) {
       sku: currentItem.sku,
       unit: currentItem.unit,
       quantity: finalQuantity,
-      price: pricePerUnit, // Use the converted price per unit for calculations
-      baseUnitPrice: currentItem.price, // Store the original base unit price for display
-      baseUnit: currentItem.product.prices[0].unit, // Store the base unit
+      price: pricePerUnit,
+      baseUnitPrice: currentItem.price,
+      baseUnit: currentItem.product.prices[0].unit,
+      expDate: currentItem.expDate,
+      mfgDate: currentItem.mfgDate,
+      discountPercent: currentItem.discountPercent || 0,
+      discountAmount: currentItem.discountAmount || 0,
     };
     
-    const existingItemIndex = billItems.findIndex(item => item.product === newItem.product && item.unit === newItem.unit);
-
-    if (existingItemIndex > -1) {
-        const updatedItems = [...billItems];
-        updatedItems[existingItemIndex].quantity += newItem.quantity;
-        setBillItems(updatedItems);
+    const existingIndex = billItems.findIndex(i => i.product === newItem.product && i.unit === newItem.unit);
+    if (existingIndex > -1) {
+      const updated = [...billItems];
+      updated[existingIndex].quantity += newItem.quantity;
+      setBillItems(updated);
     } else {
-        setBillItems([...billItems, newItem]);
+      setBillItems([...billItems, newItem]);
     }
 
     setSearchTerm('');
-    setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '', isDecimalAsGram: false, rawInput: '' }); 
+    setCurrentItem({ ...currentItem, product: null, unit: '', quantity: '', price: 0, productName: '', sku: '', isDecimalAsGram: false, rawInput: '', expDate: '', mfgDate: '', discountPercent: 0, discountAmount: 0 }); 
     setError('');
+    setTimeout(() => productSearchRef.current?.focus(), 50);
   };
 
   const handleRemoveItem = (index) => {
-    const newBillItems = billItems.filter((_, i) => i !== index);
-    setBillItems(newBillItems);
+    setBillItems(billItems.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    setError('');
+  const updateBillItem = (index, field, value) => {
+    const updatedItems = [...billItems];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setBillItems(updatedItems);
+  };
+  
+  // Removed unused editing state variables
 
+  // Modified: Accepts forcePrint parameter to handle "Print" button click
+  // Modified: Accepts forcePrint parameter to handle "Print" button click
+ // Modified: Accepts forcePrint parameter to handle "Print" button click
+  const handleSubmit = async (e, forcePrint = false) => {
+    if(e) e.preventDefault();
+    
+    // FIX: Add timeouts so errors clear automatically
     if (!customerMobileNumber) {
-      setError('Please enter customer mobile number.');
-      return;
+        setError('Enter Mobile Number');
+        setTimeout(() => setError(''), 3000);
+        return;
     }
     if (billItems.length === 0) {
-      setError('Please add at least one item to the bill.');
-      return;
-    }
-    
-    // Validate discount
-    if (discountType !== 'none' && discountValue) {
-      const value = parseFloat(discountValue);
-      if (isNaN(value)) {
-        setError('Please enter a valid discount value.');
+        setError('Add items first');
+        setTimeout(() => setError(''), 3000);
         return;
-      }
-      
-      if (discountType === 'percentage' && (value < 0 || value > 100)) {
-        setError('Percentage discount must be between 0 and 100.');
-        return;
-      }
-      
-      if (discountType === 'cash' && (value < 0 || value > subtotal)) {
-        setError('Cash discount cannot be negative or exceed subtotal.');
-        return;
-      }
-    }
-    
-    const amountPaidNumber = Number(amountPaid);
-    if (amountPaidNumber < totalAmount) {
-      setError('Amount paid cannot be less than total amount.');
-      return;
     }
     
     try {
-      if (isEditMode && originalBillId) {
-        // Update existing bill
-        const UPDATE_BILL_URL = `${baseUrl}/billing/${originalBillId}`;
-        
         const payload = {
-          customerMobileNumber,
-          customerName: '', // Customer name is optional
+          customerMobileNumber: customerMobileNumber.replace(/\D/g, '').length === 10 ? `+91${customerMobileNumber.replace(/\D/g, '')}` : customerMobileNumber,
+          customerName: toInfo.name || '',
           items: billItems,
-          baseAmount: gstPercentage > 0 ? netAmount / (1 + gstPercentage / 100) : netAmount, // Base amount is before GST
+          baseAmount,
           gstPercentage,
           gstAmount,
           totalAmount,
           paymentMethod,
-          amountPaid: amountPaidNumber,
-          // Add discount information
+          amountPaid: Number(amountPaid),
           discountType,
           discountValue: discountValue ? parseFloat(discountValue) : 0,
-          discountAmount
+          discountAmount,
+          billType,
+          toInfo: toInfo.name ? toInfo : undefined,
+          ...(selectedWorker && { worker: selectedWorker }),
         };
+
+        const url = isEditMode ? `${baseUrl}/billing/${originalBillId}` : `${baseUrl}/billing`;
+        const method = isEditMode ? 'put' : 'post';
         
-        const response = await axios.put(
-          UPDATE_BILL_URL,
-          payload,
-          {
-            headers: { 'Content-Type': 'application/json' },
-            withCredentials: true,
-          }
-        );
+        const response = await axios[method](url, payload, { withCredentials: true });
         
-        // Show success notification
-        setNotificationMessage('Bill updated successfully!');
-        setNotificationType('success');
+        setNotificationMessage(isEditMode ? 'Bill Updated!' : 'Bill Created!');
         setShowNotification(true);
+        setTimeout(() => setShowNotification(false), 3000);
         
-        // Auto-hide notification after 5 seconds
-        setTimeout(() => {
-          setShowNotification(false);
-        }, 5000);
-        
-        if (autoDownload) {
-          generateBillPdf(response.data, {
-            name: response.data.shopName,
-            address: response.data.shopAddress,
-            gstNumber: response.data.shopGstNumber,
-            fssaiNumber: response.data.shopFssaiNumber,
-            phone: response.data.shopPhone
-          });
+        // Print Logic
+        if (autoDownload || forcePrint) {  // Removed autoPrint condition
+            handlePrintBill({ 
+                ...response.data, 
+                invoiceNo: response.data.invoiceNo || "NEW",
+                items: billItems, 
+                subtotal, discountAmount, gstAmount, totalAmount 
+            }, forcePrint);
         }
-        
-        if (autoPrint) {
-          printBill(response.data, {
-            name: response.data.shopName,
-            address: response.data.shopAddress,
-            gstNumber: response.data.shopGstNumber,
-            fssaiNumber: response.data.shopFssaiNumber,
-            phone: response.data.shopPhone
-          });
+
+        if (!isEditMode) {
+            // FIX: Manually reset state instead of reloading page (navigate(0))
+            // This prevents the print/download window from being closed/cancelled
+            setCustomerMobileNumber('');
+            setBillItems([]); 
+            setAmountPaid('');
+            setDiscountValue('');
+            setDiscountType('none');
+            setSearchTerm('');
+            // Reset customer info as well
+            setToInfo({
+                name: '',
+                address: '',
+                gstin: '',
+                state: '',
+                stateCode: '',
+                phone: ''
+            });
+            
+            // FIX: Scroll the specific container to top
+            setTimeout(() => {
+                const scrollContainer = document.getElementById('shop-bill-container');
+                if (scrollContainer) scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
+                
+                setTimeout(() => {
+                    customerMobileRef.current?.focus();
+                }, 100);
+            }, 100);
+        } else {
+            navigate('/shop/billing/view');
         }
-      } else {
-        // Create new bill
-        const BILL_URL = `${baseUrl}/billing`;
-        
-        const payload = {
-          customerMobileNumber,
-          customerName: '', // Customer name is optional
-          items: billItems,
-          baseAmount: gstPercentage > 0 ? netAmount / (1 + gstPercentage / 100) : netAmount, // Base amount is before GST
-          gstPercentage,
-          gstAmount,
-          totalAmount,
-          paymentMethod,
-          amountPaid: amountPaidNumber,
-          // Add discount information
-          discountType,
-          discountValue: discountValue ? parseFloat(discountValue) : 0,
-          discountAmount
-        };
-        
-        const response = await axios.post(
-          BILL_URL,
-          payload,
-          {
-            headers: { 'Content-Type': 'application/json' },
-            withCredentials: true,
-          }
-        );
-        
-        // Show success notification
-        setNotificationMessage('Bill created successfully!');
-        setNotificationType('success');
-        setShowNotification(true);
-        
-        // Auto-hide notification after 5 seconds
-        setTimeout(() => {
-          setShowNotification(false);
-        }, 5000);
-        
-        // Auto-scroll to top and focus on customer mobile number field
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        setTimeout(() => {
-          if (customerMobileRef && customerMobileRef.current) {
-            customerMobileRef.current.focus();
-          }
-        }, 100);
-        
-        if (autoDownload) {
-          generateBillPdf(response.data, {
-            name: response.data.shopName,
-            address: response.data.shopAddress,
-            gstNumber: response.data.shopGstNumber,
-            fssaiNumber: response.data.shopFssaiNumber,
-            phone: response.data.shopPhone
-          });
-        }
-        
-        if (autoPrint) {
-          printBill(response.data, {
-            name: response.data.shopName,
-            address: response.data.shopAddress,
-            gstNumber: response.data.shopGstNumber,
-            fssaiNumber: response.data.shopFssaiNumber,
-            phone: response.data.shopPhone
-          });
-        }
-      }
-      
-      // Reset form after successful submission
-      setCustomerMobileNumber('');
-      setBillItems([]);
-      setSubtotal(0);
-      setDiscountType('none');
-      setDiscountValue('');
-      setDiscountAmount(0);
-      setNetAmount(0);
-      setGstPercentage(0); // Reset GST percentage
-      setGstAmount(0); // Reset GST amount
-      setTotalAmount(0);
-      setAmountPaid('');
-      setSearchTerm('');
-      setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '' });
-      
-      // Scroll up and focus on customer mobile number after successful submission
-      setTimeout(() => {
-        if (customerMobileRef.current) {
-          customerMobileRef.current.focus();
-          scrollToElement(customerMobileRef.current);
-        }
-      }, 100);
-      
-      // If in edit mode, redirect back to view bills
-      if (isEditMode) {
-        setTimeout(() => {
-          navigate(baseUrl === '/admin' ? '/admin/bills/view' : '/shop/billing/view');
-        }, 1000);
-      }
+
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to process bill. Please try again.');
-      console.error(err);
+        setError(err.response?.data?.message || 'Error creating bill');
     }
   };
-  
-  // Keyboard navigation and shortcuts
-  // Function to scroll element into view with smooth behavior
-  const scrollToElement = (element) => {
-    if (element && typeof element.scrollIntoView === 'function') {
-      element.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'nearest', 
-        inline: 'nearest' 
-      });
-    }
-  };
-  
+
+  // --- SHORTCUTS ---
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      // Ctrl+N for new bill
-      if (event.ctrlKey && event.key === 'n') {
-        event.preventDefault();
-        setCustomerMobileNumber('');
-        setBillItems([]);
-        setSubtotal(0);
-        setDiscountType('none');
-        setDiscountValue('');
-        setDiscountAmount(0);
-        setNetAmount(0);
-        setGstPercentage(0); // Reset GST percentage
-        setGstAmount(0); // Reset GST amount
-        setTotalAmount(0);
-        setAmountPaid('');
-        setSearchTerm('');
-        setCurrentItem({ product: null, unit: '', quantity: '', price: 0, productName: '', sku: '' });
-        setMessage('');
-        setError('');
-        if (customerMobileRef.current) {
-          customerMobileRef.current.focus();
-          scrollToElement(customerMobileRef.current);
-        }
+    const handleKey = (e) => {
+      if (e.ctrlKey && e.key === 'Enter') handleSubmit(e);
+      if (e.ctrlKey && e.shiftKey && e.key === 'Enter') handleSubmit(e, true); // Ctrl+Shift+Enter for Print
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault(); // Prevent default print dialog
+        handleSubmit(e, true); // Trigger print functionality
       }
-      
-      // Ctrl+F for search products
-      if (event.ctrlKey && event.key === 'f') {
-        event.preventDefault();
-        if (productSearchRef.current) {
-          productSearchRef.current.focus();
-          scrollToElement(productSearchRef.current);
-        }
+      if (e.key === 'F2') {
+        e.preventDefault();
+        // Open a new tab/window for creating a new bill
+        const newWindow = window.open(`${window.location.origin}${baseUrl}/billing/create`, '_blank');
+        // Focus the new window to ensure it opens properly on all platforms (including Mac)
+        if (newWindow) newWindow.focus();
       }
-      
-      // Alt+D for discount
-      if (event.altKey && event.key === 'd') {
-        event.preventDefault();
-        if (discountTypeRef.current) {
-          discountTypeRef.current.focus();
-          scrollToElement(discountTypeRef.current);
-        }
-      }
-      
-      // Ctrl+Enter to submit bill
-      if (event.ctrlKey && event.key === 'Enter') {
-        event.preventDefault();
-        handleSubmit(event);
-      }
-      
-      // F2 to edit quantity when an item is selected
-      if (event.key === 'F2' && currentItem.product) {
-        event.preventDefault();
-        if (quantityRef.current) {
-          quantityRef.current.focus();
-          quantityRef.current.select();
-          scrollToElement(quantityRef.current);
-        }
-      }
-      
-      // Ctrl+D to delete last item
-      if (event.ctrlKey && event.key === 'd') {
-        event.preventDefault();
-        if (billItems.length > 0) {
-          const lastItemIndex = billItems.length - 1;
-          handleRemoveItem(lastItemIndex);
-        }
-      }
-      
-      // Ctrl+Alt+F to focus on product search
-      if (event.ctrlKey && event.altKey && event.key === 'F') {
-        event.preventDefault();
-        if (productSearchRef.current) {
-          productSearchRef.current.focus();
-          productSearchRef.current.select();
-          scrollToElement(productSearchRef.current);
-        }
-      }
-      
-      // Enter on search field to add item if one is selected
-      if (event.key === 'Enter' && searchTerm && filteredProducts.length === 1) {
-        event.preventDefault();
-        handleSelectProduct(filteredProducts[0]);
-        // After adding item, return focus to product search field
-        setTimeout(() => {
-          if (productSearchRef.current) {
-            productSearchRef.current.focus();
-            productSearchRef.current.select();
-            scrollToElement(productSearchRef.current);
+      if (showDropdown) {
+          if (e.key === 'ArrowDown') setSelectedProductIndex(p => p < filteredProducts.length - 1 ? p + 1 : 0);
+          if (e.key === 'ArrowUp') setSelectedProductIndex(p => p > 0 ? p - 1 : filteredProducts.length - 1);
+          if (e.key === 'Enter' && selectedProductIndex >= 0) {
+              e.preventDefault();
+              handleSelectProduct(filteredProducts[selectedProductIndex]);
           }
-        }, 10);
-      }
-      
-      // Enter on quantity field to add item
-      if (event.key === 'Enter' && currentItem.product && (currentItem.quantity !== '' || (currentItem.rawInput && currentItem.rawInput !== ''))) {
-        event.preventDefault();
-        handleAddItem();
-        // After adding item, return focus to product search field
-        setTimeout(() => {
-          if (productSearchRef.current) {
-            productSearchRef.current.focus();
-            productSearchRef.current.select();
-            scrollToElement(productSearchRef.current);
-          }
-        }, 10);
-      }
-    };
-    
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [currentItem, searchTerm, filteredProducts, billItems]);
-  
-  // Add focus event listener to automatically scroll focused elements into view
-  useEffect(() => {
-    const handleFocus = (event) => {
-      if (event.target && event.target.scrollIntoView) {
-        // Add a small delay to ensure the element is rendered
-        setTimeout(() => {
-          event.target.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'nearest', 
-            inline: 'nearest' 
-          });
-        }, 10);
-      }
-    };
-    
-    // Add focus event listener to all focusable elements
-    document.addEventListener('focusin', handleFocus);
-    
-    return () => {
-      document.removeEventListener('focusin', handleFocus);
-    };
-  }, []);
-
-  if (loading) {
-    return <div className="p-6 text-center">Loading data...</div>;
-  }
-
-  return (
-    <div className="bg-white h-screen flex flex-col">
-      {/* Header - Fixed at top */}
-      <div className="p-4 sm:p-6 border-b flex justify-between items-center bg-white z-10 sticky top-0">
-        <h3 className="text-xl sm:text-2xl font-semibold text-text-primary">Create Bill</h3>
-        <button 
-          onClick={() => navigate(baseUrl === '/admin' ? '/admin/bills/view' : '/shop/billing/view')}
-          className="text-gray-500 hover:text-gray-700 text-2xl focus:outline-none"
-          aria-label="Close full screen bill"
-        >
-          ✕
-        </button>
-      </div>
-      
-      {/* Notification Message */}
-      {showNotification && (
-        <div className="fixed top-4 right-4 z-50">
-          <MessageAlert 
-            type={notificationType} 
-            message={notificationMessage} 
-            onClose={() => setShowNotification(false)} 
-          />
-        </div>
-      )}
-      <KeyboardShortcutsGuide />
-      {/* Main Content Area - Scrollable */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 max-h-[calc(100vh-150px)]">
-      
-      {/* Out of Stock Modal */}
-      <CustomModal
-        isOpen={showOutOfStockModal}
-        onClose={() => setShowOutOfStockModal(false)}
-        title="Out of Stock"
-      >
-        <div className="text-center py-4">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <p className="text-lg mb-2">Product is out of stock!</p>
-          <p className="text-gray-600 mb-4">
-            {selectedProduct?.name} (SKU: {selectedProduct?.sku}) is currently out of stock.
-            Available quantity: {stockQuantity}
-          </p>
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={() => setShowOutOfStockModal(false)}
-              className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmOutOfStock}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Continue Anyway
-            </button>
-          </div>
-        </div>
-      </CustomModal>
-      
-      {/* Confirm Out of Stock Modal */}
-      <CustomModal
-        isOpen={showConfirmOutOfStockModal}
-        onClose={() => setShowConfirmOutOfStockModal(false)}
-        title="Confirm Out of Stock Product"
-      >
-        <div className="text-center py-4">
-          <div className="text-orange-500 text-5xl mb-4">⚠️</div>
-          <p className="text-lg mb-2">Are you sure?</p>
-          <p className="text-gray-600 mb-4">
-            You are about to add an out-of-stock product to the bill:
-          </p>
-          <p className="font-semibold mb-4">
-            {selectedProduct?.name} (SKU: {selectedProduct?.sku})
-          </p>
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={() => setShowConfirmOutOfStockModal(false)}
-              className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleFinalConfirmOutOfStock}
-              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-            >
-              Confirm & Add
-            </button>
-          </div>
-        </div>
-      </CustomModal>
-      
-      {/* Customer Details */}
-      <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-        <h4 className="text-lg sm:text-xl font-medium text-gray-700 mb-3">Customer Details</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-text-secondary text-sm font-medium mb-1" htmlFor="mobileNumber">
-              Customer Mobile Number
-            </label>
-            <input
-              type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
-              id="mobileNumber"
-              ref={customerMobileRef}
-              value={customerMobileNumber}
-              onChange={(e) => setCustomerMobileNumber(e.target.value)}
-              required
-              onKeyDown={(e) => {
-                if (e.key === 'Tab' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (productSearchRef.current) {
-                    productSearchRef.current.focus();
-                  }
-                }
-              }}
-            />
-          </div>
-
-        </div>
-      </div>
-      
-      {/* Product Search and Selection */}
-      <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-        <h4 className="text-lg font-medium text-gray-700 mb-3">Add Products</h4>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search Product</label>
-            <div className="relative">
-              <div className="flex">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={handleSearchChange}
-                  placeholder="Search by name or SKU..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
-                  ref={productSearchRef}
-                  onFocus={handleInputFocus}
-                  onKeyDown={(e) => {
-                    // Handle dropdown navigation keys
-                    if (showDropdown && filteredProducts.length > 0) {
-                      switch (e.key) {
-                        case 'ArrowDown':
-                          e.preventDefault();
-                          setSelectedProductIndex(prev => 
-                            prev < filteredProducts.length - 1 ? prev + 1 : 0
-                          );
-                          break;
-                        case 'ArrowUp':
-                          e.preventDefault();
-                          setSelectedProductIndex(prev => 
-                            prev > 0 ? prev - 1 : filteredProducts.length - 1
-                          );
-                          break;
-                        case 'Enter':
-                          e.preventDefault();
-                          if (selectedProductIndex >= 0 && filteredProducts[selectedProductIndex]) {
-                            handleSelectProduct(filteredProducts[selectedProductIndex]);
-                            // After adding item, return focus to product search field
-                            setTimeout(() => {
-                              if (productSearchRef.current) {
-                                productSearchRef.current.focus();
-                                productSearchRef.current.select();
-                              }
-                            }, 10);
-                          }
-                          break;
-                        case 'Escape':
-                          setShowDropdown(false);
-                          setSelectedProductIndex(-1);
-                          break;
-                        default:
-                          // For other keys, reset to first item if needed
-                          if (selectedProductIndex === -1 && filteredProducts.length > 0) {
-                            setSelectedProductIndex(0);
-                          }
-                      }
-                    }
-                    
-                    // Handle Tab key for navigation
-                    if (e.key === 'Tab' && !e.shiftKey) {
-                      // If there are already items in the bill AND search term is empty, allow skipping the add item section
-                      if (billItems.length > 0 && searchTerm.trim() === '') {
-                        e.preventDefault();
-                        // Skip to discount type field when Tab is pressed
-                        if (discountTypeRef.current) {
-                          discountTypeRef.current.focus();
-                          scrollToElement(discountTypeRef.current);
-                        }
-                        return; // Exit early to skip normal tab behavior
-                      } else {
-                        // If product is selected, skip the unit dropdown and go directly to quantity
-                        if (currentItem.product) {
-                          e.preventDefault();
-                          if (quantityRef.current) {
-                            quantityRef.current.focus();
-                          }
-                          return; // Exit early to skip normal tab behavior
-                        }
-                      }
-                    }
-                  }}
-                  tabIndex="0"
-                />
-                <button
-                  type="button"
-                  className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-md hover:bg-gray-200 focus:outline-none"
-                  onClick={handleToggleDropdown}
-                >
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
-                  </svg>
-                </button>
-              </div>
-              
-              {/* Dropdown for search suggestions */}
-              {showDropdown && filteredProducts.length > 0 && (
-                <ul className="absolute z-10 mt-1 max-h-40 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
-                  {filteredProducts.map((product, index) => (
-                    <li
-                      key={`${product._id}-${product.sku}`}
-                      className={`relative cursor-default select-none py-2 pl-3 pr-9 ${selectedProductIndex === index ? 'bg-indigo-600 text-white' : 'hover:bg-indigo-600 hover:text-white'}`}
-                      onClick={() => handleSelectProduct(product)}
-                      onMouseEnter={() => setSelectedProductIndex(index)}
-                    >
-                      <div className="flex justify-between">
-                        <span className="font-normal truncate">{product.name}</span>
-                        <span className="ml-2 text-gray-500">({product.sku})</span>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        Qty: {product.stockLevel} | Price: ₹{product.prices[0]?.sellingPrice || 0}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              
-              {/* Close dropdown when clicking outside */}
-              {(showDropdown || showProductModal) && (
-                <div 
-                  className="fixed inset-0 z-0" 
-                  onClick={() => {
-                    setShowDropdown(false);
-                    setShowProductModal(false);
-                  }}
-                />
-              )}
-
-              {/* Product Selection Modal */}
-              {showProductModal && (
-                <div className="fixed inset-0 z-50 overflow-y-auto">
-                  <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                      <div className="absolute inset-0 bg-gray-500 opacity-75" onClick={() => setShowProductModal(false)}></div>
-                    </div>
-                    <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-                    <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
-                      <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div className="sm:flex sm:items-start">
-                          <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-lg leading-6 font-medium text-gray-900">Select Product</h3>
-                              <button
-                                type="button"
-                                className="text-gray-400 hover:text-gray-500 focus:outline-none"
-                                onClick={() => setShowProductModal(false)}
-                              >
-                                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </div>
-                            <div className="mt-2 w-full">
-                              {/* Search and Filter Controls */}
-                              <div className="flex flex-col md:flex-row gap-4 mb-4">
-                                <div className="flex-1">
-                                  <input
-                                    type="text"
-                                    placeholder="Search products..."
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
-                                    value={modalSearchTerm}
-                                    onChange={(e) => setModalSearchTerm(e.target.value)}
-                                  />
-                                </div>
-                                <div className="flex-1">
-                                  <select
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
-                                    value={selectedCategory}
-                                    onChange={(e) => setSelectedCategory(e.target.value)}
-                                  >
-                                    {getUniqueCategories(products).map(category => (
-                                      <option key={category} value={category}>{category}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                              <div className="max-h-96 overflow-y-auto">
-                                <div className="overflow-x-auto">
-                                  <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                      <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                      {products
-                                        .filter(product => {
-                                          // Filter by search term
-                                          const matchesSearch = modalSearchTerm === '' || 
-                                            (product.name && product.name.toLowerCase().includes(modalSearchTerm.toLowerCase())) ||
-                                            (product.sku && product.sku.toLowerCase().includes(modalSearchTerm.toLowerCase()));
-                                          
-                                          // Filter by category
-                                          const productCategory = product.category?.name || 'Uncategorized';
-                                          const matchesCategory = selectedCategory === 'All' || productCategory === selectedCategory;
-                                          
-                                          return matchesSearch && matchesCategory;
-                                        })
-                                        .map((product) => (
-                                          <tr 
-                                            key={product._id} 
-                                            className="hover:bg-gray-50 cursor-pointer transition-colors"
-                                            onClick={() => handleSelectProduct(product)}
-                                          >
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.name}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.sku}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                product.stockLevel <= (product.stockAlertThreshold || 0) 
-                                                  ? 'bg-red-100 text-red-800' 
-                                                  : product.stockLevel <= (product.stockAlertThreshold || 0) * 2 
-                                                  ? 'bg-yellow-100 text-yellow-800' 
-                                                  : 'bg-green-100 text-green-800'
-                                              }`}>
-                                                {product.stockLevel}
-                                              </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
-                                              ₹{product.prices[0]?.sellingPrice || 0}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                              {product.category?.name || 'N/A'}
-                                            </td>
-                                          </tr>
-                                        ))
-                                      }
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-            <select
-              value={currentItem.unit}
-              onChange={handleUnitChange}
-              disabled={!currentItem.product}
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75 disabled:bg-gray-200"
-              onKeyDown={(e) => {
-                // Skip this field when Tab is pressed
-                if (e.key === 'Tab' && !e.shiftKey) {
-                  e.preventDefault();
-                  // Focus on the quantity input
-                  if (quantityRef.current) {
-                    quantityRef.current.focus();
-                  }
-                }
-              }}
-            >
-              {getAvailableUnits(currentItem.product?.prices || [])?.map((unit) => (
-                <option key={unit} value={unit}>
-                  {unit}
-                </option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={currentItem.rawInput !== undefined && currentItem.rawInput !== '' ? currentItem.rawInput : currentItem.quantity}
-              onChange={handleQuantityChange}
-              disabled={!currentItem.product}
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75 disabled:bg-gray-200"
-              min="0"
-              ref={quantityRef}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && currentItem.product) {
-                  e.preventDefault();
-                  handleAddItem();
-                } else if (e.key === 'Tab' && !e.shiftKey) {
-                  e.preventDefault();
-                  const button = document.querySelector('button[type="button"][onClick*="handleAddItem"]');
-                  if (button) {
-                    button.focus();
-                  }
-                } else if (e.key === 'Tab' && e.shiftKey) {
-                  e.preventDefault();
-                  // Skip the unit dropdown when going back with Shift+Tab
-                  if (productSearchRef.current) {
-                    productSearchRef.current.focus();
-                  }
-                }
-              }}
-            />
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
-            <input
-              type="text"
-              value={currentItem.price}
-              readOnly
-              tabIndex="-1"
-              className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm"
-            />
-          </div>
-          
-          <div className="md:col-span-2 flex items-end">
-            <button
-              type="button"
-              onClick={handleAddItem}
-              disabled={!currentItem.product}
-              className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75 disabled:bg-gray-400"
-              onKeyDown={(e) => {
-                if (e.key === 'Tab' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (discountTypeRef.current) {
-                    discountTypeRef.current.focus();
-                  }
-                } else if (e.key === 'Tab' && e.shiftKey) {
-                  e.preventDefault();
-                  if (quantityRef.current) {
-                    quantityRef.current.focus();
-                  }
-                }
-              }}
-            >
-              Add Item
-            </button>
-          </div>
-        </div>
-        
-        {error && !error.includes('purchase rates') && (
-          <div className="mt-2 text-red-500 text-sm">{error}</div>
-        )}
-      </div>
-      
-      {/* Bill Items Table */}
-      {billItems.length > 0 && (
-        <div className="mt-6 overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Product</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">SKU</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Unit</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Quantity</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Price</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Total</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {billItems.map((item, index) => (
-                <tr key={index}>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.productName}</td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.sku}</td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.unit}</td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.quantity}</td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{item.baseUnitPrice.toFixed(2)}</td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{(item.quantity * item.price).toFixed(2)}</td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <button
-                      onClick={() => handleRemoveItem(index)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Discount Section */}
-      <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-        <h4 className="text-lg font-medium text-gray-700 mb-3">Discount</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
-            <select
-              value={discountType}
-              onChange={(e) => setDiscountType(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
-              ref={discountTypeRef}
-              onKeyDown={(e) => {
-                if (e.key === 'Tab' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (discountType !== 'none') {
-                    if (discountValueRef.current) {
-                      discountValueRef.current.focus();
-                    }
-                  } else {
-                    if (paymentMethodRef.current) {
-                      paymentMethodRef.current.focus();
-                    }
-                  }
-                } else if (e.key === 'Tab' && e.shiftKey) {
-                  e.preventDefault();
-                  const button = document.querySelector('button[onClick*="handleAddItem"]');
-                  if (button) {
-                    button.focus();
-                  }
-                }
-              }}
-            >
-              <option value="none">No Discount</option>
-              <option value="percentage">Percentage (%)</option>
-              <option value="cash">Cash (₹)</option>
-            </select>
-          </div>
-          
-          {discountType !== 'none' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {discountType === 'percentage' ? 'Discount Percentage' : 'Discount Amount'}
-              </label>
-              <input
-                type="text"
-                value={discountValue}
-                onChange={(e) => setDiscountValue(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus-visible:ring-4 focus-visible:ring-blue-500 focus-visible:ring-opacity-75"
-                min="0"
-                step="0.01"
-                max={discountType === 'percentage' ? "100" : subtotal}
-                ref={discountValueRef}
-                onKeyDown={(e) => {
-                  if (e.key === 'Tab' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (paymentMethodRef.current) {
-                      paymentMethodRef.current.focus();
-                    }
-                  } else if (e.key === 'Tab' && e.shiftKey) {
-                    e.preventDefault();
-                    if (discountTypeRef.current) {
-                      discountTypeRef.current.focus();
-                    }
-                  }
-                }}
-              />
-            </div>
-          )}
-          
-          <div className="flex items-end">
-            <div className="text-sm">
-              <p className="font-medium">Discount Amount: ₹{discountAmount.toFixed(2)}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bill Summary */}
-      <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-        <h4 className="text-lg font-medium text-gray-700 mb-3">Bill Summary</h4>
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <span>Subtotal:</span>
-            <span>₹{subtotal.toFixed(2)}</span>
-          </div>
-          
-          {discountAmount > 0 && (
-            <div className="flex justify-between">
-              <span>Discount:</span>
-              <span>-₹{discountAmount.toFixed(2)}</span>
-            </div>
-          )}
-          
-          <div className="flex justify-between">
-            <span>Net Amount:</span>
-            <span>₹{netAmount.toFixed(2)}</span>
-          </div>
-          
-          {gstPercentage > 0 && (
-            <>
-              <div className="flex justify-between">
-                <span>Base Amount:</span>
-                <span>₹{(netAmount / (1 + gstPercentage / 100)).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>GST ({gstPercentage}%):</span>
-                <span>₹{gstAmount.toFixed(2)}</span>
-              </div>
-            </>
-          )}
-          
-          <div className="flex justify-between font-bold">
-            <span>Total Amount:</span>
-            <span>₹{totalAmount.toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Payment Details */}
-      <div className="mt-6 p-4 border rounded-lg bg-gray-50">
-        <h4 className="text-lg font-medium text-gray-700 mb-3">Payment Details</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="paymentMethod">
-              Payment Method
-            </label>
-            <div className="relative">
-              <select
-                id="paymentMethod"
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline pr-8"
-                ref={paymentMethodRef}
-                onKeyDown={(e) => {
-                  if (e.key === 'Tab' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (amountPaidRef.current) {
-                      amountPaidRef.current.focus();
-                    }
-                  } else if (e.key === 'Tab' && e.shiftKey) {
-                    e.preventDefault();
-                    if (discountType !== 'none') {
-                      if (discountValueRef.current) {
-                        discountValueRef.current.focus();
-                      }
-                    } else {
-                      if (discountTypeRef.current) {
-                        discountTypeRef.current.focus();
-                      }
-                    }
-                  }
-                }}
-              >
-                <option value="Cash">Cash</option>
-                <option value="UPI">UPI</option>
-                <option value="Card">Card</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="amountPaid">
-              Amount Paid
-            </label>
-            <input
-              type="text"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="amountPaid"
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(e.target.value)}
-              required
-              ref={amountPaidRef}
-              onKeyDown={(e) => {
-                if (e.key === 'Tab' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (createBillButtonRef.current) {
-                    createBillButtonRef.current.focus();
-                  }
-                } else if (e.key === 'Tab' && e.shiftKey) {
-                  e.preventDefault();
-                  if (paymentMethodRef.current) {
-                    paymentMethodRef.current.focus();
-                  }
-                }
-              }}
-            />
-          </div>
-        </div>
-        <div className="flex justify-end items-center mt-4">
-          <span className="text-lg font-bold text-gray-800 mr-4">Balance:</span>
-          <span className="text-lg font-bold text-red-600">₹{(totalAmount - Number(amountPaid)).toFixed(2)}</span>
-        </div>
-      </div>
-
-      {/* Bill Options */}
-      <div className="p-4 border rounded-lg bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-        <label htmlFor="autoDownload" className="text-gray-700 font-bold">Auto Download Bill after Creation</label>
-        <input
-          type="checkbox"
-          id="autoDownload"
-          checked={autoDownload}
-          onChange={(e) => setAutoDownload(e.target.checked)}
-          className="form-checkbox h-5 w-5 text-primary"
-        />
-      </div>
-      
-      <div className="p-4 border rounded-lg bg-gray-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-        <label htmlFor="autoPrint" className="text-gray-700 font-bold">Auto Print Bill after Creation</label>
-        <input
-          type="checkbox"
-          id="autoPrint"
-          checked={autoPrint}
-          onChange={(e) => setAutoPrint(e.target.checked)}
-          className="form-checkbox h-5 w-5 text-primary"
-        />
-      </div>
-
-      <button
-        type="submit"
-        onClick={handleSubmit}
-        className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-4 px-6 rounded-lg focus:outline-none focus:shadow-outline text-lg mb-4"
-        ref={createBillButtonRef}
-        onKeyDown={(e) => {
-          if (e.key === 'Tab' && e.shiftKey) {
+          if (e.key === 'Escape') setShowDropdown(false);
+      } else if (showWorkerDropdown) {
+          if (e.key === 'ArrowDown') {
             e.preventDefault();
-            if (amountPaidRef.current) {
-              amountPaidRef.current.focus();
+            const filteredWorkers = workers.filter(worker => 
+              worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
+            );
+            setSelectedWorkerIndex(prev => prev < filteredWorkers.length - 1 ? prev + 1 : 0);
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const filteredWorkers = workers.filter(worker => 
+              worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
+            );
+            setSelectedWorkerIndex(prev => prev > 0 ? prev - 1 : filteredWorkers.length - 1);
+          }
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const filteredWorkers = workers.filter(worker => 
+              worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
+            );
+            if (filteredWorkers.length > 0 && selectedWorkerIndex >= 0 && selectedWorkerIndex < filteredWorkers.length) {
+              setSelectedWorker(filteredWorkers[selectedWorkerIndex]._id);
+              setWorkerSearchTerm('');
+              setShowWorkerDropdown(false);
+              setSelectedWorkerIndex(-1);
+            } else if (filteredWorkers.length > 0) {
+              // Fallback to first worker if no index selected
+              setSelectedWorker(filteredWorkers[0]._id);
+              setWorkerSearchTerm('');
+              setShowWorkerDropdown(false);
             }
           }
-        }}
-      >
-        Create Bill
-      </button>
-      {error && <p className="mt-4 text-red-500">{error}</p>}
+          if (e.key === 'Escape') {
+            setShowWorkerDropdown(false);
+            setSelectedWorkerIndex(-1);
+          }
+      } else if (e.key === 'Enter' && currentItem.product && document.activeElement === quantityRef.current) {
+          handleAddItem();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showDropdown, filteredProducts, selectedProductIndex, currentItem, baseUrl, showWorkerDropdown, workers, workerSearchTerm]);
+
+  if (loading) return <div className="p-10 text-center">Loading...</div>;
+
+  return (
+    // FIX: Added ID "shop-bill-container" and replaced "overflow-hidden" with "overflow-y-auto overflow-x-hidden"
+    // This ensures the main scrollbar is on this container, allowing full page scrolling even inside a fixed layout.
+    <div id="shop-bill-container" className="bg-gray-100 h-screen flex flex-col font-sans overflow-y-auto overflow-x-hidden">
+        <style>{`
+            .hide-scrollbar::-webkit-scrollbar { display: none; }
+            .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        `}</style>
+
+        {showNotification && <div className="fixed top-5 right-5 z-50"><MessageAlert type="success" message={notificationMessage} /></div>}
+        {/* FIX: Display Error Alert so you know why it failed (e.g., "Enter Mobile Number") */}
+        {error && <div className="fixed top-5 left-5 z-50"><MessageAlert type="error" message={error} /></div>}
+        
+        <KeyboardShortcutsGuide />
+        
+        <CustomModal isOpen={showOutOfStockModal} onClose={() => setShowOutOfStockModal(false)} title="Out of Stock" customZIndex="z-[100]">
+            <div className="p-4 text-center">
+                <p className="text-red-500 text-xl font-bold mb-2">Item Out of Stock</p>
+                <p>Qty Available: {stockQuantity}</p>
+                <div className="mt-4 flex justify-center gap-2">
+                    <button onClick={() => setShowOutOfStockModal(false)} className="px-4 py-2 bg-gray-300 rounded">Cancel</button>
+                    <button onClick={handleConfirmOutOfStock} className="px-4 py-2 bg-blue-500 text-white rounded">Continue</button>
+                </div>
+            </div>
+        </CustomModal>
+        <CustomModal isOpen={showConfirmOutOfStockModal} onClose={() => setShowConfirmOutOfStockModal(false)} title="Confirm" customZIndex="z-[100]">
+             <div className="p-4 text-center">
+                <p className="mb-4">Are you sure you want to add this out-of-stock item?</p>
+                <button onClick={handleFinalConfirmOutOfStock} className="px-4 py-2 bg-red-500 text-white rounded">Yes, Add It</button>
+            </div>
+        </CustomModal>
+
+        {/* --- HEADER --- */}
+        <div className="bg-white p-3 border-b shadow-sm z-20 shrink-0">
+            <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-4">
+                    <h1 className="text-xl font-bold text-gray-800">New Bill / Invoice (Shop)</h1>
+                    
+                    {/* Bill Type Toggle */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">Bill Type:</span>
+                        <div className="relative inline-flex items-center bg-gray-200 border-2 border-gray-300 rounded-full w-12 h-6 cursor-pointer transition-colors duration-300" 
+                             onClick={() => setBillType(prev => prev === "ORDINARY" ? "REFERENCE" : "ORDINARY")}
+                             title="Toggle between Ordinary and Reference bill">
+                            <input type="checkbox" className="sr-only" checked={billType === "ORDINARY"} readOnly />
+                            <div className={`absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-all duration-300 ${billType === "ORDINARY" ? "transform translate-x-0" : "transform translate-x-6"}`}></div>
+                        </div>
+                        <span className="text-sm font-medium ml-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${billType === "ORDINARY" ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"}`}>
+                                {billType === "ORDINARY" ? "ORDINARY" : "REFERENCE"}
+                            </span>
+                        </span>
+                    </div>
+                </div>
+                <button onClick={() => navigate(baseUrl + '/billing/view')} className="text-gray-500 hover:text-red-500">✕</button>
+            </div>
+
+            <div className="grid grid-cols-12 gap-4">
+                 {/* Left Side: Customer */}
+                 <div className="col-span-8 flex flex-col gap-2">
+                     <div className="flex gap-2">
+                         <div className="w-1/3">
+                             <input 
+                                ref={customerMobileRef}
+                                type="text" 
+                                placeholder="Mobile Number" 
+                                className="w-full p-2 border rounded text-sm focus:ring-1 focus:ring-blue-500"
+                                value={customerMobileNumber}
+                                onChange={(e) => setCustomerMobileNumber(e.target.value)}
+                            />
+                         </div>
+                         <div className="w-1/3">
+                             <input 
+                                type="text" 
+                                placeholder="Customer Name (Optional)" 
+                                className="w-full p-2 border rounded text-sm"
+                                value={toInfo.name}
+                                onChange={(e) => setToInfo({...toInfo, name: e.target.value})}
+                            />
+                         </div>
+                          <div className="w-1/3">
+                             <input type="text" placeholder="PO No." className="w-full p-2 border rounded text-sm" />
+                         </div>
+                     </div>
+                     <div className="flex gap-2">
+                         <div className="w-2/3">
+                             <input 
+                                type="text" 
+                                placeholder="Billing Address" 
+                                className="w-full p-2 border rounded text-sm"
+                                value={toInfo.address}
+                                onChange={(e) => setToInfo({...toInfo, address: e.target.value})}
+                            />
+                         </div>
+                         <div className="w-1/3">
+                             <input type="text" placeholder="PO Date" className="w-full p-2 border rounded text-sm" />
+                         </div>
+                         <div className="w-1/3 relative">
+                             <input
+                               type="text"
+                               placeholder="Select Worker (Optional)"
+                               className="w-full p-2 border rounded text-sm"
+                               value={workers.find(w => w._id === selectedWorker)?.name || workerSearchTerm}
+                               onChange={(e) => {
+                                 setWorkerSearchTerm(e.target.value);
+                                 setShowWorkerDropdown(true);
+                                 if (e.target.value === '') {
+                                   setSelectedWorker('');
+                                 }
+                               }}
+                               onFocus={() => {
+                                 setWorkerSearchTerm('');
+                                 setShowWorkerDropdown(true);
+                               }}
+                               onBlur={() => {
+                                 setTimeout(() => {
+                                   setShowWorkerDropdown(false);
+                                 }, 200);
+                               }}
+                             />
+                             {showWorkerDropdown && (
+                               <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                                 {workers
+                                   .filter(worker => 
+                                     worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
+                                   )
+                                   .map((worker, index) => (
+                                     <li 
+                                       key={worker._id} 
+                                       className={`p-2 cursor-pointer border-b ${index === selectedWorkerIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
+                                       onClick={() => {
+                                         setSelectedWorker(worker._id);
+                                         setWorkerSearchTerm('');
+                                         setShowWorkerDropdown(false);
+                                         setSelectedWorkerIndex(-1);
+                                       }}
+                                     >
+                                       {worker.name}
+                                     </li>
+                                   ))
+                                 }
+                               </ul>
+                             )}
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* Right Side: Invoice Meta */}
+                 <div className="col-span-4 flex flex-col gap-2 items-end text-sm">
+                      <div className="flex items-center gap-2">
+                          <span className="text-gray-500">Invoice No:</span>
+                          <span className="font-bold">Auto-Gen</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                          <span className="text-gray-500">Date:</span>
+                          <span className="font-bold">{invoiceDate}</span>
+                      </div>
+                       <div className="flex items-center gap-2">
+                          <span className="text-gray-500">Time:</span>
+                          <span className="font-bold">{currentTime}</span>
+                      </div>
+                      <div className="flex items-center gap-2 w-full justify-end">
+                          <span className="text-gray-500">State:</span>
+                           <select 
+                                value={toInfo.state || 'Tamil Nadu'} 
+                                onChange={(e) => setToInfo({...toInfo, state: e.target.value})}
+                                className="border rounded p-1 text-sm text-right"
+                            >
+                                <option value="Tamil Nadu">Tamil Nadu</option>
+                                <option value="Kerala">Kerala</option>
+                            </select>
+                      </div>
+                 </div>
+            </div>
+        </div>
+
+        {/* --- MAIN TABLE AREA --- */}
+        {/* FIX: Removed "overflow-y-auto" and "hide-scrollbar" here to prevent nested scrolling */}
+        <div className="flex-1 bg-white p-2">
+            <table className="w-full border-collapse border border-gray-200">
+                <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm text-xs uppercase text-gray-600 font-bold">
+                    <tr>
+                        <th className="p-2 border border-gray-200 w-8">#</th>
+                        <th className="p-2 border border-gray-200 text-left min-w-[200px]">ITEM</th>
+                        <th className="p-2 border border-gray-200 w-24">EXP. DATE</th>
+                        <th className="p-2 border border-gray-200 w-24">MFG. DATE</th>
+                        <th className="p-2 border border-gray-200 w-16">QTY</th>
+                        <th className="p-2 border border-gray-200 w-20">UNIT</th>
+                        <th className="p-2 border border-gray-200 w-28 text-right">
+                            PRICE/UNIT <br/><span className="text-[10px] lowercase font-normal">(Without Tax)</span>
+                        </th>
+                        <th className="p-2 border border-gray-200 w-32 text-center">
+                            DISCOUNT <br/>
+                            <div className="flex text-[10px] justify-between px-2 font-normal"><span>%</span> <span>AMT</span></div>
+                        </th>
+                        <th className="p-2 border border-gray-200 w-32 text-center">
+                            TAX <br/>
+                            <div className="flex text-[10px] justify-between px-2 font-normal"><span>%</span> <span>AMT</span></div>
+                        </th>
+                        <th className="p-2 border border-gray-200 w-24 text-right">AMOUNT</th>
+                        <th className="p-2 border border-gray-200 w-8"></th>
+                    </tr>
+                </thead>
+                <tbody className="text-sm">
+                    {/* Input Row (Blue) */}
+                    <tr className="bg-blue-50">
+                        <td className="p-2 border border-blue-200 text-center text-blue-500 font-bold">⚡</td>
+                        <td className="p-2 border border-blue-200 relative">
+                            <input 
+                                ref={productSearchRef}
+                                type="text" 
+                                className="w-full bg-transparent outline-none placeholder-blue-400 font-medium"
+                                placeholder="Scan/Search Item..."
+                                value={searchTerm}
+                                onChange={handleSearchChange}
+                                onFocus={() => searchTerm && setShowDropdown(true)}
+                            />
+                            {showDropdown && (
+                                <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                                    {filteredProducts.map((p, i) => (
+                                        <li 
+                                            key={p._id} 
+                                            className={`p-2 cursor-pointer border-b flex justify-between ${i === selectedProductIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
+                                            onClick={() => handleSelectProduct(p)}
+                                        >
+                                            <span>{p.name} <small className="text-gray-400">({p.sku})</small></span>
+                                            <span className="font-bold text-green-600">₹{p.prices[0]?.sellingPrice}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </td>
+                        <td className="p-1 border border-blue-200">
+                            <input type="date" className="w-full bg-transparent text-xs outline-none" value={currentItem.expDate} onChange={e => setCurrentItem({...currentItem, expDate: e.target.value})} />
+                        </td>
+                        <td className="p-1 border border-blue-200">
+                            <input type="date" className="w-full bg-transparent text-xs outline-none" value={currentItem.mfgDate} onChange={e => setCurrentItem({...currentItem, mfgDate: e.target.value})} />
+                        </td>
+                        <td className="p-1 border border-blue-200">
+                            <input 
+                                ref={quantityRef}
+                                type="text" 
+                                className="w-full bg-transparent outline-none text-center font-bold"
+                                placeholder="0"
+                                value={currentItem.rawInput || currentItem.quantity}
+                                onChange={handleQuantityChange}
+                            />
+                        </td>
+                        <td className="p-1 border border-blue-200">
+                             <select className="w-full bg-transparent outline-none text-xs" value={currentItem.unit} onChange={handleUnitChange}>
+                                {currentItem.product ? getAvailableUnits(currentItem.product.prices).map(u => <option key={u} value={u}>{u}</option>) : <option>NONE</option>}
+                            </select>
+                        </td>
+                        <td className="p-2 border border-blue-200 text-right">
+                            {currentItem.price || 0}
+                        </td>
+                        <td className="p-1 border border-blue-200">
+                            <div className="flex gap-1">
+                                <input placeholder="\%" className="w-1/2 bg-white border border-blue-200 text-center text-xs" value={currentItem.discountPercent || ''} onChange={e => setCurrentItem({...currentItem, discountPercent: e.target.value, discountAmount: 0})} />
+                                <input placeholder="₹" className="w-1/2 bg-white border border-blue-200 text-center text-xs" value={currentItem.discountAmount || ''} onChange={e => setCurrentItem({...currentItem, discountAmount: e.target.value, discountPercent: 0})} />
+                            </div>
+                        </td>
+                        <td className="p-1 border border-blue-200">
+                             <div className="flex items-center justify-between text-xs px-1">
+                                <span>GST@{gstPercentage}%</span>
+                                <span>{(currentItem.price * (parseFloat(currentItem.quantity)||0) * (gstPercentage/100)).toFixed(2)}</span>
+                             </div>
+                        </td>
+                        <td className="p-2 border border-blue-200 text-right font-bold">
+                            {((parseFloat(currentItem.quantity) || 0) * currentItem.price).toFixed(2)}
+                        </td>
+                        <td className="p-1 border border-blue-200 text-center">
+                            <button onClick={handleAddItem} className="text-blue-600 font-bold text-xl hover:scale-110 transition-transform" disabled={!currentItem.product}>+</button>
+                        </td>
+                    </tr>
+
+                    {/* Data Rows */}
+                    {billItems.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                            <td className="p-2 border border-gray-200 text-center text-gray-500">{idx + 1}</td>
+                            <td className="p-2 border border-gray-200 font-medium">{item.productName}</td>
+                            <td className="p-2 border border-gray-200 text-xs">
+                                <input 
+                                    type="date" 
+                                    className="w-full text-xs p-1 border rounded bg-transparent hover:bg-white" 
+                                    value={item.expDate || ''} 
+                                    onChange={e => updateBillItem(idx, 'expDate', e.target.value)} 
+                                />
+                            </td>
+                            <td className="p-2 border border-gray-200 text-xs">
+                                <input 
+                                    type="date" 
+                                    className="w-full text-xs p-1 border rounded bg-transparent hover:bg-white" 
+                                    value={item.mfgDate || ''} 
+                                    onChange={e => updateBillItem(idx, 'mfgDate', e.target.value)} 
+                                />
+                            </td>
+                            <td className="p-2 border border-gray-200 text-center">
+                                <input 
+                                    type="text" 
+                                    className="w-full text-center p-1 border rounded bg-transparent hover:bg-white" 
+                                    value={item.quantity} 
+                                    onChange={e => updateBillItem(idx, 'quantity', parseFloat(e.target.value) || 0)} 
+                                    min="0"
+                                />
+                            </td>
+                            <td className="p-2 border border-gray-200 text-center">
+                                <select 
+                                    className="w-full text-center p-1 border rounded bg-transparent hover:bg-white" 
+                                    value={item.unit} 
+                                    onChange={e => updateBillItem(idx, 'unit', e.target.value)}
+                                >
+                                    {item.product && typeof item.product === 'object' && item.product.prices && item.product.prices.length > 0 ? 
+                                        getAvailableUnits(item.product.prices).map(u => <option key={u} value={u}>{u}</option>) 
+                                        : <option value={item.unit}>{item.unit}</option>}
+                                </select>
+                            </td>
+                            <td className="p-2 border border-gray-200 text-right">
+                                <input 
+                                    type="text" 
+                                    className="w-full text-right p-1 border rounded bg-transparent hover:bg-white" 
+                                    value={item.price} 
+                                    onChange={e => updateBillItem(idx, 'price', parseFloat(e.target.value) || 0)} 
+                                    min="0"
+                                    step="0.01"
+                                />
+                            </td>
+                            <td className="p-2 border border-gray-200 text-center">
+                                <div className="flex gap-1">
+                                    <input 
+                                        placeholder="%" 
+                                        className="w-1/2 bg-white border border-gray-200 text-center text-xs p-1" 
+                                        value={item.discountPercent || ''} 
+                                        onChange={e => {
+                                            const value = parseFloat(e.target.value) || 0;
+                                            const updatedItems = [...billItems];
+                                            updatedItems[idx] = { 
+                                                ...updatedItems[idx], 
+                                                discountPercent: value,
+                                                discountAmount: 0  // Reset discountAmount when discountPercent is set
+                                            };
+                                            setBillItems(updatedItems);
+                                        }}
+                                    />
+                                    <input 
+                                        placeholder="₹" 
+                                        className="w-1/2 bg-white border border-gray-200 text-center text-xs p-1" 
+                                        value={item.discountAmount || ''} 
+                                        onChange={e => {
+                                            const value = parseFloat(e.target.value) || 0;
+                                            const updatedItems = [...billItems];
+                                            updatedItems[idx] = { 
+                                                ...updatedItems[idx], 
+                                                discountAmount: value,
+                                                discountPercent: 0  // Reset discountPercent when discountAmount is set
+                                            };
+                                            setBillItems(updatedItems);
+                                        }}
+                                    />
+                                </div>
+                            </td>
+                            <td className="p-2 border border-gray-200 text-xs text-right">
+                                <div className="flex justify-between">
+                                    <span>{gstPercentage}%</span>
+                                    <span>{(item.price * item.quantity * (gstPercentage/100)).toFixed(2)}</span>
+                                </div>
+                            </td>
+                            <td className="p-2 border border-gray-200 text-right font-bold">
+                                {(item.quantity * item.price).toFixed(2)}
+                            </td>
+                            <td className="p-2 border border-gray-200 text-center">
+                                <button 
+                                    onClick={() => handleRemoveItem(idx)} 
+                                    className="text-red-400 hover:text-red-600 font-bold"
+                                    title="Remove"
+                                >
+                                    ×
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                    
+                    {/* Add Row Button Row */}
+                    <tr>
+                        <td colSpan="11" className="p-2 border border-gray-200">
+                             <button 
+                                onClick={() => productSearchRef.current?.focus()}
+                                className="bg-white border border-blue-300 text-blue-500 px-4 py-1 rounded text-sm font-bold hover:bg-blue-50 uppercase"
+                            >
+                                + Add Row
+                            </button>
+                        </td>
+                    </tr>
+                    
+                    {/* Total Row */}
+                    <tr className="bg-gray-50 font-bold">
+                         <td colSpan="4" className="border border-gray-200 p-2 text-right">TOTAL</td>
+                         <td className="border border-gray-200 p-2 text-center">{billItems.reduce((acc, i) => acc + parseFloat(i.quantity), 0)}</td>
+                         <td colSpan="3" className="border border-gray-200"></td>
+                         <td className="border border-gray-200 p-2 text-right">{gstAmount.toFixed(2)}</td>
+                         <td className="border border-gray-200 p-2 text-right">{subtotal.toFixed(2)}</td>
+                         <td className="border border-gray-200"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        {/* --- FOOTER --- */}
+        <div className="bg-white border-t p-4 shrink-0 z-30 shadow-[0_-4px_8px_rgba(0,0,0,0.05)] text-sm">
+             <div className="flex flex-col md:flex-row gap-8">
+                 
+                 {/* Left Column */}
+                 <div className="flex-1 space-y-4">
+                     <div>
+                         <label className="block text-gray-500 text-xs font-bold mb-1">Payment Type</label>
+                         <select 
+                             value={paymentMethod} 
+                             onChange={(e) => setPaymentMethod(e.target.value)}
+                             className="w-48 border border-gray-300 rounded p-2 text-sm bg-white focus:ring-1 focus:ring-blue-500"
+                         >
+                             <option value="Cash">Cash</option>
+                             <option value="UPI">UPI</option>
+                             <option value="Card">Card</option>
+                         </select>
+                         <div className="text-blue-500 text-xs mt-1 cursor-pointer hover:underline">+ Add Payment type</div>
+                     </div>
+                     
+                     <div className="flex items-center gap-2 text-xs">
+                             <input type="checkbox" checked={autoDownload} onChange={e => setAutoDownload(e.target.checked)} /> Auto Download
+                         </div>
+                 </div>
+
+                 {/* Right Column: Calculations */}
+                 <div className="flex-1 max-w-2xl">
+                     <div className="grid grid-cols-[1fr_auto] gap-y-2 items-center">
+                         
+                         {/* Row 1: Discount */}
+                         <div className="flex justify-end items-center gap-2">
+                             <span className="text-gray-600 font-medium">Discount</span>
+                             <div className="flex">
+                                 <input className="w-16 border rounded-l p-1 text-right pr-6" placeholder="" value={discountType === 'percentage' ? discountValue : ''} onChange={e => {setDiscountType('percentage'); setDiscountValue(e.target.value)}} /><span className="relative right-4 top-1 text-gray-400">%</span>
+                                 <input className="w-20 border rounded-r p-1 text-right pr-6" placeholder="" value={discountType === 'cash' ? discountValue : ''} onChange={e => {setDiscountType('cash'); setDiscountValue(e.target.value)}} /><span className="relative right-4 top-1 text-gray-400">₹</span>
+                             </div>
+                         </div>
+                         <div className="text-right font-medium w-32">{discountAmount > 0 && <span className="text-red-500">-{discountAmount.toFixed(2)}</span>}</div>
+
+                         {/* Row 2: Round Off & Total */}
+                         <div className="flex justify-end items-center gap-4">
+                             <label className="flex items-center gap-2 cursor-pointer">
+                                 <input type="checkbox" checked={roundOff} onChange={e => setRoundOff(e.target.checked)} />
+                                 <span className="text-gray-600">Round Off</span>
+                                 <span className="text-gray-400 text-xs w-8 text-right">{roundOff ? (totalAmount - netAmount).toFixed(2) : '0.00'}</span>
+                             </label>
+                             <span className="font-bold text-gray-700">Total</span>
+                         </div>
+                         <div className="text-right w-32">
+                             <div className="bg-gray-100 border rounded px-2 py-1 font-bold text-gray-800 text-right">{totalAmount.toFixed(2)}</div>
+                         </div>
+
+                         {/* Row 3: Received */}
+                         <div className="flex justify-end items-center"><span className="font-bold text-gray-700">Received</span></div>
+                         <div className="text-right w-32">
+                             <input ref={amountPaidRef} type="text" className="w-full border-2 border-blue-400 rounded px-2 py-1 font-bold text-right" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} />
+                         </div>
+
+                         {/* Row 4: Balance */}
+                         <div className="flex justify-end items-center"><span className="font-bold text-gray-700">Balance</span></div>
+                         <div className="text-right w-32 font-bold text-gray-800">{(totalAmount - (parseFloat(amountPaid) || 0)).toFixed(2)}</div>
+
+                      {/* Row 5: Buttons */}
+                         <div className="col-span-2 flex justify-end gap-2 mt-2">
+                             {/* Modified: Print button now triggers Save & Print by passing true */}
+                             <button onClick={(e) => handleSubmit(e, true)} className="px-4 py-2 border border-blue-500 text-blue-500 rounded font-bold hover:bg-blue-50 flex items-center gap-2">
+                                 Print <span className="text-xs">▼</span>
+                             </button>
+                             <button ref={createBillButtonRef} onClick={(e) => handleSubmit(e, false)} className="px-8 py-2 bg-blue-500 text-white rounded font-bold hover:bg-blue-600 shadow-sm">Save</button>
+                         </div>
+
+                     </div>
+                 </div>
+             </div>
+        </div>
     </div>
-  </div>
   );
 }
 

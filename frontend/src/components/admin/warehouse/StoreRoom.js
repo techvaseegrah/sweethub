@@ -146,6 +146,8 @@ const StoreRoom = () => {
                             <th className="py-2 px-4 text-left">Unit</th>
                             <th className="py-2 px-4 text-left">Price (per unit)</th>
                             <th className="py-2 px-4 text-left">Vendor</th>
+                            <th className="py-2 px-4 text-left">Expiry Date</th>
+                            <th className="py-2 px-4 text-left">Used By Date</th>
                             <th className="py-2 px-4 text-left">Stock Alert Threshold</th>
                             <th className="py-2 px-4 text-left">Actions</th>
                         </tr>
@@ -158,6 +160,8 @@ const StoreRoom = () => {
                                 <td className="border px-4 py-2">{item.unit}</td>
                                 <td className="border px-4 py-2">₹{item.price}</td>
                                 <td className="border px-4 py-2">{item.vendor || '-'}</td>
+                                <td className="border px-4 py-2">{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : '-'}</td>
+                                <td className="border px-4 py-2">{item.usedByDate ? new Date(item.usedByDate).toLocaleDateString() : '-'}</td>
                                 <td className="border px-4 py-2">{item.stockAlertThreshold}</td>
                                 <td className="border px-4 py-2">
                                     <button onClick={() => openEditModal(item)} className="text-blue-600 hover:text-blue-800 mr-3">
@@ -201,6 +205,26 @@ const StoreRoom = () => {
                             <div>
                                 <label className="block text-sm font-medium">Vendor</label>
                                 <input type="text" name="vendor" value={currentItem.vendor || ''} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Expiry Date</label>
+                                <input 
+                                    type="date" 
+                                    name="expiryDate" 
+                                    value={currentItem.expiryDate ? new Date(currentItem.expiryDate).toISOString().split('T')[0] : ''} 
+                                    onChange={handleModalChange} 
+                                    className="w-full px-3 py-2 border rounded-md" 
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Used By Date</label>
+                                <input 
+                                    type="date" 
+                                    name="usedByDate" 
+                                    value={currentItem.usedByDate ? new Date(currentItem.usedByDate).toISOString().split('T')[0] : ''} 
+                                    onChange={handleModalChange} 
+                                    className="w-full px-3 py-2 border rounded-md" 
+                                />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Stock Alert Threshold</label>

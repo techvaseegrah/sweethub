@@ -8,8 +8,10 @@ import { generateStockReportPdf } from '../../../utils/generateStockReportPdf';
 function TrackStock({ baseUrl = '/admin' }) {
   const PRODUCTS_URL = `${baseUrl}/products`;
   const SHOPS_URL = '/admin/shops';
+  const CATEGORIES_URL = `${baseUrl}/categories`;
   
   const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -19,6 +21,9 @@ function TrackStock({ baseUrl = '/admin' }) {
   
   const [shops, setShops] = useState([]);
   const [selectedShop, setSelectedShop] = useState('admin');
+  
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
   
   const exportToPdf = () => {
     // Prepare filter information for the report
@@ -30,7 +35,15 @@ function TrackStock({ baseUrl = '/admin' }) {
       filterInfo.shop = 'Admin Products Only';
     }
     
-    generateStockReportPdf(products, filterInfo);
+    // Add category filter info if selected
+    if (selectedCategory !== 'All') {
+      const selectedCatName = categories.find(cat => cat._id === selectedCategory)?.name || 'Unknown Category';
+      filterInfo.category = selectedCatName;
+    } else {
+      filterInfo.category = 'All Categories';
+    }
+    
+    generateStockReportPdf(filteredProducts, filterInfo);
   };
 
   useEffect(() => {
@@ -66,11 +79,37 @@ function TrackStock({ baseUrl = '/admin' }) {
         }
     };
     
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get(CATEGORIES_URL, { withCredentials: true });
+        setCategories(response.data);
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      }
+    };
+    
     if (baseUrl === '/admin') {
       fetchShops();
+      fetchCategories();
     }
     fetchProducts();
   }, [baseUrl, selectedShop]);
+  
+  // Filter products based on selected category
+  useEffect(() => {
+    let filtered = products;
+    
+    if (selectedCategory !== 'All') {
+      filtered = products.filter(product => 
+        product.category && (
+          product.category._id === selectedCategory || 
+          product.category === selectedCategory
+        )
+      );
+    }
+    
+    setFilteredProducts(filtered);
+  }, [products, selectedCategory]);
 
   const handleEdit = (product) => {
     setEditingProductId(product._id);
@@ -137,24 +176,42 @@ const handleCancel = () => {
         </button>
       </div>
       
-      {/* Add the filter dropdown */}
-      {baseUrl === '/admin' && (
-        <div className="mb-4">
-          <label className="block text-gray-700 text-sm font-bold mb-2">Filter by Shop</label>
+      {/* Add the filter dropdowns */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {baseUrl === '/admin' && (
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2">Filter by Shop</label>
+            <select
+              value={selectedShop}
+              onChange={(e) => setSelectedShop(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="admin">Admin Products Only</option>
+              {shops.map((shop) => (
+                <option key={shop._id} value={shop._id}>
+                  {shop.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        
+        <div>
+          <label className="block text-gray-700 text-sm font-bold mb-2">Filter by Category</label>
           <select
-            value={selectedShop}
-            onChange={(e) => setSelectedShop(e.target.value)}
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="admin">Admin Products Only</option>
-            {shops.map((shop) => (
-              <option key={shop._id} value={shop._id}>
-                {shop.name}
+            <option value="All">All Categories</option>
+            {categories.map((cat) => (
+              <option key={cat._id} value={cat._id}>
+                {cat.name}
               </option>
             ))}
           </select>
         </div>
-      )}
+      </div>
       
       <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
@@ -168,7 +225,7 @@ const handleCancel = () => {
         </tr>
       </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <tr key={product._id}>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

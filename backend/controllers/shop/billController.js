@@ -34,7 +34,9 @@ exports.createBill = async (req, res) => {
       amountPaid,
       discountType,
       discountValue,
-      discountAmount
+      discountAmount,
+      worker,
+      billType = 'ORDINARY'
       // Note: fromInfo and toInfo are not used for shop bills
     } = req.body;
 
@@ -44,52 +46,39 @@ exports.createBill = async (req, res) => {
     // 3. Process Items & Deduct Stock
     // Note: This logic assumes Shops sell from the main Product collection 
     // where stockLevel is tracked.
+    // 3. Process Items & Deduct Stock (Modified)
     const itemsWithDetails = [];
     
-    for (const item of items) {
-      const product = await Product.findById(item.product).session(session);
-      
-      if (!product) {
-        throw new Error(`Product ${item.productName} not found`);
-      }
-
-      // Optional: Check Stock
-      // If units are related (e.g., kg and gram), convert item quantity to product's unit for comparison
-      let itemQuantityInProductUnit = item.quantity;
-      if (product.prices && product.prices.length > 0) {
-        const productBaseUnit = product.prices[0].unit; // Assuming all prices use the same base unit
-        if (areRelatedUnits(item.unit, productBaseUnit)) {
-          itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+    if (items && items.length > 0) {
+      for (const item of items) {
+        // Find the product
+        const product = await Product.findById(item.product).session(session);
+        
+        if (!product) {
+          throw new Error(`Product with ID ${item.product} not found`);
         }
-      }
-      
-      if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
-        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}`);
-      }
 
-      itemsWithDetails.push({
-        product: product._id,
-        productName: product.name,
-        sku: product.sku,
-        unit: item.unit,
-        quantity: item.quantity,
-        price: item.price,
-      });
-
-      // Update Stock - convert quantity to product's unit if units are related
-      let quantityToDeduct = item.quantity;
-      if (product.prices && product.prices.length > 0) {
-        const productBaseUnit = product.prices[0].unit;
-        if (areRelatedUnits(item.unit, productBaseUnit)) {
-          quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
+        // --- STOCK REDUCTION LOGIC ---
+        // Deduct the quantity directly from stockLevel
+        // We use 'stockLevel' because that is the field name in your Product model
+        // Only deduct stock if billType is ORDINARY, skip if REFERENCE
+        if (billType !== 'REFERENCE') {
+          product.stockLevel = product.stockLevel - item.quantity;
+          
+          await product.save({ session });
         }
+        // -----------------------------
+
+        // Prepare item details for the bill (Required for saving the bill)
+        itemsWithDetails.push({
+          product: product._id,
+          productName: product.name,
+          sku: product.sku, 
+          unit: item.unit,
+          quantity: item.quantity,
+          price: item.price,
+        });
       }
-      
-      await Product.findByIdAndUpdate(
-        item.product,
-        { $inc: { stockLevel: -quantityToDeduct } },
-        { session }
-      );
     }
 
     // 4. Fetch Shop Details for Bill Creation
@@ -114,6 +103,8 @@ exports.createBill = async (req, res) => {
       discountType: discountType || 'none',
       discountValue: discountValue || 0,
       discountAmount: discountAmount || 0,
+      billType,
+      ...(worker && { worker }),
       // Include shop details for PDF generation
       shopName: shopDetails?.name,
       shopAddress: shopDetails?.location,
@@ -130,8 +121,10 @@ exports.createBill = async (req, res) => {
     // 6. Get shop name for WhatsApp
     const shopName = shopDetails ? shopDetails.name : 'Sri Sakthi Sweets';
 
-    // 6. Send WhatsApp
-    sendWhatsAppBill(newBill, shopName);
+    // 6. Send WhatsApp only for ordinary bills, not reference bills
+    if (billType === 'ORDINARY') {
+      sendWhatsAppBill(newBill, shopName);
+    }
 
     // 7. Respond to Frontend
     res.status(201).json({
@@ -164,7 +157,8 @@ exports.getBillById = async (req, res) => {
     const bill = await Bill.findOne({ _id: req.params.id, shop: shopId })
       .populate('items.product', 'name sku unit prices')
       .populate('shop', 'name location gstNumber fssaiNumber shopPhoneNumber')
-      .populate('deletedBy', 'name');
+      .populate('deletedBy', 'name')
+      .populate('worker', 'name');
       
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found' });
@@ -180,7 +174,7 @@ exports.getBillById = async (req, res) => {
 
 // Update an existing bill
 exports.updateBill = async (req, res) => {
-  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, discountType, discountValue, discountAmount } = req.body;
+  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY' } = req.body;
   
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -213,24 +207,27 @@ exports.updateBill = async (req, res) => {
     const itemsWithDetails = [];
     
     // First, restore original stock for the items in the original bill
-    for (const originalItem of bill.items) {
-      const product = await Product.findById(originalItem.product).session(session);
-      
-      if (product) {
-        let originalQuantityInProductUnit = originalItem.quantity;
-        if (product.prices && product.prices.length > 0) {
-          const productBaseUnit = product.prices[0].unit;
-          if (areRelatedUnits(originalItem.unit, productBaseUnit)) {
-            originalQuantityInProductUnit = convertUnit(originalItem.quantity, originalItem.unit, productBaseUnit);
-          }
-        }
+    // Only restore stock if the original bill was ORDINARY, skip if REFERENCE
+    if (bill.billType !== 'REFERENCE') {
+      for (const originalItem of bill.items) {
+        const product = await Product.findById(originalItem.product).session(session);
         
-        // Add back the original quantity
-        await Product.findByIdAndUpdate(
-          originalItem.product,
-          { $inc: { stockLevel: originalQuantityInProductUnit } },
-          { session }
-        );
+        if (product) {
+          let originalQuantityInProductUnit = originalItem.quantity;
+          if (product.prices && product.prices.length > 0) {
+            const productBaseUnit = product.prices[0].unit;
+            if (areRelatedUnits(originalItem.unit, productBaseUnit)) {
+              originalQuantityInProductUnit = convertUnit(originalItem.quantity, originalItem.unit, productBaseUnit);
+            }
+          }
+          
+          // Add back the original quantity
+          await Product.findByIdAndUpdate(
+            originalItem.product,
+            { $inc: { stockLevel: originalQuantityInProductUnit } },
+            { session }
+          );
+        }
       }
     }
     
@@ -244,18 +241,21 @@ exports.updateBill = async (req, res) => {
       }
       
       // Check Stock - convert item quantity to product's unit if units are related
-      let itemQuantityInProductUnit = item.quantity;
-      if (product.prices && product.prices.length > 0) {
-        const productBaseUnit = product.prices[0].unit;
-        if (areRelatedUnits(item.unit, productBaseUnit)) {
-          itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+      // Only check stock if billType is ORDINARY, skip if REFERENCE
+      if (billType !== 'REFERENCE') {
+        let itemQuantityInProductUnit = item.quantity;
+        if (product.prices && product.prices.length > 0) {
+          const productBaseUnit = product.prices[0].unit;
+          if (areRelatedUnits(item.unit, productBaseUnit)) {
+            itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+          }
         }
-      }
-      
-      if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}` });
+        
+        if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}` });
+        }
       }
 
       itemsWithDetails.push({
@@ -268,19 +268,22 @@ exports.updateBill = async (req, res) => {
       });
 
       // Deduct new stock
-      let quantityToDeduct = item.quantity;
-      if (product.prices && product.prices.length > 0) {
-        const productBaseUnit = product.prices[0].unit;
-        if (areRelatedUnits(item.unit, productBaseUnit)) {
-          quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
+      // Only deduct stock if billType is ORDINARY, skip if REFERENCE
+      if (billType !== 'REFERENCE') {
+        let quantityToDeduct = item.quantity;
+        if (product.prices && product.prices.length > 0) {
+          const productBaseUnit = product.prices[0].unit;
+          if (areRelatedUnits(item.unit, productBaseUnit)) {
+            quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
+          }
         }
+        
+        await Product.findByIdAndUpdate(
+          item.product,
+          { $inc: { stockLevel: -quantityToDeduct } },
+          { session }
+        );
       }
-      
-      await Product.findByIdAndUpdate(
-        item.product,
-        { $inc: { stockLevel: -quantityToDeduct } },
-        { session }
-      );
     }
 
     // Update Bill
@@ -299,6 +302,8 @@ exports.updateBill = async (req, res) => {
         discountType: discountType || 'none',
         discountValue: discountValue || 0,
         discountAmount: discountAmount || 0,
+        billType,
+        ...(worker && { worker }),
         isEdited: true // Mark as edited
       },
       { new: true, session }
@@ -307,9 +312,11 @@ exports.updateBill = async (req, res) => {
     await session.commitTransaction();
     session.endSession();
     
-    // Send WhatsApp message
-    const shopDetails = await Shop.findById(updatedBill.shop);
-    sendWhatsAppBill(updatedBill, shopDetails ? shopDetails.name : 'Sri Sakthi Sweets');
+    // Send WhatsApp message only for ordinary bills, not reference bills
+    if (updatedBill.billType === 'ORDINARY') {
+      const shopDetails = await Shop.findById(updatedBill.shop);
+      sendWhatsAppBill(updatedBill, shopDetails ? shopDetails.name : 'Sri Sakthi Sweets');
+    }
 
     res.json(updatedBill);
   } catch (error) {
@@ -379,7 +386,8 @@ exports.getBills = async (req, res) => {
     const bills = await Bill.find({ shop: shopId })
       .sort({ createdAt: -1 })
       .populate('items.product', 'name sku')
-      .populate('deletedBy', 'name');
+      .populate('deletedBy', 'name')
+      .populate('worker', 'name');
 
     res.json(bills);
   } catch (error) {

@@ -1,6 +1,7 @@
 const Invoice = require('../../models/invoiceModel');
 const Product = require('../../models/productModel');
 const Shop = require('../../models/shopModel');
+const Order = require('../../models/orderModel'); // Import the Order model
 const mongoose = require('mongoose');
 
 const generateInvoiceNumber = async () => {
@@ -101,6 +102,20 @@ exports.createInvoice = async (req, res) => {
     
     await newInvoice.save({ session });
     console.log('Invoice saved successfully:', newInvoiceNumber);
+
+    // Check if this invoice is created from an order
+    // If there's a reference to an order ID in the request body, update the order status
+    const orderIdFromRequest = req.body.orderId; // This would be passed from the frontend when creating invoice from order
+    if (orderIdFromRequest) {
+      const order = await Order.findById(orderIdFromRequest).session(session);
+      if (order) {
+        order.status = 'Invoiced';
+        order.invoiceId = newInvoice._id;
+        order.admin = adminId;
+        await order.save({ session });
+        console.log('Order status updated to Invoiced for order:', orderIdFromRequest);
+      }
+    }
 
     await session.commitTransaction();
     console.log('Transaction committed successfully');

@@ -32,6 +32,7 @@ import FaceEnrollment from '../components/shop/worker/FaceEnrollment';
 // Expense module imports
 import ExpenseDashboard from '../components/shop/expense/ExpenseDashboard';
 import AddExpense from '../components/shop/expense/AddExpense';
+import EditExpense from '../components/shop/expense/EditExpense';
 import ExpenseHistory from '../components/shop/expense/ExpenseHistory';
 
 // Import new worker components
@@ -44,6 +45,8 @@ import HolidayManagement from '../components/shop/worker/HolidayManagement';
 // Import return products components
 import ReturnProductsPage from '../components/shop/returnproducts/ReturnProductsPage';
 
+// Import order management component
+import ShopOrderManagement from '../components/shop/OrderManagement';
 
 import { useFullScreenBill } from '../context/FullScreenBillContext';
 
@@ -134,6 +137,9 @@ const ShopPage = () => {
                         {/* Invoice Route */}
                         <Route path="invoice/view" element={<ViewInvoice />} />
 
+                        {/* Order Management Route */}
+                        <Route path="orders" element={<ShopOrderManagement />} />
+
                         {/* Billing Routes */}
                         <Route path="billing/create" element={<ShopCreateBill />} />
                         <Route path="billing/view" element={<ShopViewBills />} />
@@ -141,6 +147,7 @@ const ShopPage = () => {
                         {/* Expense Routes */}
                         <Route path="expenses" element={<ExpenseDashboard />} />
                         <Route path="expenses/add" element={<AddExpense />} />
+                        <Route path="expenses/edit/:id" element={<EditExpense />} />
                         <Route path="expenses/history" element={<ExpenseHistory />} />
                         
                         {/* Return Products Routes */}

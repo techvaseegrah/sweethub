@@ -12,7 +12,7 @@ const Product = require('../../models/productModel');
 // Raw Materials / Store Room
 const addRawMaterial = async (req, res) => {
     try {
-        const { name, quantity, unit, price, vendor } = req.body;
+        const { name, quantity, unit, price, vendor, expiryDate, usedByDate } = req.body;
         // Find item case-insensitively and trim whitespace
         let item = await StoreRoomItem.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } });
 
@@ -34,9 +34,12 @@ const addRawMaterial = async (req, res) => {
             if (unit) item.unit = unit; // Update unit if provided
             // Only update vendor if provided (keep existing vendor if not provided)
             if (vendor) item.vendor = vendor; 
+            // Update expiry and used by dates if provided
+            if (expiryDate) item.expiryDate = new Date(expiryDate);
+            if (usedByDate) item.usedByDate = new Date(usedByDate);
         } else {
             // Otherwise, create a new item
-            item = new StoreRoomItem({ name, quantity, unit, price, vendor });
+            item = new StoreRoomItem({ name, quantity, unit, price, vendor, expiryDate: expiryDate ? new Date(expiryDate) : undefined, usedByDate: usedByDate ? new Date(usedByDate) : undefined });
         }
         await item.save();
         res.status(201).json(item);
@@ -178,7 +181,16 @@ const getStoreRoomItems = async (req, res) => {
 const updateStoreRoomItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const updatedItem = await StoreRoomItem.findByIdAndUpdate(id, req.body, { new: true });
+        // Handle date conversion if expiryDate or usedByDate are sent as strings
+        const updateData = { ...req.body };
+        if (updateData.expiryDate) {
+            updateData.expiryDate = new Date(updateData.expiryDate);
+        }
+        if (updateData.usedByDate) {
+            updateData.usedByDate = new Date(updateData.usedByDate);
+        }
+        
+        const updatedItem = await StoreRoomItem.findByIdAndUpdate(id, updateData, { new: true });
         if (!updatedItem) {
             return res.status(404).json({ message: 'Item not found' });
         }

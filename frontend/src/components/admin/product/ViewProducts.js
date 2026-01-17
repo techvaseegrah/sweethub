@@ -7,7 +7,7 @@ import { generateProductReportPdf } from '../../../utils/generateProductReportPd
 
 function ViewProducts({ baseUrl = '/admin' }) {
   const PRODUCT_URL = `${baseUrl}/products`;
-  const CATEGORY_URL = `${baseUrl}/categories`;
+  const CATEGORY_URL = baseUrl === '/shop' ? '/shop/categories' : `${baseUrl}/categories`;
   
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -42,10 +42,19 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(CATEGORY_URL, { withCredentials: true });
-      setCategories(response.data);
+      // For shop users, get categories used by their products to ensure all used categories appear in dropdown
+      if (baseUrl === '/shop') {
+        // Use the new endpoint that returns categories used by shop's products
+        const response = await axios.get('/shop/categories/shop-used', { withCredentials: true });
+        setCategories(Array.isArray(response.data) ? response.data : []);
+      } else {
+        // For admin, continue with the existing approach
+        const response = await axios.get(CATEGORY_URL, { withCredentials: true });
+        setCategories(Array.isArray(response.data) ? response.data : []);
+      }
     } catch (err) {
       console.error('Failed to fetch categories:', err);
+      setCategories([]);
     }
   };
   
@@ -59,7 +68,11 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
     if (selectedCategory !== 'All') {
       tempProducts = tempProducts.filter(
-        (product) => product.category?._id === selectedCategory
+        (product) => {
+          // Check if product.category is an object with _id or just an ID string
+          const categoryId = typeof product.category === 'object' ? product.category._id : product.category;
+          return categoryId === selectedCategory;
+        }
       );
     }
 
@@ -139,7 +152,13 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
   const openEditModal = (product) => {
     // Ensure prices array exists and has at least one entry
-    const productWithPrices = { ...product, category: product.category?._id || '' };
+    const productWithPrices = { ...product };
+    // Set category ID properly - handle both object and string cases
+    if (product.category) {
+      productWithPrices.category = typeof product.category === 'object' ? product.category._id : product.category;
+    } else {
+      productWithPrices.category = '';
+    }
     if (!productWithPrices.prices || !Array.isArray(productWithPrices.prices) || productWithPrices.prices.length === 0) {
       productWithPrices.prices = [{ unit: 'piece', netPrice: '', sellingPrice: '' }];
     }
@@ -315,7 +334,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
           className="w-full md:w-auto px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="All">All Categories</option>
-          {categories.map((cat) => (
+          {Array.isArray(categories) && categories.map((cat) => (
             <option key={cat._id} value={cat._id}>
               {cat.name}
             </option>
@@ -382,7 +401,8 @@ function ViewProducts({ baseUrl = '/admin' }) {
                     ₹{product.sellingPrice}
                   </td>
                   <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.category ? product.category.name : 'N/A'}
+                    {product.category ? (typeof product.category === 'object' ? product.category.name : 
+                      categories.find(cat => cat._id === product.category)?.name || 'N/A') : 'N/A'}
                   </td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <button
@@ -547,7 +567,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   disabled={false}
                 >
                   <option value="">Select Category</option>
-                  {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}</select>
+                  {Array.isArray(categories) && categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}</select>
               </div>
               
               {/* Unit Configuration Section */}

@@ -9,6 +9,9 @@ router.post('/', shopAuth, createCategory);
 // This route allows a shop user to view categories in their shop
 router.get('/', shopAuth, getCategories);
 
+// This route allows a shop user to view categories used by their products
+router.get('/shop-used', shopAuth, require('../../controllers/admin/categoryController').getShopCategories);
+
 // Route to delete a category for shop users
 router.delete('/:id', shopAuth, require('../../controllers/admin/categoryController').deleteCategory);
 

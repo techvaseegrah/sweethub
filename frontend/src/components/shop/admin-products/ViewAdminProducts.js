@@ -32,9 +32,10 @@ function ViewAdminProducts() {
       const response = await axios.get('/shop/categories/all', {
         withCredentials: true
       });
-      setCategories(response.data);
+      setCategories(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       console.error('Failed to fetch categories:', err);
+      setCategories([]);
     }
   };
   
@@ -48,8 +49,11 @@ function ViewAdminProducts() {
 
     if (selectedCategory !== 'All') {
       tempProducts = tempProducts.filter(
-        (product) => product.category?._id === selectedCategory || 
-                   (typeof product.category === 'object' && product.category._id === selectedCategory)
+        (product) => {
+          // Check if product.category is an object with _id or just an ID string
+          const categoryId = typeof product.category === 'object' ? product.category._id : product.category;
+          return categoryId === selectedCategory;
+        }
       );
     }
 
@@ -112,7 +116,7 @@ function ViewAdminProducts() {
           className="w-full md:w-auto px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="All">All Categories</option>
-          {categories.map((cat) => (
+          {Array.isArray(categories) && categories.map((cat) => (
             <option key={cat._id} value={cat._id}>
               {cat.name}
             </option>
@@ -156,8 +160,8 @@ function ViewAdminProducts() {
                     </span>
                   </td>
                   <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.category ? (typeof product.category === 'object' ? product.category.name : 
-                      categories.find(cat => cat._id === product.category)?.name) : 'N/A'}
+                    {(product.category ? (typeof product.category === 'object' ? product.category.name : 
+                      Array.isArray(categories) ? categories.find(cat => cat._id === product.category)?.name : 'N/A') : 'N/A')}
                   </td>
                 </tr>
               ))}

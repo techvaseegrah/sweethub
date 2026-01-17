@@ -5,7 +5,7 @@ import RFIDAttendance from './RFIDAttendance';
 import FaceAttendance from './FaceAttendance'; // Import FaceAttendance component
 import CustomModal from '../../../components/CustomModal'; // Import CustomModal
 import * as XLSX from 'xlsx'; // Import xlsx library
-import CreateAttendanceAccountModal from './CreateAttendanceAccountModal'; // Import Create Attendance Account Modal
+
 import { generateAttendanceReportPdf } from '../../../utils/generateAttendanceReportPdf'; // Import attendance PDF utility
 
 // ATTENDANCE_URL will be determined dynamically based on user type
@@ -229,7 +229,7 @@ function AttendanceTracking() {
   const [showMissingPunchModal, setShowMissingPunchModal] = useState(false); // State for Missing Punch Modal
   const [selectedWorkerForCorrection, setSelectedWorkerForCorrection] = useState(null); // Worker needing correction
   const [missingPunchOutTime, setMissingPunchOutTime] = useState(''); // Time for missing punch out
-  const [showCreateAccountModal, setShowCreateAccountModal] = useState(false); // State for Create Account Modal
+
 
   const fetchTodaysAttendance = useCallback(async () => {
       try {
@@ -603,12 +603,7 @@ function AttendanceTracking() {
                     </svg>
                     PDF
                 </button>
-                <button 
-                    onClick={() => setShowCreateAccountModal(true)}
-                    className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors text-sm sm:text-base"
-                >
-                    Create Account
-                </button>
+
             </div>
         </div>
 
@@ -679,21 +674,7 @@ function AttendanceTracking() {
             </div>
         </CustomModal>
 
-        {/* Create Account Modal */}
-        <CustomModal
-            isOpen={showCreateAccountModal}
-            onClose={() => setShowCreateAccountModal(false)}
-            title="Create Attendance Account"
-        >
-            <CreateAttendanceAccountModal 
-                onClose={() => setShowCreateAccountModal(false)} 
-                onAccountCreated={() => {
-                    setShowCreateAccountModal(false);
-                    // Optionally refresh data
-                }}
-                isShop={authState?.role === 'shop' || authState?.userType === 'shop'}
-            />
-        </CustomModal>
+
 
         {/* Search Bar */}
         <div className="relative w-full sm:w-1/3 mb-6">

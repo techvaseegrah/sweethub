@@ -1,5 +1,6 @@
 const Invoice = require('../../models/invoiceModel');
 const Product = require('../../models/productModel');
+const Order = require('../../models/orderModel'); // Import the Order model
 const mongoose = require('mongoose');
 
 /**
@@ -186,6 +187,21 @@ exports.confirmInvoice = async (req, res) => {
     }
     
     await invoice.save({ session });
+
+    // Step 4: If the invoice was linked to an order, update the order status
+    if (invoice.orderId) {  // Using the orderId field that gets set when invoice is created from an order
+      const order = await Order.findById(invoice.orderId).session(session);
+      if (order) {
+        // Update order status based on invoice status
+        if (invoice.status === 'Confirmed') {
+          order.status = 'Invoiced'; // Final confirmation
+        } else {
+          order.status = 'Processed'; // Partially processed
+        }
+        await order.save({ session });
+        console.log('Order status updated based on invoice confirmation for order:', order._id);
+      }
+    }
 
     // Commit the transaction
     await session.commitTransaction();

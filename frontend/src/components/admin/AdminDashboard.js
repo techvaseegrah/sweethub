@@ -136,7 +136,7 @@ const AdminDashboard = () => {
       setRevenueLoading(true);
       setRevenueError('');
       try {
-        const response = await axios.get('/admin/revenue/summary', {
+        const response = await axios.get('/admin/profit-loss', {
           params: { startDate, endDate },
           withCredentials: true,
         });
@@ -258,14 +258,18 @@ const AdminDashboard = () => {
           <p className="text-red-500">{revenueError}</p>
         ) : revenueData && (
           <div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
               <div className="bg-green-50 p-4 rounded-lg">
                 <h4 className="text-sm font-semibold text-green-800">Total Revenue</h4>
-                <p className="text-2xl font-bold text-green-700">₹{revenueData.overallTotalRevenue.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-green-700">₹{revenueData.consolidated.totalRevenue.toLocaleString()}</p>
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg">
+                <h4 className="text-sm font-semibold text-red-800">Total Expenses</h4>
+                <p className="text-2xl font-bold text-red-700">₹{revenueData.consolidated.totalExpenses.toLocaleString()}</p>
               </div>
               <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="text-sm font-semibold text-blue-800">Total Profit</h4>
-                <p className="text-2xl font-bold text-blue-700">₹{revenueData.overallTotalProfit.toLocaleString()}</p>
+                <h4 className="text-sm font-semibold text-blue-800">Net Profit</h4>
+                <p className="text-2xl font-bold text-blue-700">₹{revenueData.consolidated.netProfit.toLocaleString()}</p>
               </div>
             </div>
             <h4 className="text-base font-semibold text-gray-700 mt-6 mb-2">Breakdown by Shop</h4>
@@ -275,15 +279,21 @@ const AdminDashboard = () => {
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Shop</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Profit</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Expenses</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net P&L</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Margin %</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {revenueData.revenueByShop.map((shop) => (
+                  {revenueData.shopData.map((shop) => (
                     <tr key={shop.shopId || 'admin'}>
                       <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{shop.shopName}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">₹{shop.totalRevenue.toLocaleString()}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">₹{shop.totalProfit.toLocaleString()}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">₹{shop.revenue.totalBillingProfit.toLocaleString()}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">₹{shop.expenses.totalExpenses.toLocaleString()}</td>
+                      <td className={`px-4 py-2 whitespace-nowrap text-sm text-right font-medium ${shop.profitability.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{Math.abs(shop.profitability.netProfit).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">{shop.profitability.profitMargin.toFixed(2)}%</td>
                     </tr>
                   ))}
                 </tbody>

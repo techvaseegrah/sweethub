@@ -8,6 +8,8 @@ const RawMaterials = () => {
     const [unit, setUnit] = useState('');
     const [price, setPrice] = useState('');
     const [vendor, setVendor] = useState('');
+    const [expiryDate, setExpiryDate] = useState('');
+    const [usedByDate, setUsedByDate] = useState('');
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [storeRoomItems, setStoreRoomItems] = useState([]);
@@ -71,12 +73,14 @@ const RawMaterials = () => {
         setShowDropdown(false);
         setShowAddForm(false);
         
-        // Auto-fill unit, price, and vendor if available
+        // Auto-fill unit, price, vendor, expiryDate, and usedByDate if available
         const selectedItem = storeRoomItems.find(item => item.name === itemName);
         if (selectedItem) {
             setUnit(selectedItem.unit || '');
             setPrice(selectedItem.price || '');
             setVendor(selectedItem.vendor || '');
+            setExpiryDate(selectedItem.expiryDate ? new Date(selectedItem.expiryDate).toISOString().split('T')[0] : '');
+            setUsedByDate(selectedItem.usedByDate ? new Date(selectedItem.usedByDate).toISOString().split('T')[0] : '');
         }
     };
 
@@ -104,7 +108,9 @@ const RawMaterials = () => {
                 quantity: 0,
                 unit: 'kg', // Default unit
                 price: 0,
-                vendor: ''
+                vendor: '',
+                expiryDate: '',
+                usedByDate: ''
             });
 
             // Update local state
@@ -153,6 +159,8 @@ const RawMaterials = () => {
                 setUnit('');
                 setPrice('');
                 setVendor('');
+                setExpiryDate('');
+                setUsedByDate('');
             }
             
             setMessage(`Successfully removed "${itemName}" from the list`);
@@ -169,7 +177,15 @@ const RawMaterials = () => {
         setError('');
         setMessage('');
         try {
-            const response = await axios.post('/admin/warehouse/raw-materials', { name, quantity, unit, price, vendor });
+            const response = await axios.post('/admin/warehouse/raw-materials', { 
+                name, 
+                quantity, 
+                unit, 
+                price, 
+                vendor,
+                expiryDate,
+                usedByDate 
+            });
             setMessage(`Successfully added/updated "${response.data.name}".`);
             // Clear the form for the next entry
             setName('');
@@ -177,6 +193,8 @@ const RawMaterials = () => {
             setUnit('');
             setPrice('');
             setVendor('');
+            setExpiryDate('');
+            setUsedByDate('');
             
             // Refresh store room items to include the new item
             try {
@@ -321,6 +339,29 @@ const RawMaterials = () => {
                         />
                     </div>
                 </div>
+                
+                {/* Expiry and Used By Date fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium">Expiry Date</label>
+                        <input
+                            type="date"
+                            value={expiryDate}
+                            onChange={(e) => setExpiryDate(e.target.value)}
+                            className="w-full mt-1 px-3 py-2 border rounded-md"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium">Used By Date</label>
+                        <input
+                            type="date"
+                            value={usedByDate}
+                            onChange={(e) => setUsedByDate(e.target.value)}
+                            className="w-full mt-1 px-3 py-2 border rounded-md"
+                        />
+                    </div>
+                </div>
+                
                 <button type="submit" className="w-full md:w-auto bg-primary text-white py-2 px-6 rounded-md hover:bg-primary-dark">Add Material to Store Room</button>
             </form>
         </div>

@@ -118,6 +118,12 @@ const billSchema = new mongoose.Schema({
   isEdited: {
     type: Boolean,
     default: false
+  },
+  
+  // Worker who created the bill
+  worker: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Worker'
   }
 }, {
   timestamps: true,

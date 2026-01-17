@@ -137,7 +137,20 @@ const InvoiceHistory = () => {
               <tr key={invoice._id}>
                 <td className="td-style font-medium text-blue-600">{invoice.invoiceNumber}</td>
                 <td className="td-style">{invoice.shop?.name || 'N/A'}</td>
-                <td className="td-style">{invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : 'N/A'}</td>
+                <td className="td-style">
+                                  {invoice.issueDate ? (
+                                    <div>
+                                      <div>{new Date(invoice.issueDate).toLocaleDateString('en-GB')}</div>
+                                      <div className="text-xs text-gray-500">
+                                        {new Date(invoice.issueDate).toLocaleTimeString('en-US', { 
+                                          hour: 'numeric', 
+                                          minute: '2-digit', 
+                                          hour12: true 
+                                        }).toLowerCase()}
+                                      </div>
+                                    </div>
+                                  ) : 'N/A'}
+                                </td>
                 <td className="td-style">₹{(invoice.grandTotal || 0).toFixed(2)}</td>
                 <td className="td-style">
                   <span className={`px-2 py-1 text-xs font-semibold rounded-full ${

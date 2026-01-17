@@ -7,6 +7,8 @@ const storeRoomItemSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   vendor: { type: String },
   stockAlertThreshold: { type: Number, default: 0 },
+  expiryDate: { type: Date },
+  usedByDate: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('StoreRoomItem', storeRoomItemSchema);

@@ -52,12 +52,13 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
   }
 
   // Generate items HTML
-  const itemsHtml = billData.items.map(item => `
-    <tr style="font-size: 10px;">
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity || 0}</td>
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
+  // CHANGED: border-bottom style to dotted - only important lines
+  const itemsHtml = billData.items.map((item, index) => `
+    <tr style="font-size: 9px;">
+      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
+      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: center;">${item.quantity || 0}</td>
+      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -70,8 +71,8 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
       <title>Bill - ${billId}</title>
       <style>
         @page {
-          size: 80mm ${shouldPrint ? 'auto' : '150mm'};
-          margin: 8mm 5mm;
+          size: 58mm ${shouldPrint ? 'auto' : '150mm'};
+          margin: 5mm 2mm;
         }
         body {
           font-family: Arial, sans-serif;
@@ -81,7 +82,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           line-height: 1.2;
         }
         .bill-container {
-          max-width: 76mm;
+          max-width: 54mm;
           margin: 0 auto;
           padding: 5mm;
           border: 0;
@@ -91,7 +92,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           text-align: center;
           margin-bottom: 8px;
           padding-bottom: 5px;
-          border-bottom: 1px solid #333;
+          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
         }
         .shop-name {
           font-size: 12px;
@@ -123,8 +124,8 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         .from-to-info {
           margin: 8px 0;
           font-size: 9px;
-          border-top: 1px solid #eee;
-          border-bottom: 1px solid #eee;
+          border-top: 1px dotted #000;    /* CHANGED: dotted black */
+          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
           padding: 5px 0;
         }
         .from-to-section {
@@ -137,28 +138,29 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           font-size: 10px;
         }
         .items-table th {
-          font-size: 9px;
+          font-size: 8px;
           text-align: left;
-          padding: 3px 4px;
-          background-color: #f2f2f2;
-          border-bottom: 2px solid #333;
+          padding: 2px 3px;
+          background-color: #fff; /* Removed gray bg for cleaner dotted look */
+          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
+          border-top: 1px dotted #000;    /* ADDED: dotted top for header symmetry */
         }
         .items-table td {
-          padding: 3px 4px;
-          border-bottom: 1px solid #ddd;
+          padding: 2px 3px;
+          font-size: 9px;
         }
         .summary-row {
           font-weight: bold;
           font-size: 10px;
         }
         .summary-row td {
-          padding: 2px 4px;
+          padding: 2px 3px;
         }
         .total-row {
           font-size: 11px;
           font-weight: bold;
-          border-top: 1px solid #333;
-          border-bottom: 1px solid #333;
+          border-top: 1px dotted #000;    /* CHANGED: dotted black */
+          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
         }
         .total-row td {
           padding: 4px 4px;
@@ -169,7 +171,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           font-size: 8px;
           color: #777;
           padding-top: 5px;
-          border-top: 1px solid #eee;
+          border-top: 1px dotted #000; /* CHANGED: dotted black */
         }
         @media print {
           body {
@@ -179,16 +181,16 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
             line-height: 1.2;
           }
           .bill-container {
-            max-width: 76mm;
+            max-width: 54mm;
             margin: 0 auto;
             padding: 5mm;
           }
           .items-table th {
-            font-size: 9px;
+            font-size: 8px;
           }
           .items-table td {
-            font-size: 10px;
-            padding: 3px 4px;
+            font-size: 9px;
+            padding: 2px 3px;
           }
           .summary-row {
             font-size: 10px;
@@ -265,41 +267,41 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           <tbody>
             ${itemsHtml}
             <tr class="summary-row">
-              <td colspan="3" style="text-align: right; padding: 3px 4px;">Subtotal</td>
-              <td style="text-align: right; padding: 3px 4px;">₹${subtotal.toFixed(2)}</td>
+              <td colspan="3" style="text-align: right; padding: 2px 3px;">Subtotal</td>
+              <td style="text-align: right; padding: 2px 3px;">₹${subtotal.toFixed(2)}</td>
             </tr>
             ${discountAmount > 0 ? `
             <tr class="summary-row">
-              <td colspan="3" style="text-align: right; padding: 3px 4px;">
+              <td colspan="3" style="text-align: right; padding: 2px 3px;">
                 Discount ${discountType === 'percentage' ? `(${discountValue}%)` : ''}:
               </td>
-              <td style="text-align: right; padding: 3px 4px;">-₹${discountAmount.toFixed(2)}</td>
+              <td style="text-align: right; padding: 2px 3px;">-₹${discountAmount.toFixed(2)}</td>
             </tr>
             ` : ''}
             <tr class="summary-row">
-              <td colspan="3" style="text-align: right; padding: 3px 4px;">Net Amount</td>
-              <td style="text-align: right; padding: 3px 4px;">₹${(subtotal - discountAmount).toFixed(2)}</td>
+              <td colspan="3" style="text-align: right; padding: 2px 3px;">Net Amount</td>
+              <td style="text-align: right; padding: 2px 3px;">₹${(subtotal - discountAmount).toFixed(2)}</td>
             </tr>
             ${gstPercentage > 0 ? `
             <tr class="summary-row">
-              <td colspan="3" style="text-align: right; padding: 3px 4px;">GST (${gstPercentage}%)</td>
-              <td style="text-align: right; padding: 3px 4px;">₹${gstAmount.toFixed(2)}</td>
+              <td colspan="3" style="text-align: right; padding: 2px 3px;">GST (${gstPercentage}%)</td>
+              <td style="text-align: right; padding: 2px 3px;">₹${gstAmount.toFixed(2)}</td>
             </tr>
             ` : ''}
             <tr class="summary-row total-row">
-              <td colspan="3" style="text-align: right; padding: 4px 4px;">Total Amount</td>
-              <td style="text-align: right; padding: 4px 4px;">₹${totalAmount.toFixed(2)}</td>
+              <td colspan="3" style="text-align: right; padding: 3px 3px;">Total Amount</td>
+              <td style="text-align: right; padding: 3px 3px;">₹${totalAmount.toFixed(2)}</td>
             </tr>
             ${amountPaid > 0 ? `
             <tr class="summary-row">
-              <td colspan="3" style="text-align: right; padding: 3px 4px;">Amount Paid</td>
-              <td style="text-align: right; padding: 3px 4px;">₹${amountPaid.toFixed(2)}</td>
+              <td colspan="3" style="text-align: right; padding: 2px 3px;">Amount Paid</td>
+              <td style="text-align: right; padding: 2px 3px;">₹${amountPaid.toFixed(2)}</td>
             </tr>
             ` : ''}
             ${balance > 0 ? `
             <tr class="summary-row">
-              <td colspan="3" style="text-align: right; padding: 3px 4px;">Balance</td>
-              <td style="text-align: right; padding: 3px 4px;">₹${balance.toFixed(2)}</td>
+              <td colspan="3" style="text-align: right; padding: 2px 3px;">Balance</td>
+              <td style="text-align: right; padding: 2px 3px;">₹${balance.toFixed(2)}</td>
             </tr>
             ` : ''}
           </tbody>
@@ -309,9 +311,33 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           <div><strong>Total Items:</strong> ${billData.items.length || 0}</div>
         </div>
         
+        ${gstPercentage > 0 ? `
+        <div style="margin-top: 8px; font-size: 9px;">
+          <div><strong>Tax Details:</strong></div>
+          ${(() => {
+            // Calculate CGST and SGST amounts (half of total GST amount each)
+            const cgstRate = gstPercentage / 2;
+            const sgstRate = gstPercentage / 2;
+            const cgstAmount = gstAmount / 2;
+            const sgstAmount = gstAmount / 2;
+            
+            return `
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+              <div>CGST@${cgstRate.toFixed(3)}% on ₹${(baseAmount).toFixed(2)}</div>
+              <div style="text-align: right;">₹${cgstAmount.toFixed(2)}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+              <div>SGST@${sgstRate.toFixed(3)}% on ₹${(baseAmount).toFixed(2)}</div>
+              <div style="text-align: right;">₹${sgstAmount.toFixed(2)}</div>
+            </div>
+            `;
+          })()}
+        </div>
+        ` : ''}
+        
         <div class="footer">
           <div>Thank you for your business!</div>
-          <div style="margin-top: 3px; font-size: 7px;">This is a computer generated bill</div>
+          <div style="margin-top: 3px; font-size: 7px;"></div>
         </div>
       </div>
     </body>
@@ -319,11 +345,11 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
   `;
 
   const opt = {
-    margin: shouldPrint ? [5, 2, 5, 2] : 5, // smaller margins for compact layout
+    margin: shouldPrint ? [2, 2, 2, 2] : 5, // smaller margins for 58mm format
     filename: `bill_${billId}_${billDate.replace(/\//g, '-')}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-    jsPDF: { unit: 'mm', format: shouldPrint ? [80, 150] : 'a4', orientation: 'portrait' }, // compact format for printing
+    jsPDF: { unit: 'mm', format: shouldPrint ? [58, 150] : 'a4', orientation: 'portrait' }, // 58mm format for thermal printers
   };
 
   if (shouldPrint) {
@@ -332,7 +358,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
     iframe.style.bottom = '0';
-    iframe.style.width = '80mm';
+    iframe.style.width = '58mm';
     iframe.style.height = 'auto';
     iframe.style.border = 'none';
     iframe.style.zIndex = '-1';

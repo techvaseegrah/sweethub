@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 const KeyboardShortcutsGuide = () => {
   const [isExpanded, setIsExpanded] = useState(() => {
     const saved = localStorage.getItem('keyboardShortcutsExpanded');
-    return saved === null ? true : JSON.parse(saved); // Default to expanded
+    return saved === null ? false : JSON.parse(saved); // Default to collapsed
   });
   
   const toggleExpanded = () => {

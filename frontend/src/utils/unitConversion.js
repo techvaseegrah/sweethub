@@ -93,3 +93,35 @@ export const getAvailableUnits = (productPrices) => {
 
   return Array.from(allUnits);
 };
+
+// Add date formatting utility function
+export function formatDateToDDMMYYYY(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+// Add date and time formatting utility function
+export function formatDateTime(dateString) {
+  if (!dateString) return { date: '', time: '' };
+  const date = new Date(dateString);
+  
+  // Format date as dd/mm/yyyy
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+  const year = date.getFullYear();
+  const formattedDate = `${day}/${month}/${year}`;
+  
+  // Format time as HH:MM AM/PM
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // the hour '0' should be '12'
+  const formattedTime = `${hours}:${minutes} ${ampm}`;
+  
+  return { date: formattedDate, time: formattedTime };
+}

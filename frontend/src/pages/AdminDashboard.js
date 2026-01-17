@@ -47,6 +47,7 @@ import ExpenseHistory from '../components/admin/expense/ExpenseHistory';
 import CreateEWayBill from '../components/admin/eway-bills/CreateEWayBill';
 import EWayBillsHistory from '../components/admin/eway-bills/EWayBillsHistory';
 import ViewEWayBill from '../components/admin/eway-bills/ViewEWayBill';
+import OrderManagement from '../components/admin/OrderManagement';
 import { useFullScreenBill } from '../context/FullScreenBillContext';
 
 const AdminDashboardPage = () => {
@@ -139,6 +140,7 @@ const AdminDashboardPage = () => {
                         <Route path="bills/create" element={<AdminCreateBill />} />
                         <Route path="bills/view" element={<AdminViewBills />} />
                         <Route path="invoices/history" element={<InvoiceHistory />} />
+                        <Route path="orders" element={<OrderManagement />} />
                         <Route path="profit-loss" element={<ProfitLossPage />} />
                         {/* Expense module routes */}
                         <Route path="expenses" element={<ExpenseDashboard />} />

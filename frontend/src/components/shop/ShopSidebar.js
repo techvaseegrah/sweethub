@@ -13,7 +13,8 @@ import {
   LuUserCheck,
   LuLogOut,
   LuRefreshCw,
-  LuSettings
+  LuSettings,
+  LuShoppingCart
 } from 'react-icons/lu';
 import { AuthContext } from '../../context/AuthContext';
 import LogoutConfirmationModal from '../LogoutConfirmationModal';
@@ -484,6 +485,30 @@ function ShopSidebar() {
             </NavLink>
           </nav>
         </details>
+        )}
+        
+        {authState?.role !== 'attendance-only' && (
+        <NavLink
+          to="/shop/orders"
+          className={({ isActive }) =>
+            `flex items-center px-3 py-2.5 rounded-lg ${
+              isActive ? activeRed : `${textPrimary} ${hoverBg}`
+            }`
+          }
+          onClick={() => {
+            // Close sidebar on mobile when link is clicked
+            if (window.innerWidth < 1024) {
+              window.dispatchEvent(new CustomEvent('close-sidebar'));
+            }
+          }}
+        >
+          {({ isActive }) => (
+            <>
+              <LuShoppingCart className={`mr-3 text-lg ${isActive ? iconActive : iconColor}`} />
+              <span className="font-medium">Order Management</span>
+            </>
+          )}
+        </NavLink>
         )}
         
         {/* Expenses Module */}

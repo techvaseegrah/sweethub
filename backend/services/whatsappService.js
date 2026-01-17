@@ -14,8 +14,15 @@ const sendWhatsAppBill = async (billData, senderName) => {
       totalAmount,
       paymentMethod,
       _id,
-      billDate
+      billDate,
+      billType
     } = billData;
+
+    // Check if this is a reference bill - don't send WhatsApp for reference bills
+    if (billType === 'REFERENCE') {
+      console.log('Reference bill detected, skipping WhatsApp message');
+      return;
+    }
 
     // 2. Check if customer mobile number exists and is valid
     if (!customerMobileNumber || customerMobileNumber.toString().trim() === '') {

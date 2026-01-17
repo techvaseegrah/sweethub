@@ -3,6 +3,7 @@ import axios from '../../../api/axios';
 import { generateBillPdf } from '../../../utils/generateBillPdf';
 import BillDetailView from './BillDetailView';
 import { useNavigate } from 'react-router-dom';
+import { formatDateToDDMMYYYY, formatDateTime } from '../../../utils/unitConversion';
 
 const BILLS_URL = '/admin/bills';
 const SHOPS_URL = '/admin/shops';
@@ -16,6 +17,10 @@ function AdminViewBills({ baseUrl = '/admin' }) {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('All');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  
+  // Time-based filters
+  const [timeFilterType, setTimeFilterType] = useState('All'); // 'All', 'Today', 'Yesterday', 'Last7Days', 'ThisWeek', 'ThisMonth', 'PerHour'
+  const [selectedHour, setSelectedHour] = useState(''); // For per-hour filter
 
   const [shops, setShops] = useState([]);
   const [selectedShop, setSelectedShop] = useState('all'); 
@@ -97,18 +102,80 @@ function AdminViewBills({ baseUrl = '/admin' }) {
       tempBills = tempBills.filter(bill => bill.paymentMethod === paymentMethodFilter);
     }
 
-    // Filter by date range
+    // Time-based filtering
+    const now = new Date();
+    
+    switch(timeFilterType) {
+      case 'Today':
+        tempBills = tempBills.filter(bill => {
+          const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+          return billDate.toDateString() === now.toDateString();
+        });
+        break;
+      case 'Yesterday':
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        tempBills = tempBills.filter(bill => {
+          const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+          return billDate.toDateString() === yesterday.toDateString();
+        });
+        break;
+      case 'Last7Days':
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        tempBills = tempBills.filter(bill => {
+          const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+          return billDate >= sevenDaysAgo && billDate <= now;
+        });
+        break;
+      case 'ThisWeek':
+        const startOfWeek = new Date();
+        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        tempBills = tempBills.filter(bill => {
+          const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+          return billDate >= startOfWeek;
+        });
+        break;
+      case 'ThisMonth':
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        tempBills = tempBills.filter(bill => {
+          const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+          return billDate >= startOfMonth;
+        });
+        break;
+      case 'PerHour':
+        if (selectedHour) {
+          const [hour, minute] = selectedHour.split(':');
+          tempBills = tempBills.filter(bill => {
+            const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+            return billDate.getHours() === parseInt(hour);
+          });
+        }
+        break;
+      default:
+        // No time-based filter applied
+        break;
+    }
+    
+    // Filter by bill date range
     if (fromDate) {
-      const from = new Date(fromDate).getTime();
-      tempBills = tempBills.filter(bill => new Date(bill.billDate).getTime() >= from);
+      const from = new Date(fromDate).setHours(0, 0, 0, 0);
+      tempBills = tempBills.filter(bill => {
+        const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+        return billDate.getTime() >= from;
+      });
     }
     if (toDate) {
-      const to = new Date(toDate).getTime();
-      tempBills = tempBills.filter(bill => new Date(bill.billDate).getTime() <= to + 86400000); // Add 1 day to include the toDate
+      const to = new Date(toDate).setHours(23, 59, 59, 999);
+      tempBills = tempBills.filter(bill => {
+        const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
+        return billDate.getTime() <= to;
+      });
     }
 
     setFilteredBills(tempBills);
-  }, [bills, searchTerm, paymentMethodFilter, fromDate, toDate]);
+  }, [bills, searchTerm, paymentMethodFilter, fromDate, toDate, timeFilterType, selectedHour]);
 
   const generateInvoice = (bill) => {
     // Find the shop data for this bill
@@ -277,6 +344,35 @@ function AdminViewBills({ baseUrl = '/admin' }) {
               className="w-full px-4 py-2 border rounded-lg"
             />
           </div>
+          
+          <div className="flex-1">
+            <label className="block text-gray-700 text-sm font-bold mb-2">Time Filter</label>
+            <select
+              value={timeFilterType}
+              onChange={(e) => setTimeFilterType(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg"
+            >
+              <option value="All">All Time</option>
+              <option value="Today">Today</option>
+              <option value="Yesterday">Yesterday</option>
+              <option value="Last7Days">Last 7 Days</option>
+              <option value="ThisWeek">This Week</option>
+              <option value="ThisMonth">This Month</option>
+              <option value="PerHour">Per Hour</option>
+            </select>
+          </div>
+          
+          {timeFilterType === 'PerHour' && (
+            <div className="flex-1">
+              <label className="block text-gray-700 text-sm font-bold mb-2">Select Hour</label>
+              <input
+                type="time"
+                value={selectedHour}
+                onChange={(e) => setSelectedHour(e.target.value)}
+                className="w-full px-4 py-2 border rounded-lg"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -289,9 +385,10 @@ function AdminViewBills({ baseUrl = '/admin' }) {
               <tr>
                <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill ID</td>
                <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</td>
+                <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Worker</td>
                 <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</td>
                 <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
-                <td className="hidden md:table-cell px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</td>
+                <td className="hidden md:table-cell px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</td>
                 <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</td>
                 <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</td>
               </tr>
@@ -308,6 +405,9 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                     <div>{bill.customerMobileNumber}</div>
                   </td>
                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                    {bill.worker ? bill.worker.name : 'N/A'}
+                  </td>
+                 <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
                     {bill.items.map(item => (
                     <div key={item._id}>
                       {item.productName || (item.product ? item.product.name : '[Deleted Product]')} ({item.quantity} {item.unit || (item.product ? item.product.unit : 'unit')})
@@ -318,7 +418,21 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                       <div>₹{bill.totalAmount.toFixed(2)}</div>
                       <div className="text-xs text-gray-400">({bill.paymentMethod})</div>
                   </td>
-                 <td className="hidden md:table-cell px-2 py-3 whitespace-nowrap text-sm text-gray-500">{new Date(bill.billDate).toLocaleDateString()}</td>
+                 <td className="hidden md:table-cell px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                                     {bill.createdAt ? (
+                                       <>
+                                         <div>{formatDateTime(bill.createdAt).date}</div>
+                                         <div className="text-xs text-gray-500">{formatDateTime(bill.createdAt).time}</div>
+                                       </>
+                                     ) : bill.billDate ? (
+                                       <>
+                                         <div>{formatDateTime(bill.billDate).date}</div>
+                                         <div className="text-xs text-gray-500">{formatDateTime(bill.billDate).time}</div>
+                                       </>
+                                     ) : (
+                                       'N/A'
+                                     )}
+                                   </td>
                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
                    {bill.isDeleted ? (
                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -343,15 +457,6 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                     </button>
                     {!bill.isDeleted && (
                       <>
-                        <button
-                          onClick={() => handleEditBill(bill)}
-                          className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 p-2 rounded-md transition-colors duration-200"
-                          title="Edit"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        </button>
                         <button
                           onClick={() => handleDownloadPDF(bill)}
                           className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 p-2 rounded-md transition-colors duration-200"
@@ -450,3 +555,4 @@ function AdminViewBills({ baseUrl = '/admin' }) {
 }
 
 export default AdminViewBills;
+

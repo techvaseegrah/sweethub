@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDateToDDMMYYYY } from '../../../utils/unitConversion';
 
 const BillDetailView = ({ bill, onClose }) => {
   if (!bill) return null;
@@ -58,8 +59,11 @@ const BillDetailView = ({ bill, onClose }) => {
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Bill Information</h3>
               <p className="text-gray-600"><span className="font-medium">Bill ID:</span> {bill.billId || bill._id}</p>
-              <p className="text-gray-600"><span className="font-medium">Date:</span> {new Date(bill.billDate).toLocaleDateString()}</p>
+              <p className="text-gray-600"><span className="font-medium">Date:</span> {bill.createdAt ? formatDateToDDMMYYYY(bill.createdAt) : (bill.billDate ? formatDateToDDMMYYYY(bill.billDate) : 'N/A')}</p>
               <p className="text-gray-600"><span className="font-medium">Payment Method:</span> {bill.paymentMethod}</p>
+              {bill.worker && (
+                <p className="text-gray-600"><span className="font-medium">Worker:</span> {bill.worker.name}</p>
+              )}
               {bill.isDeleted && (
                 <div className="mt-2 p-3 bg-red-100 rounded-lg">
                   <p className="text-red-800 font-semibold">Status: Deleted</p>

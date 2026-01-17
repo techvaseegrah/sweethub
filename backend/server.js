@@ -43,6 +43,7 @@ const holidayRoutes = require('./routes/admin/holidayRoutes');
 const adminExpenseRoutes = require('./routes/admin/adminExpenseRoutes');
 const adminProductHistoryRoutes = require('./routes/admin/adminProductHistoryRoutes');
 const adminAttendanceOnlyUserRoutes = require('./routes/admin/attendanceOnlyUserRoutes');
+const adminOrderRoutes = require('./routes/admin/orderRoutes');
 
 // SHOP ROUTES
 const shopRoutes = require('./routes/shop/shopRoutes');
@@ -59,6 +60,7 @@ const shopReturnProductRoutes = require('./routes/shop/shopReturnProductRoutes')
 // Import shop settings routes
 const shopSettingsRoutes = require('./routes/shop/shopSettingsRoutes');
 const shopAttendanceOnlyUserRoutes = require('./routes/shop/shopAttendanceOnlyUserRoutes');
+const shopOrderRoutes = require('./routes/shop/orderRoutes');
 
 const PORT = process.env.PORT || 5000;
 
@@ -84,6 +86,7 @@ app.use('/api/admin/holidays', holidayRoutes);
 app.use('/api/admin/expenses', adminExpenseRoutes);
 app.use('/api/admin/product-history', adminProductHistoryRoutes);
 app.use('/api/admin/attendance-only-users', adminAttendanceOnlyUserRoutes);
+app.use('/api/admin/orders', adminOrderRoutes);
 
 // SHOP
 app.use('/api/shop', shopRoutes);
@@ -101,6 +104,7 @@ app.use('/api/shop/returns', shopReturnProductRoutes);
 app.use('/api/shop/settings', shopSettingsRoutes);
 // Register shop attendance-only user routes
 app.use('/api/shop/attendance-only-users', shopAttendanceOnlyUserRoutes);
+app.use('/api/shop/orders', shopOrderRoutes);
 
 app.get('/', (req, res) => res.send('API is running...'));
 

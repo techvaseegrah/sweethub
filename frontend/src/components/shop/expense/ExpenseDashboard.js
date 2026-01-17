@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LuReceipt, LuPlus, LuFilter, LuTrendingUp, LuHistory, LuEye, LuDownload, LuCalendar } from 'react-icons/lu';
+import { LuReceipt, LuPlus, LuFilter, LuTrendingUp, LuHistory, LuEye, LuDownload, LuCalendar, LuPencil } from 'react-icons/lu';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../../api/axios';
 import ExpenseDetailModal from '../../common/ExpenseDetailModal';
@@ -59,6 +59,11 @@ const ExpenseDashboard = () => {
   const downloadExpense = (expense) => {
     // For now, just show an alert
     alert(`Downloading expense as PDF:\n${expense.category} - ${formatCurrency(expense.amount)}\nThis feature will generate a PDF receipt in a future implementation.`);
+  };
+
+  // Edit expense
+  const editExpense = (expense) => {
+    navigate(`/shop/expenses/edit/${expense._id}`);
   };
 
   // Calculate summary statistics
@@ -252,6 +257,13 @@ const ExpenseDashboard = () => {
                             title="View Details"
                           >
                             <LuEye className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={() => editExpense(expense)}
+                            className="p-2 text-yellow-600 hover:text-yellow-900 hover:bg-yellow-50 rounded-lg transition-colors"
+                            title="Edit Expense"
+                          >
+                            <LuPencil className="h-5 w-5" />
                           </button>
                           <button 
                             onClick={() => downloadExpense(expense)}

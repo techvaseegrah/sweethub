@@ -102,6 +102,9 @@ exports.getProfitLossData = async (req, res) => {
             case 'Raw Materials':
               rawMaterialsExpense += expense.total;
               break;
+            case 'Salary / Wages':
+              miscellaneousExpense += expense.total; // Salary/Wages go under miscellaneous
+              break;
             case 'Maintenance':
               maintenanceExpense += expense.total;
               break;
@@ -268,6 +271,9 @@ exports.getShopExpenseBreakdown = async (req, res) => {
           break;
         case 'Raw Materials':
           expenseBreakdown.expenses.rawMaterials += expense.amount;
+          break;
+        case 'Salary / Wages':
+          expenseBreakdown.expenses.miscellaneous += expense.amount; // Salary/Wages go under miscellaneous
           break;
         case 'Maintenance':
           expenseBreakdown.expenses.maintenance += expense.amount;

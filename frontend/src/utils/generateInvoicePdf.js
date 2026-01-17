@@ -43,13 +43,13 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
     return;
   }
 
-  // Generate items HTML
-  const itemsHtml = invoiceData.items.map(item => `
+  // Generate items HTML - with dotted lines only for important separations
+  const itemsHtml = invoiceData.items.map((item, index) => `
     <tr style="font-size: 10px;">
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: center;">${item.quantity || 0}</td>
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
-      <td style="padding: 3px 4px; border-bottom: 1px solid #ddd; text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
+      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
+      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: center;">${item.quantity || 0}</td>
+      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -83,7 +83,7 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
           text-align: center;
           margin-bottom: 8px;
           padding-bottom: 5px;
-          border-bottom: 1px solid #333;
+          border-bottom: 1px dotted #000;
         }
         .shop-name {
           font-size: 12px;
@@ -115,8 +115,8 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
         .from-to-info {
           margin: 8px 0;
           font-size: 9px;
-          border-top: 1px solid #eee;
-          border-bottom: 1px solid #eee;
+          border-top: 1px dotted #000;
+          border-bottom: 1px dotted #000;
           padding: 5px 0;
         }
         .from-to-section {
@@ -132,12 +132,12 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
           font-size: 9px;
           text-align: left;
           padding: 3px 4px;
-          background-color: #f2f2f2;
-          border-bottom: 2px solid #333;
+          background-color: #fff;
+          border-bottom: 1px dotted #000;
+          border-top: 1px dotted #000;
         }
         .items-table td {
           padding: 3px 4px;
-          border-bottom: 1px solid #ddd;
         }
         .summary-row {
           font-weight: bold;
@@ -149,8 +149,8 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
         .total-row {
           font-size: 11px;
           font-weight: bold;
-          border-top: 1px solid #333;
-          border-bottom: 1px solid #333;
+          border-top: 1px dotted #000;
+          border-bottom: 1px dotted #000;
         }
         .total-row td {
           padding: 4px 4px;
@@ -161,8 +161,8 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
           font-size: 8px;
           color: #777;
           padding-top: 5px;
-          border-top: 1px solid #eee;
-        }
+          border-top: 1px dotted #000;
+        
         @media print {
           body {
             -webkit-print-color-adjust: exact;
@@ -290,6 +290,30 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
         <div style="margin-top: 8px; font-size: 9px;">
           <div><strong>Total Items:</strong> ${invoiceData.items.length || 0}</div>
         </div>
+        
+        ${gstPercentage > 0 ? `
+        <div style="margin-top: 8px; font-size: 9px;">
+          <div><strong>Tax Details:</strong></div>
+          ${(() => {
+            // Calculate CGST and SGST amounts (half of total GST amount each)
+            const cgstRate = gstPercentage / 2;
+            const sgstRate = gstPercentage / 2;
+            const cgstAmount = gstAmount / 2;
+            const sgstAmount = gstAmount / 2;
+            
+            return `
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+              <div>CGST@${cgstRate.toFixed(3)}% on ₹${(baseAmount).toFixed(2)}</div>
+              <div style="text-align: right;">₹${cgstAmount.toFixed(2)}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+              <div>SGST@${sgstRate.toFixed(3)}% on ₹${(baseAmount).toFixed(2)}</div>
+              <div style="text-align: right;">₹${sgstAmount.toFixed(2)}</div>
+            </div>
+            `;
+          })()}
+        </div>
+        ` : ''}
         
         <div class="footer">
           <div>Thank you for your business!</div>

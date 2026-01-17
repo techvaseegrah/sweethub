@@ -9,6 +9,18 @@ const Manufacturing = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [message, setMessage] = useState(''); // Fixed: Properly initialize with useState
+    
+    // Helper function to safely convert date
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '-';
+            return date.toLocaleDateString();
+        } catch (e) {
+            return '-';
+        }
+    };
 
     const [storeRoomItems, setStoreRoomItems] = useState([]);
     const [ingredientAlerts, setIngredientAlerts] = useState({});
@@ -28,6 +40,8 @@ const Manufacturing = () => {
         quantity: '', // For the output sweet product
         price: '',    // For the output sweet product
         unit: '',     // For the output sweet product
+        expireDate: '', // New field
+        usedByDate: '', // New field
     });
     const [formSubmitting, setFormSubmitting] = useState(false); // To prevent multiple submissions
 
@@ -127,6 +141,8 @@ const Manufacturing = () => {
             quantity: '',
             price: '',
             unit: '',
+            expireDate: '',
+            usedByDate: '',
         });
         setIsEditing(false);
         setIsModalOpen(true);
@@ -143,6 +159,8 @@ const Manufacturing = () => {
             quantity: process.quantity?.toString() || '',
             price: process.price?.toString() || '',
             unit: process.unit || '',
+            expireDate: process.expireDate ? new Date(process.expireDate).toISOString().split('T')[0] : '',
+            usedByDate: process.usedByDate ? new Date(process.usedByDate).toISOString().split('T')[0] : '',
         });
         setIsEditing(true);
         setIsModalOpen(true);
@@ -194,7 +212,9 @@ const Manufacturing = () => {
                 })),
                 quantity: parseFloat(currentProcess.quantity),
                 price: parseFloat(currentProcess.price),
-                unit: currentProcess.unit
+                unit: currentProcess.unit,
+                expireDate: currentProcess.expireDate || undefined,
+                usedByDate: currentProcess.usedByDate || undefined
             };
 
             let response;
@@ -215,6 +235,8 @@ const Manufacturing = () => {
                 quantity: '',
                 price: '',
                 unit: '',
+                expireDate: '',
+                usedByDate: '',
             });
         } catch (err) {
             console.error('Error saving the process:', err);
@@ -315,6 +337,8 @@ const Manufacturing = () => {
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Quantity</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Price</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Unit</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Expire Date</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Used By Date</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Actions</th>
                             </tr>
                         </thead>
@@ -336,6 +360,8 @@ const Manufacturing = () => {
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.quantity} {process.unit}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">₹{process.price}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.unit}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.expireDate)}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.usedByDate)}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">
                                         <button
                                             onClick={() => editProcess(process)}
@@ -423,6 +449,31 @@ const Manufacturing = () => {
                                         required
                                         min="0"
                                         step="0.01"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* New Date Fields */}
+                            <h3 className="text-lg font-semibold mb-3 mt-6 text-gray-800">Date Details</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Expire Date</label>
+                                    <input
+                                        type="date"
+                                        name="expireDate"
+                                        value={currentProcess.expireDate}
+                                        onChange={handleInputChange}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Used By Date</label>
+                                    <input
+                                        type="date"
+                                        name="usedByDate"
+                                        value={currentProcess.usedByDate}
+                                        onChange={handleInputChange}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
                                     />
                                 </div>
                             </div>

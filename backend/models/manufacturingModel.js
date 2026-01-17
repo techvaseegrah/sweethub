@@ -54,6 +54,12 @@ const manufacturingSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    expireDate: {
+        type: Date,
+    },
+    usedByDate: {
+        type: Date,
+    },
 });
 
 module.exports = mongoose.model('Manufacturing', manufacturingSchema);

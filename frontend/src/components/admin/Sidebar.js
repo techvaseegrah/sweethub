@@ -19,7 +19,8 @@ import {
   LuLogOut,
   LuSettings,
   LuReceipt,
-  LuTruck
+  LuTruck,
+  LuShoppingCart
 } from 'react-icons/lu';
 import axios from '../../api/axios';
 import { useContext } from 'react';
@@ -940,6 +941,32 @@ const Sidebar = () => {
                         <>
                             <LuFileText className={`mr-3 text-lg ${isActive ? iconActive : iconColor}`} />
                             <span className="font-medium">Invoice History</span>
+                        </>
+                    )}
+                </NavLink>
+                )}
+                
+                {authState?.role !== 'attendance-only' && (
+                <NavLink
+                    to="/admin/orders"
+                    className={({ isActive }) =>
+                        `flex items-center px-3 py-2.5 rounded-lg ${
+                            isActive 
+                                ? activeRed
+                                : `${textPrimary} ${hoverBg}`
+                        }`
+                    }
+                    onClick={() => {
+                        // Close sidebar on mobile when link is clicked
+                        if (window.innerWidth < 1024) {
+                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                        }
+                    }}
+                >
+                    {({ isActive }) => (
+                        <>
+                            <LuShoppingCart className={`mr-3 text-lg ${isActive ? iconActive : iconColor}`} />
+                            <span className="font-medium">Order Management</span>
                         </>
                     )}
                 </NavLink>

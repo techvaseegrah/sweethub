@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../../../api/axios';
 import { LuX } from 'react-icons/lu';
 
-function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
+function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: propShopId, orderItems: propOrderItems, selectedOrder }) {
   const SHOPS_URL = '/admin/shops';
   const INVOICE_URL = '/admin/invoices';
 
@@ -73,7 +73,11 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
         console.log('Shops response:', response.data);
         const fetchedShops = response.data;
         setShops(fetchedShops);
-        if (fetchedShops.length > 0) {
+        
+        // Select shop from props if provided, otherwise select first shop
+        if (propShopId) {
+          setSelectedShop(propShopId);
+        } else if (fetchedShops.length > 0) {
           setSelectedShop(fetchedShops[0]._id);
         } else {
           console.log('No shops found!');
@@ -87,7 +91,32 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
       }
     };
     fetchShops();
-  }, []);
+  }, [propShopId]);
+
+  // Pre-populate invoice items from order items if provided
+  useEffect(() => {
+    if (propOrderItems && propOrderItems.length > 0 && adminProducts.length > 0) {
+      const populatedItems = propOrderItems.map(orderItem => {
+        // Find the corresponding admin product
+        const adminProduct = adminProducts.find(p => p._id === orderItem.product);
+        if (!adminProduct) return null;
+        
+        // Find the price for this unit
+        const price = adminProduct.prices.find(p => p.unit === orderItem.unit);
+        if (!price) return null;
+        
+        return {
+          product: adminProduct,
+          quantity: orderItem.quantity, // Use the quantity from the order
+          unitPrice: price.sellingPrice,
+          maxQuantity: adminProduct.stockLevel,
+          unit: orderItem.unit,
+        };
+      }).filter(Boolean); // Remove any null items
+      
+      setInvoiceItems(populatedItems);
+    }
+  }, [propOrderItems, adminProducts]);
 
   const handleProductSelection = (product, price) => {
     const existingItem = invoiceItems.find(item => item.product._id === product._id && item.unitPrice === price.sellingPrice);
@@ -161,6 +190,7 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts }) {
         unit: item.unit, // Include unit information
       })),
       tax: parseFloat(taxRate) || 0,
+      ...(propOrderItems && propOrderItems.length > 0 && selectedOrder && selectedOrder._id ? { orderId: selectedOrder._id } : {}), // Include orderId if creating invoice from order
     };
 
     try {
