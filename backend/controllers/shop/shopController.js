@@ -9,7 +9,7 @@ exports.getShopDashboard = async (req, res) => {
   try {
     // Fetch total sales for the specific shop using req.shopId from the token
     const sales = await Bill.aggregate([
-      { $match: { shop: new mongoose.Types.ObjectId(req.shopId) } },
+      { $match: { shop: new mongoose.Types.ObjectId(req.shopId), billType: { $ne: 'REFERENCE' }, isDeleted: { $ne: true } } },
       { $group: { _id: null, totalSales: { $sum: '$totalAmount' } } },
     ]);
     const totalSales = sales.length > 0 ? sales[0].totalSales : 0;
@@ -23,8 +23,8 @@ exports.getShopDashboard = async (req, res) => {
     // Fetch departments belonging to this shop
     const departments = await Department.find({ shop: req.shopId }).select('name');
     
-    // Fetch invoice count for this shop
-    const invoiceCount = await Bill.countDocuments({ shop: req.shopId });
+    // Fetch invoice count for this shop (excluding reference and deleted bills)
+    const invoiceCount = await Bill.countDocuments({ shop: req.shopId, billType: { $ne: 'REFERENCE' }, isDeleted: { $ne: true } });
 
     res.status(200).json({
       message: 'Shop dashboard data retrieved successfully.',

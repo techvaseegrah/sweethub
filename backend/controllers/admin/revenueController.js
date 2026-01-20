@@ -17,7 +17,9 @@ exports.getRevenueSummary = async (req, res) => {
         const summary = await Bill.aggregate([
             {
                 $match: {
-                    billDate: { $gte: start, $lte: end }
+                    billDate: { $gte: start, $lte: end },
+                    billType: { $ne: 'REFERENCE' },  // Exclude reference bills
+                    isDeleted: { $ne: true }  // Exclude deleted bills
                 }
             },
             {
@@ -40,15 +42,7 @@ exports.getRevenueSummary = async (req, res) => {
                 $group: {
                     _id: '$_id',
                     totalAmount: { $first: '$totalAmount' },
-                    shop: { $first: '$shop' },
-                    totalCost: {
-                        $sum: {
-                            $multiply: [
-                                { $ifNull: ['$productDoc.netPrice', 0] },
-                                '$items.quantity'
-                            ]
-                        }
-                    }
+                    shop: { $first: '$shop' }
                 }
             },
             {
@@ -56,7 +50,7 @@ exports.getRevenueSummary = async (req, res) => {
                 $group: {
                     _id: { $ifNull: ['$shop', 'admin_warehouse'] },
                     totalRevenue: { $sum: '$totalAmount' },
-                    totalProfit: { $sum: { $subtract: ['$totalAmount', '$totalCost'] } }
+                    totalProfit: { $sum: '$totalAmount' }  // For revenue summary, use total amount as profit
                 }
             },
             {

@@ -33,11 +33,11 @@ exports.getShopProducts = async (req, res) => {
   }
 };
 
-// Update product prices for shop users
+// Update product for shop users (can update prices, stock, thresholds, etc.)
 exports.updateShopProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const { prices } = req.body;
+    const updateData = req.body;
     
     // Get shop ID from the authenticated user
     const shopId = req.user.shopId;
@@ -53,9 +53,29 @@ exports.updateShopProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found or does not belong to your shop.' });
     }
     
-    // Update only the prices field
-    if (prices && Array.isArray(prices)) {
-      product.prices = prices;
+    // Update allowed fields
+    if (updateData.prices && Array.isArray(updateData.prices)) {
+      product.prices = updateData.prices;
+    }
+    
+    if (updateData.stockLevel !== undefined) {
+      product.stockLevel = parseFloat(updateData.stockLevel);
+    }
+    
+    if (updateData.stockAlertThreshold !== undefined) {
+      product.stockAlertThreshold = parseFloat(updateData.stockAlertThreshold);
+    }
+    
+    if (updateData.category !== undefined) {
+      product.category = updateData.category;
+    }
+    
+    if (updateData.name !== undefined) {
+      product.name = updateData.name;
+    }
+    
+    if (updateData.sku !== undefined) {
+      product.sku = updateData.sku;
     }
     
     const updatedProduct = await product.save();

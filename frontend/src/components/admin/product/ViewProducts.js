@@ -539,7 +539,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
               <div>
                 <label className="block text-sm font-medium text-gray-700">Stock</label>
                 <input 
-                  type="number" 
+                  type="text" 
                   step="0.01" 
                   value={editedProduct.stockLevel} 
                   onChange={(e) => handleInputChange(e, 'stockLevel')} 
@@ -550,7 +550,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
               <div>
                 <label className="block text-sm font-medium text-gray-700">Stock Alert Threshold</label>
                 <input
-                  type="number"
+                  type="text"
                   step="0.01"
                   value={editedProduct.stockAlertThreshold || ''}
                   onChange={(e) => handleInputChange(e, 'stockAlertThreshold')}
@@ -607,7 +607,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                     <div>
                       <label className="block text-gray-700 text-xs font-bold mb-1">Net Price</label>
                       <input
-                        type="number"
+                        type="text"
                         step="0.01"
                         value={price.netPrice}
                         onChange={(e) => handlePriceChange(index, 'netPrice', e.target.value)}
@@ -618,7 +618,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                     <div>
                       <label className="block text-gray-700 text-xs font-bold mb-1">Selling Price</label>
                       <input
-                        type="number"
+                        type="text"
                         step="0.01"
                         value={price.sellingPrice}
                         onChange={(e) => handlePriceChange(index, 'sellingPrice', e.target.value)}

@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Updated to use port 5001 to match the backend server port
+// Direct connection to backend server
 const instance = axios.create({
-    baseURL: '/api',
+    baseURL: 'http://localhost:5001/api',
 });
 
 // Intercepts every request and adds the Authorization header if a token exists

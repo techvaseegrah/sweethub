@@ -124,6 +124,13 @@ const billSchema = new mongoose.Schema({
   worker: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Worker'
+  },
+  
+  // Bill type: ORDINARY for regular bills, REFERENCE for dummy bills
+  billType: {
+    type: String,
+    enum: ['ORDINARY', 'REFERENCE'],
+    default: 'ORDINARY'
   }
 }, {
   timestamps: true,

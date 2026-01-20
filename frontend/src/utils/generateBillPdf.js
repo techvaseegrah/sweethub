@@ -98,19 +98,19 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           font-size: 12px;
           font-weight: bold;
           margin: 0 0 2px 0;
-          color: #333;
+          color: #000;
         }
         .shop-details {
           font-size: 8px;
           margin: 2px 0;
-          color: #666;
+          color: #000;
         }
         .bill-title {
           text-align: center;
           font-size: 12px;
           font-weight: bold;
           margin: 8px 0;
-          color: #333;
+          color: #000;
         }
         .bill-info {
           display: flex;
@@ -169,7 +169,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           text-align: center;
           margin-top: 10px;
           font-size: 8px;
-          color: #777;
+          color: #000;
           padding-top: 5px;
           border-top: 1px dotted #000; /* CHANGED: dotted black */
         }

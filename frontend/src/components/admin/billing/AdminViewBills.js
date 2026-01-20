@@ -398,7 +398,10 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                 <tr key={bill._id} className={bill.isDeleted ? 'bg-red-50' : ''}>
                  <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                   {bill.isDeleted && <span className="text-red-600 mr-1">[DELETED]</span>}
-                  {bill.billId || bill._id.slice(-8)}
+                  <div>{bill.billId || bill._id.slice(-8)}</div>
+                  <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block mt-1 ${bill.billType === 'REFERENCE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                    {bill.billType || 'ORDINARY'}
+                  </div>
                  </td>
                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
                     <div>{bill.customerName}</div>
@@ -500,7 +503,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Confirm Bill Deletion</h3>
-            <p className="text-gray-600 mb-4">Are you sure you want to delete this bill? This action cannot be undone.</p>
+            <p className="text-gray-600 mb-4">Are you sure you want to restore quantities for this deleted bill? This will add the quantities back to the product stock.</p>
             
             <div className="mb-4">
               <label className="block text-gray-700 text-sm font-bold mb-2">Reason for Deletion *</label>

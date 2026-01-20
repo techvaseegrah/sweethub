@@ -298,7 +298,7 @@ function AddProduct({ baseUrl = '/admin' }) {
                   Stock Level
               </label>
               <input
-                  type="text"
+                  type="number"
                   step="0.01"
                   className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   id="stockLevel"
@@ -312,7 +312,7 @@ function AddProduct({ baseUrl = '/admin' }) {
                 Stock Alert Threshold
             </label>
             <input
-                type="text"
+                type="number"
                 step="0.01"
                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 id="stockAlertThreshold"
@@ -339,7 +339,7 @@ function AddProduct({ baseUrl = '/admin' }) {
               <div>
                 <label className="block text-gray-700 text-xs font-bold mb-1">Net Price</label>
                 <input
-                  type="text"
+                  type="number"
                   step="0.01"
                   value={unit.netPrice}
                   onChange={(e) => handleUnitChange(index, 'netPrice', e.target.value)}
@@ -350,7 +350,7 @@ function AddProduct({ baseUrl = '/admin' }) {
               <div>
                 <label className="block text-gray-700 text-xs font-bold mb-1">Selling Price</label>
                 <input
-                  type="text"
+                  type="number"
                   step="0.01"
                   value={unit.sellingPrice}
                   onChange={(e) => handleUnitChange(index, 'sellingPrice', e.target.value)}

@@ -38,7 +38,9 @@ exports.getProfitLossData = async (req, res) => {
         // First, get all bills with their items for the date range
         const bills = await Bill.find({
           shop: shop._id,
-          billDate: { $gte: start, $lte: end }
+          billDate: { $gte: start, $lte: end },
+          billType: { $ne: 'REFERENCE' },  // Exclude reference bills
+          isDeleted: { $ne: true }  // Exclude deleted bills
         }).populate({
           path: 'items.product',
           select: 'prices'
@@ -50,17 +52,9 @@ exports.getProfitLossData = async (req, res) => {
         if (bills.length > 0) {
           totalBills = bills.length;
           
-          // Calculate profit for each item in each bill
+          // Sum up the totalAmount from each bill
           for (const bill of bills) {
-            for (const item of bill.items) {
-              // Find the price for the specific unit in the product's prices array
-              const unitPrice = item.product.prices.find(price => price.unit === item.unit);
-              
-              if (unitPrice) {
-                const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
-                totalBillingProfit += profitPerItem;
-              }
-            }
+            totalBillingProfit += bill.totalAmount;
           }
         }
 
@@ -320,7 +314,9 @@ exports.getConsolidatedReport = async (req, res) => {
       // Calculate billing profit (Revenue) from bills - (Sell Price - Net Price) * Quantity
       const bills = await Bill.find({
         shop: shop._id,
-        billDate: { $gte: start, $lte: end }
+        billDate: { $gte: start, $lte: end },
+        billType: { $ne: 'REFERENCE' },  // Exclude reference bills
+        isDeleted: { $ne: true }  // Exclude deleted bills
       }).populate({
         path: 'items.product',
         select: 'prices'
@@ -332,17 +328,9 @@ exports.getConsolidatedReport = async (req, res) => {
       if (bills.length > 0) {
         totalBills = bills.length;
         
-        // Calculate profit for each item in each bill
+        // Sum up the totalAmount from each bill
         for (const bill of bills) {
-          for (const item of bill.items) {
-            // Find the price for the specific unit in the product's prices array
-            const unitPrice = item.product.prices.find(price => price.unit === item.unit);
-            
-            if (unitPrice) {
-              const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
-              totalRevenue += profitPerItem;
-            }
-          }
+          totalRevenue += bill.totalAmount;
         }
       }
 
@@ -432,7 +420,9 @@ exports.getShopDetailedReport = async (req, res) => {
     // Calculate billing profit (Revenue) from bills - (Sell Price - Net Price) * Quantity
     const bills = await Bill.find({
       shop: shopId,
-      billDate: { $gte: start, $lte: end }
+      billDate: { $gte: start, $lte: end },
+      billType: { $ne: 'REFERENCE' },  // Exclude reference bills
+      isDeleted: { $ne: true }  // Exclude deleted bills
     }).populate({
       path: 'items.product',
       select: 'prices'
@@ -444,17 +434,9 @@ exports.getShopDetailedReport = async (req, res) => {
     if (bills.length > 0) {
       totalBills = bills.length;
       
-      // Calculate profit for each item in each bill
+      // Sum up the totalAmount from each bill
       for (const bill of bills) {
-        for (const item of bill.items) {
-          // Find the price for the specific unit in the product's prices array
-          const unitPrice = item.product.prices.find(price => price.unit === item.unit);
-          
-          if (unitPrice) {
-            const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
-            totalRevenue += profitPerItem;
-          }
-        }
+        totalRevenue += bill.totalAmount;
       }
     }
 
@@ -534,7 +516,9 @@ exports.getProfitLossTrends = async (req, res) => {
 
     // Get bills for the period
     const bills = await Bill.find({
-      billDate: { $gte: start, $lte: end }
+      billDate: { $gte: start, $lte: end },
+      billType: { $ne: 'REFERENCE' },  // Exclude reference bills
+      isDeleted: { $ne: true }  // Exclude deleted bills
     }).populate({
       path: 'items.product',
       select: 'prices'
@@ -553,14 +537,8 @@ exports.getProfitLossTrends = async (req, res) => {
         dailyRevenue[billDate] = 0;
       }
 
-      for (const item of bill.items) {
-        const unitPrice = item.product.prices.find(price => price.unit === item.unit);
-        
-        if (unitPrice) {
-          const profitPerItem = (unitPrice.sellingPrice - unitPrice.netPrice) * item.quantity;
-          dailyRevenue[billDate] += profitPerItem;
-        }
-      }
+      // Add the totalAmount from the bill to daily revenue
+      dailyRevenue[billDate] += bill.totalAmount;
     }
 
     // Process expenses to calculate daily expenses

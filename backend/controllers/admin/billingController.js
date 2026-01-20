@@ -332,6 +332,9 @@ exports.updateBill = async (req, res) => {
 
 // Soft delete a bill
 exports.deleteBill = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
     const { reason } = req.body;
     
@@ -339,7 +342,7 @@ exports.deleteBill = async (req, res) => {
       return res.status(400).json({ message: 'Deletion reason is required.' });
     }
     
-    const bill = await Bill.findOne({ _id: req.params.id, isDeleted: { $ne: true } });
+    const bill = await Bill.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).session(session);
     
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found.' });
@@ -360,6 +363,31 @@ exports.deleteBill = async (req, res) => {
       }
     }
     
+    // Restore stock for the items in the bill if it was an ORDINARY bill
+    // Only restore stock if the original bill was ORDINARY, skip if REFERENCE
+    if (bill.billType !== 'REFERENCE') {
+      for (const originalItem of bill.items) {
+        const product = await Product.findById(originalItem.product).session(session);
+        
+        if (product) {
+          let originalQuantityInProductUnit = originalItem.quantity;
+          if (product.prices && product.prices.length > 0) {
+            const productBaseUnit = product.prices[0].unit;
+            if (areRelatedUnits(originalItem.unit, productBaseUnit)) {
+              originalQuantityInProductUnit = convertUnit(originalItem.quantity, originalItem.unit, productBaseUnit);
+            }
+          }
+          
+          // Add back the original quantity
+          await Product.findByIdAndUpdate(
+            originalItem.product,
+            { $inc: { stockLevel: originalQuantityInProductUnit } },
+            { session }
+          );
+        }
+      }
+    }
+    
     // Update the bill to mark as deleted
     const updatedBill = await Bill.findByIdAndUpdate(
       req.params.id,
@@ -369,11 +397,18 @@ exports.deleteBill = async (req, res) => {
         deletedBy: req.user._id,
         deletedAt: new Date()
       },
-      { new: true }
+      { new: true, session }
     );
+    
+    await session.commitTransaction();
+    session.endSession();
     
     res.json({ message: 'Bill deleted successfully', bill: updatedBill });
   } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    session.endSession();
     console.error('Delete Bill Error:', error);
     res.status(500).json({ message: 'Server Error' });
   }

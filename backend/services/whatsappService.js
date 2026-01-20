@@ -15,7 +15,8 @@ const sendWhatsAppBill = async (billData, senderName) => {
       paymentMethod,
       _id,
       billDate,
-      billType
+      billType,
+      billId  // Added billId to extract the actual bill ID
     } = billData;
 
     // Check if this is a reference bill - don't send WhatsApp for reference bills
@@ -49,8 +50,8 @@ const sendWhatsAppBill = async (billData, senderName) => {
       day: '2-digit', month: '2-digit', year: 'numeric'
     });
     
-    // 5. Short Bill ID
-    const shortBillId = _id.toString().slice(-6).toUpperCase();
+    // 5. Use actual billId if available, otherwise fallback to shortened _id
+    const shortBillId = billId || _id.toString().slice(-6).toUpperCase();
 
     // 6. Handle customer name - use a default if not provided
     const displayCustomerName = customerName && customerName.trim() !== '' ? customerName : 'Customer';

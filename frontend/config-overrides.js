@@ -1,4 +1,20 @@
-module.exports = function override(config) {
+const webpack = require('webpack');
+
+module.exports = function override(config, env) {
+  // Add proxy configuration for development
+  if (env === 'development') {
+    config.devServer = {
+      ...config.devServer,
+      proxy: [
+        {
+          context: ['/api'],
+          target: 'http://localhost:5001',
+          changeOrigin: true,
+        }
+      ]
+    };
+  }
+
   // Add fallback for Node.js modules that are not available in browser
   if (!config.resolve) {
     config.resolve = {};
