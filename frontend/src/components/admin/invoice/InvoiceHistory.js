@@ -56,7 +56,8 @@ const InvoiceHistory = () => {
       if (startDate && issueDate < startDate) return false;
       if (endDate && issueDate > endDate) return false;
       if (filters.status !== 'All' && invoice.status !== filters.status) return false;
-      if (filters.shop !== 'All' && invoice.shop._id !== filters.shop) return false;
+      if (filters.shop !== 'All' && (!invoice.shop || !invoice.shop._id || invoice.shop._id !== filters.shop)) return false;
+      if (!invoice._id) return false; // Skip invoices with no _id
       
       return true;
     });
@@ -65,7 +66,11 @@ const InvoiceHistory = () => {
   // Unique list of shops for the filter dropdown
   const shops = useMemo(() => {
     const shopMap = new Map();
-    invoices.forEach(inv => shopMap.set(inv.shop._id, inv.shop.name));
+    invoices.forEach(inv => {
+      if (inv.shop && inv.shop._id && inv.shop.name) {
+        shopMap.set(inv.shop._id, inv.shop.name);
+      }
+    });
     return Array.from(shopMap, ([_id, name]) => ({ _id, name }));
   }, [invoices]);
 
@@ -133,9 +138,9 @@ const InvoiceHistory = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredInvoices.map(invoice => (
+            {filteredInvoices.filter(inv => inv && inv._id).map(invoice => (
               <tr key={invoice._id}>
-                <td className="td-style font-medium text-blue-600">{invoice.invoiceNumber}</td>
+                <td className="td-style font-medium text-blue-600">{invoice.invoiceNumber || 'N/A'}</td>
                 <td className="td-style">{invoice.shop?.name || 'N/A'}</td>
                 <td className="td-style">
                                   {invoice.issueDate ? (
