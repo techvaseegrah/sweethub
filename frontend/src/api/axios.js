@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Direct connection to backend server
 const instance = axios.create({
-    baseURL: 'http://localhost:5001/api',
+    baseURL: '/api',
 });
 
 // Intercepts every request and adds the Authorization header if a token exists
