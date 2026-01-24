@@ -166,7 +166,7 @@ function CreateBeforePackingAccountModal({ onClose, onAccountCreated, editingAcc
                         <button
                             onClick={() => {
                                 setShowManageAccounts(false);
-                                setEditingAccount(null);
+                                setCurrentEditingAccount(null);
                                 setFormData({ username: '', password: '' });
                             }}
                             className="text-blue-600 hover:text-blue-800"
