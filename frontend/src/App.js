@@ -27,7 +27,7 @@ function App() {
         <div className="relative flex justify-center items-center mb-6">
           <div className="w-20 h-20 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
           <img 
-            src="/sweethub-logo" 
+            src="/sweethub-logo.png" 
             alt="Sweet Hub Logo" 
             className="absolute w-14 h-14"
           />
@@ -49,7 +49,7 @@ function App() {
               <Route 
                 path="/admin/*" 
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'attendance-only']} fallbackPath="/">
+                  <ProtectedRoute allowedRoles={['admin', 'attendance-only', 'raw-materials-only', 'before-packing-only', 'after-packing-only']} fallbackPath="/">
                     <AdminDashboardPage />
                   </ProtectedRoute>
                 } 
@@ -59,7 +59,7 @@ function App() {
               <Route 
                 path="/shop/*" 
                 element={
-                  <ProtectedRoute allowedRoles={['shop', 'attendance-only']} fallbackPath="/">
+                  <ProtectedRoute allowedRoles={['shop', 'attendance-only', 'raw-materials-only']} fallbackPath="/">
                     <ShopPage />
                   </ProtectedRoute>
                 } 

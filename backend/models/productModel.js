@@ -14,6 +14,10 @@ const productSchema = new mongoose.Schema({
   stockAlertThreshold: { type: Number, default: 10 },
   prices: [priceSchema],
   
+  // Expiry and Used By Dates
+  expiryDate: { type: Date },
+  usedByDate: { type: Date },
+  
   // --- MODIFIED: Both admin and shop fields are now optional ---
   // A product will be owned by either an admin OR a shop.
   admin: {

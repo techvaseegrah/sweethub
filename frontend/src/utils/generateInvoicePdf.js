@@ -1,4 +1,5 @@
 import html2pdf from 'html2pdf.js';
+import { formatDateToDDMMYYYY } from './unitConversion';
 
 export const generateInvoicePdf = (invoiceData) => {
   return generateInvoicePdfInternal(invoiceData, false);
@@ -19,8 +20,8 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
   
   // Extract invoice details
   const invoiceNumber = invoiceData?.invoiceNumber || invoiceData?._id?.slice(-8) || 'N/A';
-  const issueDate = invoiceData?.issueDate ? new Date(invoiceData.issueDate).toLocaleDateString() : 
-                   invoiceData?.billDate ? new Date(invoiceData.billDate).toLocaleDateString() : new Date().toLocaleDateString();
+  const issueDate = invoiceData?.issueDate ? formatDateToDDMMYYYY(invoiceData.issueDate) : 
+                   invoiceData?.billDate ? formatDateToDDMMYYYY(invoiceData.billDate) : formatDateToDDMMYYYY(new Date().toISOString());
   const status = invoiceData?.status || 'Active';
   
   // Check for GST information first, then fall back to old tax system
@@ -46,10 +47,10 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
   // Generate items HTML - with dotted lines only for important separations
   const itemsHtml = invoiceData.items.map((item, index) => `
     <tr style="font-size: 10px;">
-      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
-      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: center;">${item.quantity || 0}</td>
-      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
-      <td style="padding: 3px 4px; ${index < invoiceData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
+      <td style="padding: 3px 4px; text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
+      <td style="padding: 3px 4px; text-align: center;">${item.quantity || 0}</td>
+      <td style="padding: 3px 4px; text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+      <td style="padding: 3px 4px; text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -83,7 +84,6 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
           text-align: center;
           margin-bottom: 8px;
           padding-bottom: 5px;
-          border-bottom: 1px dotted #000;
         }
         .shop-name {
           font-size: 12px;
@@ -115,8 +115,6 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
         .from-to-info {
           margin: 8px 0;
           font-size: 9px;
-          border-top: 1px dotted #000;
-          border-bottom: 1px dotted #000;
           padding: 5px 0;
         }
         .from-to-section {
@@ -133,8 +131,6 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
           text-align: left;
           padding: 3px 4px;
           background-color: #fff;
-          border-bottom: 1px dotted #000;
-          border-top: 1px dotted #000;
         }
         .items-table td {
           padding: 3px 4px;
@@ -149,8 +145,6 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
         .total-row {
           font-size: 11px;
           font-weight: bold;
-          border-top: 1px dotted #000;
-          border-bottom: 1px dotted #000;
         }
         .total-row td {
           padding: 4px 4px;
@@ -161,7 +155,6 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
           font-size: 8px;
           color: #777;
           padding-top: 5px;
-          border-top: 1px dotted #000;
         
         @media print {
           body {
@@ -231,6 +224,7 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
           ${shopGstNumber ? `<div class="shop-details">GSTIN: ${shopGstNumber}</div>` : ''}
           ${shopFssaiNumber ? `<div class="shop-details">FSSAI: ${shopFssaiNumber}</div>` : ''}
           <div class="shop-details">Phone: ${shopPhone}</div>
+          <div style="margin-top: 5px; border-top: 1px dotted #000;"></div>
         </div>
         
         <div class="invoice-title">INVOICE</div>

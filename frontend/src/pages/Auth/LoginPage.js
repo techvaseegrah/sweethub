@@ -45,6 +45,33 @@ function LoginPage() {
           // Default to admin attendance if userType is not specified
           navigate('/admin/workers/attendance');
         }
+      } else if (role === 'raw-materials-only') {
+        // Redirect raw-materials-only users to the appropriate warehouse page
+        // based on their user type (admin or shop)
+        if (userType === 'shop') {
+          navigate('/shop/warehouse/raw-materials');
+        } else {
+          // Default to admin raw materials if userType is not specified
+          navigate('/admin/warehouse/raw-materials');
+        }
+      } else if (role === 'before-packing-only') {
+        // Redirect before-packing-only users to the appropriate warehouse page
+        // based on their user type (admin or shop)
+        if (userType === 'shop') {
+          navigate('/shop/warehouse/before-packing');
+        } else {
+          // Default to admin before packing if userType is not specified
+          navigate('/admin/warehouse/before-packing');
+        }
+      } else if (role === 'after-packing-only') {
+        // Redirect after-packing-only users to the appropriate warehouse page
+        // based on their user type (admin or shop)
+        if (userType === 'shop') {
+          navigate('/shop/warehouse/after-packing');
+        } else {
+          // Default to admin after packing if userType is not specified
+          navigate('/admin/warehouse/after-packing');
+        }
       } else {
         navigate('/shop');
       }

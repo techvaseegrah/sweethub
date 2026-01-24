@@ -96,15 +96,15 @@ const ProfitLossSummary = () => {
         
         const csvContent = [
             ['Shop Name', 'Revenue', 'Expenses', 'Gross Profit', 'Net Profit', 'Profit Margin'],
-            ...profitLossData.shopDetails.map(shop => [
+            ...(profitLossData.shopDetails || []).map(shop => [
                 shop.shopName,
                 shop.totalRevenue,
                 shop.totalExpenses,
                 shop.grossProfit,
                 shop.netProfit,
-                `${shop.profitMargin.toFixed(2)}%`
+                `${shop.profitMargin ? shop.profitMargin.toFixed(2) : '0.00'}%`
             ]),
-            ['TOTAL', profitLossData.overallTotals.totalRevenue, profitLossData.overallTotals.totalExpenses, profitLossData.overallTotals.grossProfit, profitLossData.overallTotals.netProfit, '']
+            ['TOTAL', profitLossData.consolidated.totalRevenue, profitLossData.consolidated.totalExpenses, profitLossData.consolidated.netProfit, profitLossData.consolidated.netProfit, '']
         ].map(row => row.join(',')).join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -180,18 +180,44 @@ const ProfitLossSummary = () => {
             </div>
 
             {/* Overall Summary Cards */}
-            {profitLossData && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {profitLossData && profitLossData.consolidated && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                     <div className="bg-white rounded-xl shadow-lg p-6">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>
                                 <p className="text-2xl font-bold text-green-600">
-                                    {formatCurrency(profitLossData.overallTotals.totalRevenue)}
+                                    {formatCurrency(profitLossData.consolidated.totalRevenue)}
                                 </p>
                             </div>
                             <div className="p-3 bg-green-100 rounded-full">
                                 <LuTrendingUp className="w-6 h-6 text-green-600" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Shop Revenue</p>
+                                <p className="text-2xl font-bold text-blue-600">
+                                    {formatCurrency(profitLossData.consolidated.shopRevenue)}
+                                </p>
+                            </div>
+                            <div className="p-3 bg-blue-100 rounded-full">
+                                <LuTrendingUp className="w-6 h-6 text-blue-600" />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-lg p-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-gray-600">Admin Revenue</p>
+                                <p className="text-2xl font-bold text-orange-600">
+                                    {formatCurrency(profitLossData.consolidated.adminRevenue)}
+                                </p>
+                            </div>
+                            <div className="p-3 bg-orange-100 rounded-full">
+                                <LuTrendingUp className="w-6 h-6 text-orange-600" />
                             </div>
                         </div>
                     </div>
@@ -201,7 +227,7 @@ const ProfitLossSummary = () => {
                             <div>
                                 <p className="text-sm font-medium text-gray-600">Total Expenses</p>
                                 <p className="text-2xl font-bold text-red-600">
-                                    {formatCurrency(profitLossData.overallTotals.totalExpenses)}
+                                    {formatCurrency(profitLossData.consolidated.totalExpenses)}
                                 </p>
                             </div>
                             <div className="p-3 bg-red-100 rounded-full">
@@ -214,13 +240,13 @@ const ProfitLossSummary = () => {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-600">Gross Profit</p>
-                                <p className={`text-2xl font-bold ${profitLossData.overallTotals.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatCurrency(profitLossData.overallTotals.grossProfit)}
+                                <p className={`text-2xl font-bold ${profitLossData.consolidated.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatCurrency(profitLossData.consolidated.netProfit)}
                                 </p>
                             </div>
-                            <div className={`p-3 rounded-full ${profitLossData.overallTotals.grossProfit >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                                {React.createElement(getProfitIcon(profitLossData.overallTotals.grossProfit), {
-                                    className: `w-6 h-6 ${profitLossData.overallTotals.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}`
+                            <div className={`p-3 rounded-full ${profitLossData.consolidated.netProfit >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+                                {React.createElement(getProfitIcon(profitLossData.consolidated.netProfit), {
+                                    className: `w-6 h-6 ${profitLossData.consolidated.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`
                                 })}
                             </div>
                         </div>
@@ -230,13 +256,13 @@ const ProfitLossSummary = () => {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm font-medium text-gray-600">Net Profit</p>
-                                <p className={`text-2xl font-bold ${profitLossData.overallTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {formatCurrency(profitLossData.overallTotals.netProfit)}
+                                <p className={`text-2xl font-bold ${profitLossData.consolidated.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatCurrency(profitLossData.consolidated.netProfit)}
                                 </p>
                             </div>
-                            <div className={`p-3 rounded-full ${profitLossData.overallTotals.netProfit >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                                {React.createElement(getProfitIcon(profitLossData.overallTotals.netProfit), {
-                                    className: `w-6 h-6 ${profitLossData.overallTotals.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`
+                            <div className={`p-3 rounded-full ${profitLossData.consolidated.netProfit >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+                                {React.createElement(getProfitIcon(profitLossData.consolidated.netProfit), {
+                                    className: `w-6 h-6 ${profitLossData.consolidated.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`
                                 })}
                             </div>
                         </div>
@@ -337,7 +363,7 @@ const ProfitLossSummary = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-900">
-                                            {shop.profitMargin.toFixed(2)}%
+                                            {shop.profitMargin ? shop.profitMargin.toFixed(2) : '0.00'}%
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                                             <button
@@ -355,20 +381,20 @@ const ProfitLossSummary = () => {
                                 <tr className="font-semibold">
                                     <td className="px-6 py-4 text-sm text-gray-900">TOTAL</td>
                                     <td className="px-6 py-4 text-right text-sm text-gray-900">
-                                        {formatCurrency(profitLossData.overallTotals.totalRevenue)}
+                                        {formatCurrency(profitLossData.consolidated.totalRevenue)}
                                     </td>
                                     <td className="px-6 py-4 text-right text-sm text-gray-900">
-                                        {formatCurrency(profitLossData.overallTotals.totalExpenses)}
+                                        {formatCurrency(profitLossData.consolidated.totalExpenses)}
                                     </td>
                                     <td className="px-6 py-4 text-right text-sm text-gray-900">
-                                        {formatCurrency(profitLossData.overallTotals.grossProfit)}
+                                        {formatCurrency(profitLossData.consolidated.netProfit)}
                                     </td>
                                     <td className="px-6 py-4 text-right text-sm text-gray-900">
-                                        {formatCurrency(profitLossData.overallTotals.netProfit)}
+                                        {formatCurrency(profitLossData.consolidated.netProfit)}
                                     </td>
                                     <td className="px-6 py-4 text-right text-sm text-gray-900">
-                                        {profitLossData.overallTotals.totalRevenue > 0 
-                                            ? (profitLossData.overallTotals.netProfit / profitLossData.overallTotals.totalRevenue * 100).toFixed(2)
+                                        {profitLossData.consolidated.totalRevenue > 0 
+                                            ? (profitLossData.consolidated.netProfit / profitLossData.consolidated.totalRevenue * 100).toFixed(2)
                                             : '0.00'
                                         }%
                                     </td>

@@ -11,6 +11,7 @@ import { generateAttendanceReportPdf } from '../../../utils/generateAttendanceRe
 // ATTENDANCE_URL will be determined dynamically based on user type
 
 // Import for CreateAttendanceAccountModal
+import CreateAttendanceAccountModal from './CreateAttendanceAccountModal';
 const CREATE_ATTENDANCE_ACCOUNT_MODAL = true; // This flag indicates the modal component exists
 
 // Utility function to format time in 12-hour format with AM/PM
@@ -227,6 +228,7 @@ function AttendanceTracking() {
   const [showRFIDModal, setShowRFIDModal] = useState(false); // State for RFID Modal
   const [showFaceModal, setShowFaceModal] = useState(false); // State for Face Attendance Modal
   const [showMissingPunchModal, setShowMissingPunchModal] = useState(false); // State for Missing Punch Modal
+  const [showCreateAccountModal, setShowCreateAccountModal] = useState(false); // State for Create Account Modal
   const [selectedWorkerForCorrection, setSelectedWorkerForCorrection] = useState(null); // Worker needing correction
   const [missingPunchOutTime, setMissingPunchOutTime] = useState(''); // Time for missing punch out
 
@@ -603,6 +605,17 @@ function AttendanceTracking() {
                     </svg>
                     PDF
                 </button>
+                {authState?.role !== 'attendance-only' && (
+                <button 
+                    onClick={() => setShowCreateAccountModal(true)}
+                    className="bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors text-sm sm:text-base flex items-center"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+                    </svg>
+                    Create Account
+                </button>
+                )}
 
             </div>
         </div>
@@ -624,6 +637,18 @@ function AttendanceTracking() {
         >
             <FaceAttendance onAttendanceRecorded={handleFaceAttendanceRecord} />
         </CustomModal>
+
+        {/* Create Account Modal */}
+        {showCreateAccountModal && (
+            <CreateAttendanceAccountModal 
+                onClose={() => setShowCreateAccountModal(false)}
+                onAccountCreated={() => {
+                    setShowCreateAccountModal(false);
+                    // Optionally refresh attendance data or show success message
+                }}
+                isShop={false}
+            />
+        )}
 
         {/* Missing Punch Correction Modal */}
         <CustomModal

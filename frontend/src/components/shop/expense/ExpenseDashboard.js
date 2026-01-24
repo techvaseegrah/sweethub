@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LuReceipt, LuPlus, LuFilter, LuTrendingUp, LuHistory, LuEye, LuDownload, LuCalendar, LuPencil } from 'react-icons/lu';
+import { LuReceipt, LuPlus, LuFilter, LuTrendingUp, LuHistory, LuEye, LuDownload, LuCalendar, LuPencil, LuTrash2 } from 'react-icons/lu';
 import { useNavigate } from 'react-router-dom';
 import axios from '../../../api/axios';
 import ExpenseDetailModal from '../../common/ExpenseDetailModal';
@@ -64,6 +64,25 @@ const ExpenseDashboard = () => {
   // Edit expense
   const editExpense = (expense) => {
     navigate(`/shop/expenses/edit/${expense._id}`);
+  };
+
+  // Delete expense
+  const deleteExpense = async (expenseId) => {
+    if (window.confirm('Are you sure you want to delete this expense?')) {
+      try {
+        await axios.delete(`/shop/expenses/${expenseId}`, {
+          withCredentials: true
+        });
+        // Refresh the expenses list
+        const response = await axios.get('/shop/expenses', {
+          withCredentials: true
+        });
+        setExpenses(response.data);
+      } catch (err) {
+        console.error('Error deleting expense:', err);
+        setError('Failed to delete expense');
+      }
+    }
   };
 
   // Calculate summary statistics
@@ -271,6 +290,13 @@ const ExpenseDashboard = () => {
                             title="Download PDF"
                           >
                             <LuDownload className="h-5 w-5" />
+                          </button>
+                          <button 
+                            onClick={() => deleteExpense(expense._id)}
+                            className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Expense"
+                          >
+                            <LuTrash2 className="h-5 w-5" />
                           </button>
                         </div>
                       </td>

@@ -10,7 +10,8 @@ const {
     // MODIFIED: Changed function name to reflect new logic
     getProductCountByAdmin,
     getTotalStockAlertCount,
-    getProductById
+    getProductById,
+    getExpiredProducts
 } = require('../../controllers/admin/productController');
 const { adminAuth } = require('../../middleware/auth');
 
@@ -22,14 +23,17 @@ router.get('/', adminAuth, getProducts);
 router.get('/units', adminAuth, getUnits);
 router.get('/units/in-use/:unitName', adminAuth, isUnitInUse);
 
-// --- Specific product routes (must be after units routes) ---
-router.get('/:id', adminAuth, getProductById);
-router.put('/:id', adminAuth, updateProduct);
-router.delete('/:id', adminAuth, deleteProduct);
+// --- Expired Products Route ---
+router.get('/expired', adminAuth, getExpiredProducts);
 
 // --- Analytics Routes ---
 // MODIFIED: Updated the route and function to count by admin
 router.get('/count-by-admin', adminAuth, getProductCountByAdmin);
 router.get('/stock-alerts/count', adminAuth, getTotalStockAlertCount);
+
+// --- Specific product routes (must be AFTER specific named routes like /expired) ---
+router.get('/:id', adminAuth, getProductById);
+router.put('/:id', adminAuth, updateProduct);
+router.delete('/:id', adminAuth, deleteProduct);
 
 module.exports = router;

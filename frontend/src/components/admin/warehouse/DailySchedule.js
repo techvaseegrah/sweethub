@@ -14,7 +14,13 @@ const DailySchedule = () => {
         unit: '',
         manufacturingProcess: null,
         description: '',
-        isCollapsed: false // Add collapsed state
+        isCollapsed: false, // Add collapsed state
+        manuallyModified: {
+            quantity: false,
+            price: false,
+            unit: false,
+            ingredientsDisplay: false
+        }
     }]);
     const [manufacturingProducts, setManufacturingProducts] = useState([]);
     const [message, setMessage] = useState(null);
@@ -100,6 +106,14 @@ const DailySchedule = () => {
         const updatedSweets = [...sweets];
         updatedSweets[index].sweetName = selectedSweetName;
         setOpenDropdownIndex(null);
+        
+        // Reset manual modification flags when selecting a new product
+        updatedSweets[index].manuallyModified = {
+            quantity: false,
+            price: false,
+            unit: false,
+            ingredientsDisplay: false
+        };
         
         const foundProduct = manufacturingProducts.find(
             (product) => product.sweetName.toLowerCase() === selectedSweetName.toLowerCase()
@@ -247,7 +261,49 @@ const DailySchedule = () => {
     const handleSweetChange = (index, field, value) => {
         const updatedSweets = [...sweets];
         updatedSweets[index][field] = value;
+        
+        // Track manual modifications for specific fields
+        if (['quantity', 'price', 'unit', 'ingredientsDisplay'].includes(field)) {
+            updatedSweets[index].manuallyModified = {
+                ...updatedSweets[index].manuallyModified,
+                [field]: true
+            };
+        }
+        
         setSweets(updatedSweets);
+    };
+
+    // Helper function to parse ingredients from display text
+    const parseIngredientsFromDisplay = (displayText) => {
+        if (!displayText || displayText.trim() === '') {
+            return [];
+        }
+        
+        try {
+            // Split by comma to get individual ingredients
+            const ingredientStrings = displayText.split(',').map(str => str.trim());
+            
+            const ingredients = [];
+            
+            ingredientStrings.forEach(ingredientStr => {
+                // Match pattern: "Name (QuantityUnit)" or "Name (Quantity Unit)"
+                const match = ingredientStr.match(/^([^\(]+)\s*\(\s*([\d\.]+)\s*([^\)]*)\s*\)$/);
+                
+                if (match) {
+                    const [, name, quantity, unit] = match;
+                    ingredients.push({
+                        name: name.trim(),
+                        quantity: parseFloat(quantity),
+                        unit: unit.trim()
+                    });
+                }
+            });
+            
+            return ingredients;
+        } catch (error) {
+            console.error('Error parsing ingredients:', error);
+            return [];
+        }
     };
 
     const addSweet = () => {
@@ -264,7 +320,13 @@ const DailySchedule = () => {
                 unit: '',
                 manufacturingProcess: null,
                 description: '',
-                isCollapsed: false
+                isCollapsed: false,
+                manuallyModified: {
+                    quantity: false,
+                    price: false,
+                    unit: false,
+                    ingredientsDisplay: false
+                }
             }, ...updatedSweets]);
         } else {
             setSweets([{ 
@@ -276,7 +338,13 @@ const DailySchedule = () => {
                 unit: '',
                 manufacturingProcess: null,
                 description: '',
-                isCollapsed: false
+                isCollapsed: false,
+                manuallyModified: {
+                    quantity: false,
+                    price: false,
+                    unit: false,
+                    ingredientsDisplay: false
+                }
             }, ...sweets]);
         }
     };
@@ -405,7 +473,16 @@ const DailySchedule = () => {
                         ingredients: [], 
                         ingredientsDisplay: '', 
                         price: '', 
-                        unit: '' 
+                        unit: '',
+                        manufacturingProcess: null,
+                        description: '',
+                        isCollapsed: false,
+                        manuallyModified: {
+                            quantity: false,
+                            price: false,
+                            unit: false,
+                            ingredientsDisplay: false
+                        }
                     }]);
                     setIsFormSubmitted(false);
                 }, 1000);
@@ -624,7 +701,7 @@ const DailySchedule = () => {
                                             </label>
                                             <input
                                                 type="number"
-                                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200"
+                                                className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 ${sweet.manuallyModified.quantity ? 'bg-yellow-50 border-yellow-300' : ''}`}
                                                 placeholder="e.g., 100"
                                                 value={sweet.quantity}
                                                 onChange={(e) => handleQuantityChange(index, e.target.value)}
@@ -638,10 +715,10 @@ const DailySchedule = () => {
                                             </label>
                                             <input
                                                 type="text"
-                                                className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200"
+                                                className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 ${sweet.manuallyModified.unit ? 'bg-yellow-50 border-yellow-300' : ''}`}
                                                 value={sweet.unit}
-                                                readOnly
-                                                placeholder="Auto-filled from Manufacturing"
+                                                onChange={(e) => handleSweetChange(index, 'unit', e.target.value)}
+                                                placeholder="Auto-filled from Manufacturing (editable)"
                                             />
                                         </div>
                                     </div>
@@ -653,10 +730,10 @@ const DailySchedule = () => {
                                             </label>
                                             <input
                                                 type="number"
-                                                className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200"
+                                                className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 ${sweet.manuallyModified.price ? 'bg-yellow-50 border-yellow-300' : ''}`}
                                                 value={sweet.price}
-                                                readOnly
-                                                placeholder="Auto-filled from Manufacturing"
+                                                onChange={(e) => handleSweetChange(index, 'price', e.target.value)}
+                                                placeholder="Auto-filled from Manufacturing (editable)"
                                             />
                                         </div>
                                         
@@ -664,12 +741,20 @@ const DailySchedule = () => {
                                             <label className="block text-lg font-semibold text-gray-700 mb-2">
                                                 Ingredients Required
                                             </label>
-                                            <input
-                                                type="text"
-                                                className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200"
+                                            <textarea
+                                                className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 ${sweet.manuallyModified.ingredientsDisplay ? 'bg-yellow-50 border-yellow-300' : ''}`}
                                                 value={sweet.ingredientsDisplay}
-                                                readOnly
-                                                placeholder="Auto-filled from Manufacturing"
+                                                onChange={(e) => {
+                                                    handleSweetChange(index, 'ingredientsDisplay', e.target.value);
+                                                    // Also update the ingredients array based on the display text
+                                                    const displayText = e.target.value;
+                                                    const updatedIngredients = parseIngredientsFromDisplay(displayText);
+                                                    const updatedSweets = [...sweets];
+                                                    updatedSweets[index].ingredients = updatedIngredients;
+                                                    setSweets(updatedSweets);
+                                                }}
+                                                placeholder="Auto-filled from Manufacturing (editable)\nFormat: Ingredient Name (QuantityUnit), e.g., Sugar (2kg), Milk (1L)"
+                                                rows="3"
                                             />
                                         </div>
                                     </div>

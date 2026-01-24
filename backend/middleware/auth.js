@@ -15,8 +15,9 @@ exports.adminAuth = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (decoded.role !== 'admin') {
-            console.log('User is not admin, role:', decoded.role);
+        // Allow access to admin endpoints for admin users, raw-materials-only users, and packing users
+        if (decoded.role !== 'admin' && decoded.role !== 'raw-materials-only' && decoded.role !== 'before-packing-only' && decoded.role !== 'after-packing-only') {
+            console.log('User is not admin, raw-materials-only, or packing user, role:', decoded.role);
             return res.status(403).json({ message: 'Forbidden: Admin access required.' });
         }
         req.user = decoded; 

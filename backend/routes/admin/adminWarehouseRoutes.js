@@ -27,10 +27,19 @@ const {
     getVendorHistory,
     getAllVendorHistory,
     // getPackingMaterialVendorHistory, // Remove this line
-    getDailySchedules,        // Add the new function
-    createDailySchedule,      // Add the new function
-    getDailyScheduleById,     // Add this function to exports
-    updateDailyScheduleStatus // Add the new function
+    getDailySchedules,
+    createDailySchedule,
+    getDailyScheduleById,
+    updateDailyScheduleStatus,
+    getExpiredMaterials,
+    // Before Packing functions
+    getBeforePackingItems,
+    addToBeforePacking,
+    updateBeforePackingStatus,
+    // After Packing functions
+    getAfterPackingItems,
+    updateAfterPackingStatus,
+    addToStockFromAfterPacking
 } = require('../../controllers/admin/warehouseController');
 const { adminAuth } = require('../../middleware/auth');
 
@@ -46,6 +55,9 @@ router.put('/store-room/:id', updateStoreRoomItem);
 router.delete('/store-room/:id', deleteStoreRoomItem);
 router.get('/vendor-history/:materialName', getVendorHistory);
 router.get('/vendor-history', getAllVendorHistory);
+
+// Expired Materials
+router.get('/expired-materials', getExpiredMaterials);
 
 // Raw Materials
 router.post('/raw-materials', addRawMaterial);
@@ -75,6 +87,16 @@ router.get('/daily-schedules', getDailySchedules);
 router.post('/daily-schedules', createDailySchedule);
 router.get('/daily-schedules/:id', getDailyScheduleById);
 router.put('/daily-schedules/:id/status', updateDailyScheduleStatus);
+
+// Before Packing
+router.get('/before-packing', getBeforePackingItems);
+router.post('/before-packing', addToBeforePacking);
+router.put('/before-packing/:id/status', updateBeforePackingStatus);
+
+// After Packing
+router.get('/after-packing', getAfterPackingItems);
+router.put('/after-packing/:id/status', updateAfterPackingStatus);
+router.put('/after-packing/:id/add-to-stock', addToStockFromAfterPacking);
 
 // Material Stock Alerts
 router.get('/material-stock-alerts', getMaterialStockAlerts);

@@ -54,11 +54,18 @@ const manufacturingSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
-    expireDate: {
-        type: Date,
+    expiryDays: {
+        type: Number,
+        min: 0,
     },
-    usedByDate: {
-        type: Date,
+    usedByDays: {
+        type: Number,
+        min: 0,
+    },
+    createdByWorker: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Worker',
+        required: false,  // Making it optional as requested
     },
 });
 

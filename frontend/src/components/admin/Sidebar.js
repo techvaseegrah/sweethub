@@ -20,7 +20,8 @@ import {
   LuSettings,
   LuReceipt,
   LuTruck,
-  LuShoppingCart
+  LuShoppingCart,
+  LuPackage
 } from 'react-icons/lu';
 import axios from '../../api/axios';
 import { useContext } from 'react';
@@ -88,6 +89,11 @@ const Sidebar = () => {
     const [totalStockAlerts, setTotalStockAlerts] = useState(0);
     const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
     const [isWarehouseMenuOpen, setIsWarehouseMenuOpen] = useState(false);
+    const [isPackingMaterialsOpen, setIsPackingMaterialsOpen] = useState(false);
+    const [isRawMaterialsOpen, setIsRawMaterialsOpen] = useState(false);
+    const [isManufacturingOpen, setIsManufacturingOpen] = useState(false);
+    const [isBeforePackingOpen, setIsBeforePackingOpen] = useState(false);
+    const [isAfterPackingOpen, setIsAfterPackingOpen] = useState(false);
     const [materialStockAlerts, setMaterialStockAlerts] = useState(0);
     const [sweetItems, setSweetItems] = useState([]);
 
@@ -97,8 +103,8 @@ const Sidebar = () => {
     useEffect(() => {
         const fetchTotalStockAlerts = async () => {
             try {
-                // Only fetch if not an attendance-only user
-                if (authState?.role !== 'attendance-only') {
+                // Only fetch if not an attendance-only or raw-materials-only user
+                if (authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only') {
                     const response = await axios.get('/admin/products/stock-alerts/count');
                     setTotalStockAlerts(response.data.totalCount);
                 }
@@ -130,6 +136,45 @@ const Sidebar = () => {
 
     const toggleWarehouseMenu = () => {
         setIsWarehouseMenuOpen(!isWarehouseMenuOpen);
+    };
+
+    const togglePackingMaterials = () => {
+        // Close other toggles and open this one (accordion behavior)
+        setIsRawMaterialsOpen(false);
+        setIsManufacturingOpen(false);
+        setIsPackingMaterialsOpen(!isPackingMaterialsOpen);
+    };
+
+    const toggleRawMaterials = () => {
+        // Close other toggles and open this one (accordion behavior)
+        setIsPackingMaterialsOpen(false);
+        setIsManufacturingOpen(false);
+        setIsRawMaterialsOpen(!isRawMaterialsOpen);
+    };
+
+    const toggleManufacturing = () => {
+        // Close other toggles and open this one (accordion behavior)
+        setIsPackingMaterialsOpen(false);
+        setIsRawMaterialsOpen(false);
+        setIsManufacturingOpen(!isManufacturingOpen);
+    };
+
+    const toggleBeforePacking = () => {
+        // Close other toggles and open this one (accordion behavior)
+        setIsPackingMaterialsOpen(false);
+        setIsRawMaterialsOpen(false);
+        setIsManufacturingOpen(false);
+        setIsAfterPackingOpen(false);
+        setIsBeforePackingOpen(!isBeforePackingOpen);
+    };
+
+    const toggleAfterPacking = () => {
+        // Close other toggles and open this one (accordion behavior)
+        setIsPackingMaterialsOpen(false);
+        setIsRawMaterialsOpen(false);
+        setIsManufacturingOpen(false);
+        setIsBeforePackingOpen(false);
+        setIsAfterPackingOpen(!isAfterPackingOpen);
     };
 
     // Sweet Hub inspired color palette
@@ -222,7 +267,7 @@ const Sidebar = () => {
 
             <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
                 {/* Dashboard */}
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <NavLink
                     to="/admin/dashboard"
                     className={({ isActive }) =>
@@ -248,8 +293,180 @@ const Sidebar = () => {
                 </NavLink>
                 )}
 
+                {/* Raw Materials and Manufacturing - For raw-materials-only users */}
+                {authState?.role === 'raw-materials-only' && (
+                <>
+                {/* Raw Materials Toggle */}
+                <div className="space-y-1">
+                    <div 
+                        className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg cursor-pointer ${textSecondary} ${hoverBg}`}
+                        onClick={toggleRawMaterials}
+                    >
+                        <span className="font-medium">Raw Materials</span>
+                        <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90' : ''}`} />
+                    </div>
+                    {isRawMaterialsOpen && (
+                        <nav className="mt-1 ml-4 space-y-1">
+                            <NavLink
+                                to="/admin/warehouse/raw-materials"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Raw Materials</span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/warehouse/store-room"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Store Room</span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/warehouse/expired-materials"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Expire Materials</span>
+                            </NavLink>
+                        </nav>
+                    )}
+                </div>
+
+                {/* Manufacturing Toggle */}
+                <div className="space-y-1">
+                    <div 
+                        className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg cursor-pointer ${textSecondary} ${hoverBg}`}
+                        onClick={toggleManufacturing}
+                    >
+                        <span className="font-medium">Manufacturing</span>
+                        <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90' : ''}`} />
+                    </div>
+                    {isManufacturingOpen && (
+                        <nav className="mt-1 ml-4 space-y-1">
+                            <NavLink
+                                to="/admin/warehouse/manufacturing"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Manufacturing</span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/warehouse/daily-schedule"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Daily Schedule</span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/warehouse/outgoing-materials"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Outgoing Materials</span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/warehouse/production-schedules"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Production Schedules</span>
+                            </NavLink>
+                            <NavLink
+                                to="/admin/warehouse/material-stock-alerts"
+                                className={({ isActive }) =>
+                                    `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                        isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                    }`
+                                }
+                                onClick={() => {
+                                    // Close sidebar on mobile when link is clicked
+                                    if (window.innerWidth < 1024) {
+                                        window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                    }
+                                }}
+                            >
+                                <span className="mr-2">+</span>
+                                <span className="font-medium">Material Stock Alerts</span>
+                            </NavLink>
+                        </nav>
+                    )}
+                </div>
+                </>
+                )}
+                {/* End of Raw Materials and Manufacturing for raw-materials-only users */}
+
                 {/* Worker Management */}
-                {authState?.role !== 'attendance-only' ? (
+                {authState?.role !== 'raw-materials-only' && (
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -259,6 +476,7 @@ const Sidebar = () => {
                         <LuChevronRight className="w-4 h-4 text-gray-400" />
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
+                        {authState?.role !== 'attendance-only' && (
                         <NavLink
                             to="/admin/workers/add"
                             className={({ isActive }) =>
@@ -275,6 +493,8 @@ const Sidebar = () => {
                         >
                             <span className="font-medium">Add Worker</span>
                         </NavLink>
+                        )}
+                        {authState?.role !== 'attendance-only' && (
                         <NavLink
                             to="/admin/workers/view"
                             className={({ isActive }) =>
@@ -291,6 +511,7 @@ const Sidebar = () => {
                         >
                             <span className="font-medium">View Workers</span>
                         </NavLink>
+                        )}
                         <NavLink
                             to="/admin/workers/attendance"
                             className={({ isActive }) =>
@@ -307,6 +528,7 @@ const Sidebar = () => {
                         >
                             <span className="font-medium">Attendance</span>
                         </NavLink>
+                        {authState?.role !== 'attendance-only' && (
                         <NavLink
                             to="/admin/workers/salary"
                             className={({ isActive }) =>
@@ -323,6 +545,8 @@ const Sidebar = () => {
                         >
                             <span className="font-medium">Salary Report</span>
                         </NavLink>
+                        )}
+                        {authState?.role !== 'attendance-only' && (
                         <NavLink
                             to="/admin/workers/holidays"
                             className={({ isActive }) =>
@@ -339,37 +563,13 @@ const Sidebar = () => {
                         >
                             <span className="font-medium">Holidays</span>
                         </NavLink>
+                        )}
 
                     </nav>
                 </details>
-                ) : (
-                // For attendance-only users, show only attendance - redirect based on userType
-                <NavLink
-                    to={authState?.userType === 'shop' ? "/shop/workers/attendance" : "/admin/workers/attendance"}
-                    className={({ isActive }) =>
-                        `flex items-center px-3 py-2.5 rounded-lg ${
-                            isActive 
-                                ? activeRed
-                                : `${textPrimary} ${hoverBg}`
-                        }`
-                    }
-                    onClick={() => {
-                        // Close sidebar on mobile when link is clicked
-                        if (window.innerWidth < 1024) {
-                            window.dispatchEvent(new CustomEvent('close-sidebar'));
-                        }
-                    }}
-                >
-                    {({ isActive }) => (
-                        <>
-                            <LuUsers className={`mr-3 text-lg ${isActive ? iconActive : iconColor}`} />
-                            <span className="font-medium">Attendance</span>
-                        </>
-                    )}
-                </NavLink>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
                 {/* Department Management */}
                 <details className="group">
@@ -418,7 +618,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
                 {/* Product Management */}
                 <details className="group" open={isProductMenuOpen} onToggle={toggleProductMenu}>
@@ -486,6 +686,22 @@ const Sidebar = () => {
                             <span className="font-medium">View Products</span>
                         </NavLink>
                         <NavLink
+                            to="/admin/products/expired"
+                            className={({ isActive }) =>
+                                `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                }`
+                            }
+                            onClick={() => {
+                                // Close sidebar on mobile when link is clicked
+                                if (window.innerWidth < 1024) {
+                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                }
+                            }}
+                        >
+                            <span className="font-medium">Expire Materials</span>
+                        </NavLink>
+                        <NavLink
                             to="/admin/warehouse/track-stock"
                             className={({ isActive }) =>
                                 `flex items-center px-3 py-2 text-sm rounded-lg ${
@@ -527,9 +743,10 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
-                {/* Warehouse Management */}
+                {/* Warehouse Management - Role-based visibility */}
+                {(authState?.role === 'admin' || authState?.role === 'raw-materials-only' || authState?.role === 'before-packing-only' || authState?.role === 'after-packing-only') && (
                 <details className="group" open={isWarehouseMenuOpen} onToggle={toggleWarehouseMenu}>
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -546,187 +763,393 @@ const Sidebar = () => {
                         </div>
                     </summary>
                     <nav className="mt-1 ml-6 space-y-1">
-                        <NavLink
-                            to="/admin/warehouse/store-room"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                }`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">Store Room</span>
-                        </NavLink>
-                        
-                        <div className="px-3 py-2 text-xs text-gray-400 font-semibold uppercase tracking-wider">
-                            Packing Materials
-                        </div>
-                        
-                        <NavLink
-                            to="/admin/warehouse/packing-materials/view"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                } ml-4`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">- View Materials</span>
-                        </NavLink>
-
-                        <NavLink
-                            to="/admin/warehouse/packing-materials/outgoing"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                } ml-4`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">- Outgoing Materials</span>
-                        </NavLink>
-                        
-                        <NavLink
-                            to="/admin/warehouse/packing-materials/alerts"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                } ml-4`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">- Alert Materials</span>
-                        </NavLink>
-
-                        <NavLink
-                            to="/admin/warehouse/raw-materials"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                }`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">Raw Materials</span>
-                        </NavLink>
-                        <NavLink
-                            to="/admin/warehouse/manufacturing"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                }`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">Manufacturing</span>
-                        </NavLink>
-                        <NavLink
-                            to="/admin/warehouse/daily-schedule"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                }`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            {({ isActive }) => (
-                                <>
-                                    <LuFileClock className={`mr-2 text-lg ${isActive ? iconActive : iconColor}`} />
-                                    <span className="font-medium">Daily Schedule</span>
-                                </>
+                        {/* Packing Materials Toggle - Only for admin and raw-materials-only */}
+                        {(authState?.role === 'admin' || authState?.role === 'raw-materials-only') && (
+                        <div className="space-y-1">
+                            <div 
+                                className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg cursor-pointer ${textSecondary} ${hoverBg}`}
+                                onClick={togglePackingMaterials}
+                            >
+                                <span className="font-medium">Packing Materials</span>
+                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isPackingMaterialsOpen ? 'rotate-90' : ''}`} />
+                            </div>
+                            {isPackingMaterialsOpen && (
+                                <nav className="mt-1 ml-4 space-y-1">
+                                    <NavLink
+                                        to="/admin/warehouse/packing-materials/view"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">View Materials</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/packing-materials/outgoing"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Outgoing Materials</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/packing-materials/alerts"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Alert Materials</span>
+                                    </NavLink>
+                                </nav>
                             )}
-                        </NavLink>
-                        <NavLink
-                            to="/admin/warehouse/outgoing-materials"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                }`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">Outgoing Materials</span>
-                        </NavLink>
-                        <NavLink
-                            to="/admin/warehouse/production-schedules"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                }`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">Production Schedules</span>
-                        </NavLink>
-                        <NavLink
-                            to="/admin/warehouse/material-stock-alerts"
-                            className={({ isActive }) =>
-                                `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                    isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                }`
-                            }
-                            onClick={() => {
-                                // Close sidebar on mobile when link is clicked
-                                if (window.innerWidth < 1024) {
-                                    window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                }
-                            }}
-                        >
-                            <span className="font-medium">Material Stock Alerts</span>
-                        </NavLink>
+                        </div>
+                        )}
+                        
+                        {/* Raw Materials Toggle */}
+                        <div className="space-y-1">
+                            <div 
+                                className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg cursor-pointer ${textSecondary} ${hoverBg}`}
+                                onClick={toggleRawMaterials}
+                            >
+                                <span className="font-medium">Raw Materials</span>
+                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90' : ''}`} />
+                            </div>
+                            {isRawMaterialsOpen && (
+                                <nav className="mt-1 ml-4 space-y-1">
+                                    <NavLink
+                                        to="/admin/warehouse/raw-materials"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Raw Materials</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/store-room"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Store Room</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/expired-materials"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Expire Materials</span>
+                                    </NavLink>
+                                </nav>
+                            )}
+                        </div>
+
+                        {/* Manufacturing Toggle */}
+                        <div className="space-y-1">
+                            <div 
+                                className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg cursor-pointer ${textSecondary} ${hoverBg}`}
+                                onClick={toggleManufacturing}
+                            >
+                                <span className="font-medium">Manufacturing</span>
+                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90' : ''}`} />
+                            </div>
+                            {isManufacturingOpen && (
+                                <nav className="mt-1 ml-4 space-y-1">
+                                    <NavLink
+                                        to="/admin/warehouse/manufacturing"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Manufacturing</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/daily-schedule"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Daily Schedule</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/outgoing-materials"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Outgoing Materials</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/production-schedules"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Production Schedules</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/material-stock-alerts"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                                isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Material Stock Alerts</span>
+                                    </NavLink>
+                                </nav>
+                            )}
+                        </div>
+
+
                     </nav>
                 </details>
+                )}
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
-                {/* Shop Management */}
+                        {/* Before Packing Toggle - Only show for before-packing-only users and admin */}
+                        {(authState?.role === 'admin' || authState?.role === 'before-packing-only') && (
+                        <details className="group">
+                            <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
+                                <div className="flex items-center">
+                                    <LuPackage className={`mr-3 text-lg ${iconColor}`} />
+                                    <span className="font-medium">Before Packing</span>
+                                </div>
+                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                            </summary>
+                            <nav className="mt-1 ml-6 space-y-1">
+                                <NavLink
+                                    to="/admin/warehouse/before-packing"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        // Close sidebar on mobile when link is clicked
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">All Products</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/warehouse/before-packing/pending-items"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        // Close sidebar on mobile when link is clicked
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Pending Items</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/warehouse/before-packing/completed-items"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        // Close sidebar on mobile when link is clicked
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Completed Items</span>
+                                </NavLink>
+                            </nav>
+                        </details>
+                        )}
+
+                        {/* After Packing Toggle - Only show for after-packing-only users and admin */}
+                        {(authState?.role === 'admin' || authState?.role === 'after-packing-only') && (
+                        <details className="group">
+                            <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
+                                <div className="flex items-center">
+                                    <LuPackage className={`mr-3 text-lg ${iconColor}`} />
+                                    <span className="font-medium">After Packing</span>
+                                </div>
+                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                            </summary>
+                            <nav className="mt-1 ml-6 space-y-1">
+                                <NavLink
+                                    to="/admin/warehouse/after-packing"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        // Close sidebar on mobile when link is clicked
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">All Products</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/warehouse/after-packing/pending-items"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        // Close sidebar on mobile when link is clicked
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Pending Items</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/warehouse/after-packing/completed-items"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        // Close sidebar on mobile when link is clicked
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Completed Items</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/warehouse/after-packing/add-to-stock"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        // Close sidebar on mobile when link is clicked
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Add to Stock</span>
+                                </NavLink>
+                            </nav>
+                        </details>
+                        )}
+
+                {/* Shop Management - Hidden for packing-only users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -770,10 +1193,11 @@ const Sidebar = () => {
                         </NavLink>
                     </nav>
                 </details>
+                )}
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
                 {/* Task Management */}
                 <details className="group">
@@ -822,7 +1246,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
                 {/* Billing Management */}
                 <details className="group">
@@ -871,7 +1295,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
                 {/* E-Way Bill Management */}
                 <details className="group">
@@ -920,7 +1344,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <NavLink
                     to="/admin/invoices/history"
                     className={({ isActive }) =>
@@ -946,7 +1370,7 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <NavLink
                     to="/admin/orders"
                     className={({ isActive }) =>
@@ -972,7 +1396,7 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <NavLink
                     to="/admin/warehouse/return-products"
                     className={({ isActive }) =>
@@ -998,7 +1422,7 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <NavLink
                     to="/admin/expenses"
                     className={({ isActive }) =>
@@ -1026,7 +1450,7 @@ const Sidebar = () => {
                 
                 {/* Removed Face Service Diagnostic */}
                 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <NavLink
                     to="/admin/profit-loss"
                     className={({ isActive }) =>
@@ -1052,7 +1476,8 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                <>
                 <NavLink
                     to="/admin/settings"
                     className={({ isActive }) =>
@@ -1076,6 +1501,7 @@ const Sidebar = () => {
                         </>
                     )}
                 </NavLink>
+                </>
                 )}
             </nav>
             

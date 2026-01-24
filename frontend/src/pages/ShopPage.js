@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import ShopSidebar from '../components/shop/ShopSidebar';
+import useAttendanceOnlyProtection from '../hooks/useAttendanceOnlyProtection';
 import ShopDashboard from '../components/shop/dashboard/ShopDashboard';
 
 // Import Admin Components to reuse
@@ -13,6 +14,7 @@ import ShopAttendanceTracking from '../components/shop/worker/AttendanceTracking
 import AddProduct from '../components/admin/product/AddProduct';
 import AddCategory from '../components/admin/product/AddCategory';
 import ViewProducts from '../components/admin/product/ViewProducts';
+import ShopExpiredProducts from '../components/shop/admin-products/ExpiredProducts';
 import TrackStock from '../components/admin/warehouse/TrackStock';
 import StockAlerts from '../components/admin/warehouse/StockAlerts';
 
@@ -53,6 +55,9 @@ import { useFullScreenBill } from '../context/FullScreenBillContext';
 const ShopPage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { isFullScreenBill } = useFullScreenBill();
+    
+    // Apply attendance-only protection
+    useAttendanceOnlyProtection();
 
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
@@ -128,6 +133,7 @@ const ShopPage = () => {
                         <Route path="products/add" element={<AddProduct baseUrl="/shop" />} />
                         <Route path="products/category" element={<AddCategory baseUrl="/shop" />} />
                         <Route path="products/view" element={<ViewProducts baseUrl="/shop" />} />
+                        <Route path="products/expired" element={<ShopExpiredProducts />} />
                         <Route path="warehouse/stock" element={<TrackStock baseUrl="/shop" />} />
                         <Route path="warehouse/alerts" element={<StockAlerts baseUrl="/shop" />} />
                         {/* Removed packing materials route as per user request

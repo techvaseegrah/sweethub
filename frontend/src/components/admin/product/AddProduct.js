@@ -11,6 +11,8 @@ function AddProduct({ baseUrl = '/admin' }) {
   const [sku, setSku] = useState('');
   const [stockLevel, setStockLevel] = useState('');
   const [stockAlertThreshold, setStockAlertThreshold] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [usedByDate, setUsedByDate] = useState('');
   const [categories, setCategories] = useState([]);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -138,6 +140,8 @@ function AddProduct({ baseUrl = '/admin' }) {
         sku,
         stockLevel: parseFloat(stockLevel) || 0,
         stockAlertThreshold: parseFloat(stockAlertThreshold) || 0,
+        expiryDate: expiryDate || null,
+        usedByDate: usedByDate || null,
         prices: productUnits.map(unit => ({
           unit: unit.unit,
           netPrice: parseFloat(unit.netPrice),
@@ -159,6 +163,8 @@ function AddProduct({ baseUrl = '/admin' }) {
       setSku('');
       setStockLevel('');
       setStockAlertThreshold('');
+      setExpiryDate('');
+      setUsedByDate('');
       setProductUnits([{ unit: 'piece', netPrice: '', sellingPrice: '' }]);
       
       // Refresh product list
@@ -319,6 +325,32 @@ function AddProduct({ baseUrl = '/admin' }) {
                 value={stockAlertThreshold}
                 onChange={(e) => setStockAlertThreshold(e.target.value)}
             />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="expiryDate">
+                  Expiry Date (dd-mm-yyyy)
+              </label>
+              <input
+                  type="date"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  id="expiryDate"
+                  value={expiryDate}
+                  onChange={(e) => setExpiryDate(e.target.value)}
+              />
+          </div>
+          <div>
+              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="usedByDate">
+                  Used By Date (dd-mm-yyyy)
+              </label>
+              <input
+                  type="date"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  id="usedByDate"
+                  value={usedByDate}
+                  onChange={(e) => setUsedByDate(e.target.value)}
+              />
+          </div>
         </div>
         
         {/* Unit Configuration Section */}

@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const departmentSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: true,
-        unique: true
+        required: true
     },
     shop: {
         type: mongoose.Schema.Types.ObjectId,
@@ -17,5 +16,8 @@ const departmentSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
+
+// Create compound index for unique department names within each shop
+departmentSchema.index({ name: 1, shop: 1 }, { unique: true });
 
 module.exports = mongoose.model('Department', departmentSchema);

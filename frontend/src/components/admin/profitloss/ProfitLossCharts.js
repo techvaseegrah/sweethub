@@ -80,9 +80,9 @@ const ProfitLossCharts = ({ shopData }) => {
         if (!shopData) return null;
 
         const shopNames = shopData.map(shop => shop.shopName);
-        const revenues = shopData.map(shop => shop.revenue.totalBillingProfit);
-        const expenses = shopData.map(shop => shop.expenses.totalExpenses);
-        const netProfits = shopData.map(shop => shop.profitability.netProfit);
+        const revenues = shopData.map(shop => shop.revenue?.totalBillingProfit || 0);
+        const expenses = shopData.map(shop => shop.expenses?.totalExpenses || 0);
+        const netProfits = shopData.map(shop => shop.profitability?.netProfit || 0);
 
         const chartConfig = {
             labels: shopNames,
@@ -119,7 +119,7 @@ const ProfitLossCharts = ({ shopData }) => {
         if (!shopData) return null;
 
         const shopNames = shopData.map(shop => shop.shopName);
-        const margins = shopData.map(shop => shop.profitability.profitMargin);
+        const margins = shopData.map(shop => shop.profitability?.profitMargin || 0);
 
         return {
             labels: shopNames,
@@ -401,7 +401,7 @@ const ProfitLossCharts = ({ shopData }) => {
                                         Net Profit: {formatCurrency(topShop.profitability.netProfit)}
                                     </p>
                                     <p className="text-sm text-green-600">
-                                        Margin: {topShop.profitability.profitMargin.toFixed(2)}%
+                                        Margin: {(topShop.profitability.profitMargin || 0).toFixed(2)}%
                                     </p>
                                 </div>
                             );
@@ -410,7 +410,7 @@ const ProfitLossCharts = ({ shopData }) => {
                         {/* Highest Revenue */}
                         {(() => {
                             const highestRevenueShop = shopData.reduce((prev, current) => 
-                                (prev.revenue.totalBillingProfit > current.revenue.totalBillingProfit) ? prev : current
+                                ((prev.revenue?.totalBillingProfit || 0) > (current.revenue?.totalBillingProfit || 0)) ? prev : current
                             );
                             return (
                                 <div className="bg-blue-50 p-4 rounded-lg">
@@ -426,14 +426,14 @@ const ProfitLossCharts = ({ shopData }) => {
                         {/* Needs Attention */}
                         {(() => {
                             const needsAttentionShop = shopData.reduce((prev, current) => 
-                                (prev.profitability.profitMargin < current.profitability.profitMargin) ? prev : current
+                                ((prev.profitability?.profitMargin || 0) < (current.profitability?.profitMargin || 0)) ? prev : current
                             );
                             return (
                                 <div className="bg-orange-50 p-4 rounded-lg">
                                     <h4 className="font-semibold text-orange-800 mb-2">Needs Attention</h4>
                                     <p className="text-lg font-bold text-orange-700">{needsAttentionShop.shopName}</p>
                                     <p className="text-sm text-orange-600">
-                                        Margin: {needsAttentionShop.profitability.profitMargin.toFixed(2)}%
+                                        Margin: {(needsAttentionShop.profitability.profitMargin || 0).toFixed(2)}%
                                     </p>
                                     <p className="text-sm text-orange-600">
                                         Net Profit: {formatCurrency(needsAttentionShop.profitability.netProfit)}

@@ -51,9 +51,27 @@ const ProductionSchedules = () => {
         setShowConfirmation(true);
     };
 
-    const handleConfirmComplete = () => {
+    const handleConfirmComplete = async () => {
         if (scheduleToComplete) {
-            handleStatusChange(scheduleToComplete._id, 'Completed');
+            try {
+                // First, add to Before Packing
+                await axios.post('/admin/warehouse/before-packing', {
+                    scheduleId: scheduleToComplete._id,
+                    sweetName: scheduleToComplete.sweetName,
+                    quantity: scheduleToComplete.quantity,
+                    unit: scheduleToComplete.unit,
+                    price: scheduleToComplete.price,
+                    date: new Date(),
+                    description: `From Production Schedule - ${scheduleToComplete.description || ''}`
+                });
+                
+                // Then update the schedule status
+                await handleStatusChange(scheduleToComplete._id, 'Completed');
+                
+                setMessage('Schedule completed and moved to Before Packing successfully!');
+            } catch (err) {
+                setError(err.response?.data?.message || 'Failed to complete schedule.');
+            }
             setShowConfirmation(false);
             setScheduleToComplete(null);
         }
@@ -153,7 +171,7 @@ const ProductionSchedules = () => {
                         <h3 className="text-lg font-bold mb-4">Confirm Completion</h3>
                         <p className="mb-4">
                             Are you sure you want to mark this schedule as completed? 
-                            Product stock will be automatically updated.
+                            Product will be moved to Before Packing for pre-processing.
                         </p>
                         <p className="mb-4 font-semibold">
                             Product: {scheduleToComplete?.sweetName} | 

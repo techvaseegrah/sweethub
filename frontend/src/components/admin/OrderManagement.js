@@ -3,6 +3,7 @@ import axios from '../../api/axios';
 import { LuPackage, LuCalendar, LuDollarSign, LuEye, LuCheckCircle, LuX, LuLoader, LuShoppingCart, LuFileText, LuBox, LuDownload } from 'react-icons/lu';
 import InvoiceHistory from './invoice/InvoiceHistory';
 import CreateInvoice from './product/CreateInvoice';
+import ViewOrderDetails from './ViewOrderDetails';
 import { generateOrderReportPdf } from '../../utils/generateOrderReportPdf';
 
 function AdminOrderManagement() {
@@ -13,6 +14,7 @@ function AdminOrderManagement() {
   const [error, setError] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = useState(false);
+  const [isAdminViewOpen, setIsAdminViewOpen] = useState(false);
   const [adminProducts, setAdminProducts] = useState([]);
 
   // Fetch orders and shops
@@ -92,11 +94,13 @@ function AdminOrderManagement() {
 
   const handleViewOrder = (order) => {
     setSelectedOrder(order);
+    setIsAdminViewOpen(true);
   };
 
   const handleCreateInvoice = (order) => {
     setSelectedOrder(order);
     setIsCreateInvoiceModalOpen(true);
+    setIsAdminViewOpen(false); // Close admin view if open
   };
 
   const handleDownloadPdf = (order) => {
@@ -107,6 +111,7 @@ function AdminOrderManagement() {
   const closeCreateInvoiceModal = () => {
     setIsCreateInvoiceModalOpen(false);
     setSelectedOrder(null);
+    setIsAdminViewOpen(false);
   };
 
   const refreshOrders = async () => {
@@ -239,93 +244,20 @@ function AdminOrderManagement() {
         <InvoiceHistory />
       )}
 
-      {/* Order Detail Modal */}
-      {selectedOrder && !isCreateInvoiceModalOpen && (
+      {/* Enhanced Order Detail Modal */}
+      {selectedOrder && isAdminViewOpen && !isCreateInvoiceModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-screen overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-bold">Order Details</h3>
-                <button
-                  onClick={() => setSelectedOrder(null)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <LuX size={24} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Order ID</p>
-                  <p className="font-semibold text-gray-800">{selectedOrder.orderId}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Shop</p>
-                  <p className="font-semibold text-gray-800">{getShopName(selectedOrder.shop?._id)}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Order Date</p>
-                  <div className="font-semibold text-gray-800">
-                    <div>{formatDateWithTime(selectedOrder.orderDate).date}</div>
-                    <div className="text-sm text-gray-500">{formatDateWithTime(selectedOrder.orderDate).time}</div>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Status</p>
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
-                    {selectedOrder.status}
-                  </span>
-                </div>
-              </div>
-
-              {/* Order Items */}
-              <div className="mb-6">
-                <h4 className="text-lg font-semibold mb-3">Order Items</h4>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {selectedOrder.items?.map && selectedOrder.items.map((item, index) => (
-                        <tr key={index}>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{item.productName}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{item.unit}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{item.quantity} {item.unit}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">₹{(item.unitPrice || 0).toFixed(2)}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">₹{((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Totals */}
-              <div className="flex justify-end">
-                <div className="w-full max-w-xs">
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="font-semibold">₹{(selectedOrder.subtotal || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-gray-600">Tax:</span>
-                    <span className="font-semibold">₹{(selectedOrder.tax || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between py-3 text-xl font-bold bg-gray-100 px-4 rounded-md mt-2">
-                    <span>Grand Total:</span>
-                    <span>₹{(selectedOrder.grandTotal || 0).toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ViewOrderDetails 
+            order={selectedOrder} 
+            onClose={() => {
+              setIsAdminViewOpen(false);
+              setSelectedOrder(null);
+            }}
+            onInvoiceCreated={() => {
+              // Refresh orders after invoice is created
+              refreshOrders();
+            }}
+          />
         </div>
       )}
 

@@ -48,6 +48,30 @@ db.once('open', async () => {
       console.log('Created attendance-only role');
     }
     
+    // Check if raw-materials-only role exists, create if not
+    let rawMaterialsOnlyRole = await Role.findOne({ name: 'raw-materials-only' });
+    if (!rawMaterialsOnlyRole) {
+      rawMaterialsOnlyRole = new Role({ name: 'raw-materials-only' });
+      await rawMaterialsOnlyRole.save();
+      console.log('Created raw-materials-only role');
+    }
+    
+    // Check if before-packing-only role exists, create if not
+    let beforePackingOnlyRole = await Role.findOne({ name: 'before-packing-only' });
+    if (!beforePackingOnlyRole) {
+      beforePackingOnlyRole = new Role({ name: 'before-packing-only' });
+      await beforePackingOnlyRole.save();
+      console.log('Created before-packing-only role');
+    }
+    
+    // Check if after-packing-only role exists, create if not
+    let afterPackingOnlyRole = await Role.findOne({ name: 'after-packing-only' });
+    if (!afterPackingOnlyRole) {
+      afterPackingOnlyRole = new Role({ name: 'after-packing-only' });
+      await afterPackingOnlyRole.save();
+      console.log('Created after-packing-only role');
+    }
+    
     // Check if admin user exists
     const adminUser = await User.findOne({ username: process.env.ADMIN_USERNAME });
     

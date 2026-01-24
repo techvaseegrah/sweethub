@@ -78,6 +78,14 @@ exports.updateShopProduct = async (req, res) => {
       product.sku = updateData.sku;
     }
     
+    if (updateData.expiryDate !== undefined) {
+      product.expiryDate = updateData.expiryDate ? new Date(updateData.expiryDate) : null;
+    }
+    
+    if (updateData.usedByDate !== undefined) {
+      product.usedByDate = updateData.usedByDate ? new Date(updateData.usedByDate) : null;
+    }
+    
     const updatedProduct = await product.save();
     
     res.status(200).json(updatedProduct);
@@ -90,7 +98,7 @@ exports.updateShopProduct = async (req, res) => {
 // Create a new product for shop users
 exports.createShopProduct = async (req, res) => {
   try {
-    const { name, sku, category, stockLevel, stockAlertThreshold, prices } = req.body;
+    const { name, sku, category, stockLevel, stockAlertThreshold, prices, expiryDate, usedByDate } = req.body;
     
     // Get shop ID from the authenticated user
     const shopId = req.user.shopId;
@@ -126,6 +134,8 @@ exports.createShopProduct = async (req, res) => {
       stockLevel: stockLevel || 0,
       stockAlertThreshold: stockAlertThreshold || 0,
       prices: prices || [],
+      expiryDate: expiryDate ? new Date(expiryDate) : null,
+      usedByDate: usedByDate ? new Date(usedByDate) : null,
       shop: shopId
     });
     
@@ -166,3 +176,74 @@ exports.deleteShopProduct = async (req, res) => {
     res.status(500).json({ message: 'Failed to delete product.', error: error.message });
   }
 };
+
+// Get expired products for the logged-in shop
+exports.getShopExpiredProducts = async (req, res) => {
+  try {
+    // Get shop ID from the authenticated user
+    const shopId = req.user.shopId;
+    
+    if (!shopId) {
+      return res.status(400).json({ message: 'Shop ID not found in user token.' });
+    }
+    
+    // Find all products for this shop (both with and without expiry dates)
+    const products = await Product.find({ 
+      shop: shopId
+    }).populate('category', 'name');
+    
+    // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
+    const sortedProducts = products.sort((a, b) => {
+      const today = new Date();
+      
+      // Items without expiry dates go last
+      if (!a.expiryDate && !b.expiryDate) return 0;
+      if (!a.expiryDate) return 1;  // a goes last
+      if (!b.expiryDate) return -1; // b goes last
+      
+      // Both have expiry dates - sort by expiry date (earliest first)
+      const aExpiry = new Date(a.expiryDate);
+      const bExpiry = new Date(b.expiryDate);
+      
+      // Calculate days remaining
+      const aDiffTime = aExpiry - today;
+      const aDiffDays = Math.ceil(aDiffTime / (1000 * 60 * 60 * 24));
+      
+      const bDiffTime = bExpiry - today;
+      const bDiffDays = Math.ceil(bDiffTime / (1000 * 60 * 60 * 24));
+      
+      // Items expiring soonest come first
+      return aDiffDays - bDiffDays;
+    });
+    
+    res.status(200).json(sortedProducts);
+  } catch (error) {
+    console.error('Error fetching shop expired products:', error);
+    res.status(500).json({ message: 'Failed to fetch expired products.', error: error.message });
+  }
+};
+
+// Get stock alert products for the logged-in shop
+exports.getShopStockAlerts = async (req, res) => {
+  try {
+    // Get shop ID from the authenticated user
+    const shopId = req.user.shopId;
+    
+    if (!shopId) {
+      return res.status(400).json({ message: 'Shop ID not found in user token.' });
+    }
+    
+    // Find products for this shop where stock level is less than or equal to alert threshold
+    const lowStockProducts = await Product.find({ 
+      shop: shopId,
+      $expr: { $lte: ['$stockLevel', '$stockAlertThreshold'] }
+    }).populate('category', 'name');
+    
+    res.status(200).json(lowStockProducts);
+  } catch (error) {
+    console.error('Error fetching shop stock alerts:', error);
+    res.status(500).json({ message: 'Failed to fetch stock alerts.', error: error.message });
+  }
+};
+
+exports.getShopExpiredProducts;

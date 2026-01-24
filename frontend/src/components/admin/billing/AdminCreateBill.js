@@ -76,6 +76,22 @@ function CreateBill({ baseUrl = '/admin' }) {
     discountAmount: 0
   });
 
+  // Helper functions for calculations
+  const calculateItemAmount = (quantity, price, discountPercent, discountAmount) => {
+    const grossAmount = (parseFloat(quantity) || 0) * price;
+    let discount = 0;
+    if (discountPercent > 0) {
+      discount = (grossAmount * discountPercent) / 100;
+    } else if (discountAmount > 0) {
+      discount = Math.min(discountAmount, grossAmount);
+    }
+    return grossAmount - discount;
+  };
+
+  const calculateItemTaxAmount = (quantity, price, gstPercentage) => {
+    return (parseFloat(quantity) || 0) * price * (gstPercentage / 100);
+  };
+
   // Calculation States
   const [billItems, setBillItems] = useState([]);
   const [subtotal, setSubtotal] = useState(0);
@@ -939,18 +955,28 @@ function CreateBill({ baseUrl = '/admin' }) {
                         </td>
                         <td className="p-1 border border-blue-200">
                             <div className="flex gap-1">
-                                <input placeholder="\%" className="w-1/2 bg-white border border-blue-200 text-center text-xs" value={currentItem.discountPercent || ''} onChange={e => setCurrentItem({...currentItem, discountPercent: e.target.value, discountAmount: 0})} />
-                                <input placeholder="₹" className="w-1/2 bg-white border border-blue-200 text-center text-xs" value={currentItem.discountAmount || ''} onChange={e => setCurrentItem({...currentItem, discountAmount: e.target.value, discountPercent: 0})} />
+                                <input 
+                                    placeholder="\%" 
+                                    className="w-1/2 bg-white border border-blue-200 text-center text-xs" 
+                                    value={currentItem.discountPercent || ''} 
+                                    onChange={e => setCurrentItem({...currentItem, discountPercent: parseFloat(e.target.value) || 0, discountAmount: 0})} 
+                                />
+                                <input 
+                                    placeholder="₹" 
+                                    className="w-1/2 bg-white border border-blue-200 text-center text-xs" 
+                                    value={currentItem.discountAmount || ''} 
+                                    onChange={e => setCurrentItem({...currentItem, discountAmount: parseFloat(e.target.value) || 0, discountPercent: 0})} 
+                                />
                             </div>
                         </td>
                         <td className="p-1 border border-blue-200">
                              <div className="flex items-center justify-between text-xs px-1">
                                 <span>GST@{gstPercentage}%</span>
-                                <span>{(currentItem.price * (parseFloat(currentItem.quantity)||0) * (gstPercentage/100)).toFixed(2)}</span>
+                                <span>{calculateItemTaxAmount(currentItem.rawInput || currentItem.quantity, currentItem.price, gstPercentage).toFixed(2)}</span>
                              </div>
                         </td>
                         <td className="p-2 border border-blue-200 text-right font-bold">
-                            {((parseFloat(currentItem.quantity) || 0) * currentItem.price).toFixed(2)}
+                            {calculateItemAmount(currentItem.rawInput || currentItem.quantity, currentItem.price, currentItem.discountPercent, currentItem.discountAmount).toFixed(2)}
                         </td>
                         <td className="p-1 border border-blue-200 text-center">
                             <button onClick={handleAddItem} className="text-blue-600 font-bold text-xl hover:scale-110 transition-transform" disabled={!currentItem.product}>+</button>
@@ -1045,11 +1071,11 @@ function CreateBill({ baseUrl = '/admin' }) {
                             <td className="p-2 border border-gray-200 text-xs text-right">
                                 <div className="flex justify-between">
                                     <span>{gstPercentage}%</span>
-                                    <span>{(item.price * item.quantity * (gstPercentage/100)).toFixed(2)}</span>
+                                    <span>{calculateItemTaxAmount(item.quantity, item.price, gstPercentage).toFixed(2)}</span>
                                 </div>
                             </td>
                             <td className="p-2 border border-gray-200 text-right font-bold">
-                                {(item.quantity * item.price).toFixed(2)}
+                                {calculateItemAmount(item.quantity, item.price, item.discountPercent, item.discountAmount).toFixed(2)}
                             </td>
                             <td className="p-2 border border-gray-200 text-center">
                                 <button 

@@ -12,6 +12,16 @@ exports.createDepartment = async (req, res) => {
         await newDepartment.save();
         res.status(201).json(newDepartment);
     } catch (error) {
+        // Check if the error is due to duplicate department name
+        if (error.code === 11000) {
+            // Extract the duplicate field from the error message
+            const duplicateField = Object.keys(error.keyPattern)[0];
+            if (duplicateField === 'name') {
+                return res.status(400).json({ 
+                    message: `Department with name "${name}" already exists in this scope.` 
+                });
+            }
+        }
         res.status(500).json({ message: 'Server Error' });
     }
 };

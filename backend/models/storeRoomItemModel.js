@@ -6,6 +6,7 @@ const storeRoomItemSchema = new mongoose.Schema({
   unit: { type: String, required: true },
   price: { type: Number, required: true },
   vendor: { type: String },
+  address: { type: String },
   stockAlertThreshold: { type: Number, default: 0 },
   expiryDate: { type: Date },
   usedByDate: { type: Date }

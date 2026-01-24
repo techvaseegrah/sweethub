@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 // --- MODIFIED: Add Product to Admin's Own Inventory ---
 exports.addProduct = async (req, res) => {
   // Destructure fields, removing 'shop'
-  const { name, category, sku, stockLevel, stockAlertThreshold, prices } = req.body;
+  const { name, category, sku, stockLevel, stockAlertThreshold, prices, expiryDate, usedByDate } = req.body;
   const adminId = req.user.id; // Get admin ID from authenticated user
 
   try {
@@ -64,6 +64,8 @@ exports.addProduct = async (req, res) => {
       stockLevel: parseFloat(stockLevel) || 0,
       stockAlertThreshold: parseFloat(stockAlertThreshold) || 0,
       prices, // Include the prices array
+      expiryDate: expiryDate ? new Date(expiryDate) : null,
+      usedByDate: usedByDate ? new Date(usedByDate) : null,
       admin: adminId, // Assign the admin's ID
     });
 
@@ -124,6 +126,12 @@ exports.updateProduct = async (req, res) => {
     }
     if (req.body.stockAlertThreshold !== undefined) {
       updateData.stockAlertThreshold = parseFloat(req.body.stockAlertThreshold);
+    }
+    if (req.body.expiryDate !== undefined) {
+      updateData.expiryDate = req.body.expiryDate ? new Date(req.body.expiryDate) : null;
+    }
+    if (req.body.usedByDate !== undefined) {
+      updateData.usedByDate = req.body.usedByDate ? new Date(req.body.usedByDate) : null;
     }
     
     const updatedProduct = await Product.findByIdAndUpdate(id, updateData, { new: true });
@@ -296,6 +304,45 @@ exports.getTotalStockAlertCount = async (req, res) => {
   }
 };
 
+// Get expired products for the logged-in admin
+exports.getExpiredProducts = async (req, res) => {
+    try {
+        // Find ALL products for the logged-in admin (both with and without expiry dates)
+        const products = await Product.find({ 
+            admin: req.user.id
+        }).populate('category', 'name');
+        
+        // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
+        const sortedProducts = products.sort((a, b) => {
+            const today = new Date();
+            
+            // Items without expiry dates go last
+            if (!a.expiryDate && !b.expiryDate) return 0;
+            if (!a.expiryDate) return 1;  // a goes last
+            if (!b.expiryDate) return -1; // b goes last
+            
+            // Both have expiry dates - sort by expiry date (earliest first)
+            const aExpiry = new Date(a.expiryDate);
+            const bExpiry = new Date(b.expiryDate);
+            
+            // Calculate days remaining
+            const aDiffTime = aExpiry - today;
+            const aDiffDays = Math.ceil(aDiffTime / (1000 * 60 * 60 * 24));
+            
+            const bDiffTime = bExpiry - today;
+            const bDiffDays = Math.ceil(bDiffTime / (1000 * 60 * 60 * 24));
+            
+            // Items expiring soonest come first
+            return aDiffDays - bDiffDays;
+        });
+        
+        res.json(sortedProducts);
+    } catch (error) {
+        console.error('Error in getExpiredProducts:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
 // Get all admin products for shop users to view (read-only)
 exports.getAllAdminProducts = async (req, res) => {
   try {
@@ -320,3 +367,5 @@ exports.getAllAdminProducts = async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 };
+
+exports.getExpiredProducts;

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { LuMenu } from 'react-icons/lu';
 import Sidebar from '../components/admin/Sidebar';
+import useAttendanceOnlyProtection from '../hooks/useAttendanceOnlyProtection';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import AddWorker from '../components/admin/worker/AddWorker';
 import ViewWorkers from '../components/admin/worker/ViewWorkers';
@@ -14,6 +15,7 @@ import ViewDepartments from '../components/admin/department/ViewDepartments';
 import AddCategory from '../components/admin/product/AddCategory';
 import AddProduct from '../components/admin/product/AddProduct';
 import ViewProducts from '../components/admin/product/ViewProducts';
+import ExpiredProducts from '../components/admin/product/ExpiredProducts';
 import ProductHistoryPage from '../components/admin/product/ProductHistoryPage';
 import TrackStock from '../components/admin/warehouse/TrackStock';
 import StockAlerts from '../components/admin/warehouse/StockAlerts';
@@ -27,6 +29,13 @@ import StoreRoom from '../components/admin/warehouse/StoreRoom';
 import Manufacturing from '../components/admin/warehouse/Manufacturing';
 import DailySchedule from '../components/admin/warehouse/DailySchedule';
 import OutgoingMaterials from '../components/admin/warehouse/OutgoingMaterials';
+import BeforePacking from '../components/admin/warehouse/BeforePacking';
+import AfterPacking from '../components/admin/warehouse/AfterPacking';
+import BeforePackingPendingItems from '../components/admin/warehouse/BeforePackingPendingItems';
+import BeforePackingCompletedItems from '../components/admin/warehouse/BeforePackingCompletedItems';
+import AfterPackingPendingItems from '../components/admin/warehouse/AfterPackingPendingItems';
+import AfterPackingCompletedItems from '../components/admin/warehouse/AfterPackingCompletedItems';
+import AfterPackingAddToStock from '../components/admin/warehouse/AfterPackingAddToStock';
 import MaterialStockAlerts from '../components/admin/warehouse/MaterialStockAlerts';
 import AlertPackingMaterials from '../components/admin/warehouse/AlertPackingMaterials';
 import OutgoingPackingMaterials from '../components/admin/warehouse/OutgoingPackingMaterials';
@@ -34,6 +43,7 @@ import ReturnProductsPage from './ReturnProductsPage';
 import ReturnProductsHistory from '../components/admin/warehouse/ReturnProductsHistory';
 import PackingMaterials from '../components/admin/warehouse/PackingMaterials';
 import RawMaterials from '../components/admin/warehouse/RawMaterials';
+import ExpiredMaterials from '../components/admin/warehouse/ExpiredMaterials';
 // Removed FaceServiceDiagnostic import
 import InvoiceHistory from '../components/admin/invoice/InvoiceHistory';
 import ProfitLossPage from './ProfitLossPage';
@@ -43,6 +53,7 @@ import Settings from '../components/admin/settings/Settings';
 import ExpenseDashboard from '../components/admin/expense/ExpenseDashboard';
 import AddExpense from '../components/admin/expense/AddExpense';
 import ExpenseHistory from '../components/admin/expense/ExpenseHistory';
+import EditExpense from '../components/admin/expense/EditExpense'; // Add this import
 // E-Way bill module imports
 import CreateEWayBill from '../components/admin/eway-bills/CreateEWayBill';
 import EWayBillsHistory from '../components/admin/eway-bills/EWayBillsHistory';
@@ -53,6 +64,9 @@ import { useFullScreenBill } from '../context/FullScreenBillContext';
 const AdminDashboardPage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { isFullScreenBill } = useFullScreenBill();
+    
+    // Apply attendance-only protection
+    useAttendanceOnlyProtection();
 
     const toggleSidebar = () => {
         setIsSidebarOpen(!isSidebarOpen);
@@ -117,6 +131,7 @@ const AdminDashboardPage = () => {
                         <Route path="products/add-category" element={<AddCategory />} />
                         <Route path="products/add" element={<AddProduct />} />
                         <Route path="products/view" element={<ViewProducts />} />
+                        <Route path="products/expired" element={<ExpiredProducts />} />
                         <Route path="products/history" element={<ProductHistoryPage />} />
                         <Route path="warehouse/track-stock" element={<TrackStock />} />
                         <Route path="warehouse/stock-alerts" element={<StockAlerts />} />
@@ -124,6 +139,14 @@ const AdminDashboardPage = () => {
                         <Route path="warehouse/manufacturing" element={<Manufacturing />} />
                         <Route path="warehouse/daily-schedule" element={<DailySchedule />} />
                         <Route path="warehouse/outgoing-materials" element={<OutgoingMaterials />} />
+                        <Route path="warehouse/before-packing" element={<BeforePacking />} />
+                        <Route path="warehouse/before-packing/pending-items" element={<BeforePackingPendingItems />} />
+                        <Route path="warehouse/before-packing/completed-items" element={<BeforePackingCompletedItems />} />
+                        <Route path="warehouse/after-packing" element={<AfterPacking />} />
+                        <Route path="warehouse/after-packing/pending-items" element={<AfterPackingPendingItems />} />
+                        <Route path="warehouse/after-packing/completed-items" element={<AfterPackingCompletedItems />} />
+                        <Route path="warehouse/after-packing/add-to-stock" element={<AfterPackingAddToStock />} />
+                        <Route path="warehouse/expired-materials" element={<ExpiredMaterials />} />
                         <Route path="warehouse/production-schedules" element={<ProductionSchedules />} /> {/* Add this route */}
                         <Route path="warehouse/material-stock-alerts" element={<MaterialStockAlerts />} />
                         <Route path="warehouse/packing-materials/alerts" element={<AlertPackingMaterials />} />
@@ -145,6 +168,7 @@ const AdminDashboardPage = () => {
                         {/* Expense module routes */}
                         <Route path="expenses" element={<ExpenseDashboard />} />
                         <Route path="expenses/add" element={<AddExpense />} />
+                        <Route path="expenses/edit/:id" element={<EditExpense />} /> {/* Add this route */}
                         <Route path="expenses/history" element={<ExpenseHistory />} />
                         {/* E-Way bill module routes */}
                         <Route path="eway-bills/create" element={<CreateEWayBill />} />

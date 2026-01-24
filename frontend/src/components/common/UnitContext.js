@@ -26,8 +26,8 @@ export const UnitProvider = ({ children }) => {
   const getBaseUrl = () => {
     if (authState?.role === 'shop') {
       return '/shop';
-    } else if (authState?.role === 'attendance-only') {
-      // Attendance-only users should not need units, return shop as default to avoid 403
+    } else if (authState?.role === 'attendance-only' || authState?.role === 'raw-materials-only' || authState?.role === 'before-packing-only' || authState?.role === 'after-packing-only') {
+      // Attendance-only and raw-materials-only users should not need units, return shop as default to avoid 403
       return '/shop';
     } else {
       return '/admin';
@@ -37,9 +37,9 @@ export const UnitProvider = ({ children }) => {
   // Fetch units from the backend
   const fetchUnits = useCallback(async () => {
     // Only fetch units if user is authenticated and has a role
-    // Attendance-only users don't need units, so skip fetching for them
-    if (!authState.token || !authState?.role || authState?.role === 'attendance-only') {
-      console.log('No authenticated user or attendance-only user, using default units');
+    // Attendance-only, raw-materials-only, and packing users don't need units, so skip fetching for them
+    if (!authState.token || !authState?.role || authState?.role === 'attendance-only' || authState?.role === 'raw-materials-only' || authState?.role === 'before-packing-only' || authState?.role === 'after-packing-only') {
+      console.log('Skipping units fetch for ' + (authState?.role || 'unauthenticated') + ' user, using default units');
       setUnits(defaultUnits);
       setLoading(false);
       return;

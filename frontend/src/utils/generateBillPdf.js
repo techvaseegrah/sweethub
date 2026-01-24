@@ -1,4 +1,5 @@
 import html2pdf from 'html2pdf.js';
+import { formatDateToDDMMYYYY } from './unitConversion';
 
 export const generateBillPdf = (billData, shopData) => {
   return generateBillPdfInternal(billData, shopData, false);
@@ -18,7 +19,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
   
   // Extract bill details
   const billId = billData?.billId || (billData?._id ? billData._id.slice(-8) : 'N/A');
-  const billDate = billData?.billDate ? new Date(billData.billDate).toLocaleDateString() : new Date().toLocaleDateString();
+  const billDate = billData?.billDate ? formatDateToDDMMYYYY(billData.billDate) : formatDateToDDMMYYYY(new Date().toISOString());
   const paymentMethod = billData?.paymentMethod || 'Cash';
   const customerName = billData?.customerName || 'Walk-in Customer';
   const customerMobile = billData?.customerMobileNumber || 'N/A';
@@ -55,10 +56,10 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
   // CHANGED: border-bottom style to dotted - only important lines
   const itemsHtml = billData.items.map((item, index) => `
     <tr style="font-size: 9px;">
-      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
-      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: center;">${item.quantity || 0}</td>
-      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
-      <td style="padding: 2px 3px; ${index < billData.items.length - 1 ? 'border-bottom: 1px dotted #000;' : ''} text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
+      <td style="padding: 2px 3px; text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
+      <td style="padding: 2px 3px; text-align: center;">${item.quantity || 0}</td>
+      <td style="padding: 2px 3px; text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+      <td style="padding: 2px 3px; text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -92,7 +93,6 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           text-align: center;
           margin-bottom: 8px;
           padding-bottom: 5px;
-          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
         }
         .shop-name {
           font-size: 12px;
@@ -124,8 +124,6 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         .from-to-info {
           margin: 8px 0;
           font-size: 9px;
-          border-top: 1px dotted #000;    /* CHANGED: dotted black */
-          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
           padding: 5px 0;
         }
         .from-to-section {
@@ -141,9 +139,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           font-size: 8px;
           text-align: left;
           padding: 2px 3px;
-          background-color: #fff; /* Removed gray bg for cleaner dotted look */
-          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
-          border-top: 1px dotted #000;    /* ADDED: dotted top for header symmetry */
+          background-color: #fff;
         }
         .items-table td {
           padding: 2px 3px;
@@ -159,8 +155,6 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         .total-row {
           font-size: 11px;
           font-weight: bold;
-          border-top: 1px dotted #000;    /* CHANGED: dotted black */
-          border-bottom: 1px dotted #000; /* CHANGED: dotted black */
         }
         .total-row td {
           padding: 4px 4px;
@@ -171,7 +165,6 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           font-size: 8px;
           color: #000;
           padding-top: 5px;
-          border-top: 1px dotted #000; /* CHANGED: dotted black */
         }
         @media print {
           body {
@@ -210,6 +203,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           ${shopGstNumber ? `<div class="shop-details">GSTIN: ${shopGstNumber}</div>` : ''}
           ${shopFssaiNumber ? `<div class="shop-details">FSSAI: ${shopFssaiNumber}</div>` : ''}
           <div class="shop-details">Phone: ${shopPhone}</div>
+          <div style="margin-top: 5px; border-top: 1px dotted #000;"></div>
         </div>
         
         <div class="bill-title">BILL</div>

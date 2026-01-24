@@ -10,6 +10,36 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
     return <Navigate to="/" replace />;
   }
 
+  // Special handling for attendance-only users - restrict to attendance module only
+  if (authState?.role === 'attendance-only') {
+    // Check if we're trying to access a route that's NOT the attendance module
+    const currentPath = window.location.pathname;
+    
+    // Check if the current path is for attendance
+    const isAdminAttendancePath = currentPath.startsWith('/admin/workers/attendance');
+    const isShopAttendancePath = currentPath.startsWith('/shop/workers/attendance');
+    
+    // If user is shop attendance-only but trying to access admin routes, redirect to shop attendance
+    if (authState.userType === 'shop' && currentPath.startsWith('/admin') && !isAdminAttendancePath) {
+      return <Navigate to="/shop/workers/attendance" replace />;
+    }
+    
+    // If user is admin attendance-only but trying to access shop routes, redirect to admin attendance
+    if (authState.userType !== 'shop' && currentPath.startsWith('/shop') && !isShopAttendancePath) {
+      return <Navigate to="/admin/workers/attendance" replace />;
+    }
+    
+    // If user is shop attendance-only and accessing shop section but not attendance
+    if (authState.userType === 'shop' && currentPath.startsWith('/shop/') && !isShopAttendancePath) {
+      return <Navigate to="/shop/workers/attendance" replace />;
+    }
+    
+    // If user is admin attendance-only and accessing admin section but not attendance
+    if (authState.userType !== 'shop' && currentPath.startsWith('/admin/') && !isAdminAttendancePath) {
+      return <Navigate to="/admin/workers/attendance" replace />;
+    }
+  }
+
   // If specific roles are required, check if user has one of them
   if (allowedRoles.length > 0) {
     if (!allowedRoles.includes(authState?.role)) {

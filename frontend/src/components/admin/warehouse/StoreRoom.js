@@ -15,6 +15,10 @@ const StoreRoom = () => {
     const [isVendorHistoryModalOpen, setIsVendorHistoryModalOpen] = useState(false);
     const [vendorHistory, setVendorHistory] = useState([]);
     const [vendorHistoryLoading, setVendorHistoryLoading] = useState(false);
+    
+    // Delete confirmation modal state
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
 
     const fetchItems = useCallback(async () => {
         setLoading(true);
@@ -34,16 +38,30 @@ const StoreRoom = () => {
         fetchItems();
     }, [fetchItems]);
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this item?')) {
-            try {
-                await axios.delete(`/admin/warehouse/store-room/${id}`);
-                fetchItems(); // Refresh the list
-            } catch (err) {
-                setError('Failed to delete item.');
-                console.error(err);
-            }
+    const handleDelete = (id) => {
+        const item = items.find(item => item._id === id);
+        setItemToDelete(item);
+        setIsDeleteModalOpen(true);
+    };
+    
+    const confirmDelete = async () => {
+        if (!itemToDelete) return;
+        
+        try {
+            await axios.delete(`/admin/warehouse/store-room/${itemToDelete._id}`);
+            fetchItems(); // Refresh the list
+            setIsDeleteModalOpen(false);
+            setItemToDelete(null);
+            setError('');
+        } catch (err) {
+            setError('Failed to delete item.');
+            console.error(err);
         }
+    };
+    
+    const cancelDelete = () => {
+        setIsDeleteModalOpen(false);
+        setItemToDelete(null);
     };
 
     const openEditModal = (item) => {
@@ -146,6 +164,7 @@ const StoreRoom = () => {
                             <th className="py-2 px-4 text-left">Unit</th>
                             <th className="py-2 px-4 text-left">Price (per unit)</th>
                             <th className="py-2 px-4 text-left">Vendor</th>
+                            <th className="py-2 px-4 text-left">Address</th>
                             <th className="py-2 px-4 text-left">Expiry Date</th>
                             <th className="py-2 px-4 text-left">Used By Date</th>
                             <th className="py-2 px-4 text-left">Stock Alert Threshold</th>
@@ -160,21 +179,22 @@ const StoreRoom = () => {
                                 <td className="border px-4 py-2">{item.unit}</td>
                                 <td className="border px-4 py-2">₹{item.price}</td>
                                 <td className="border px-4 py-2">{item.vendor || '-'}</td>
+                                <td className="border px-4 py-2">{item.address || '-'}</td>
                                 <td className="border px-4 py-2">{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : '-'}</td>
                                 <td className="border px-4 py-2">{item.usedByDate ? new Date(item.usedByDate).toLocaleDateString() : '-'}</td>
                                 <td className="border px-4 py-2">{item.stockAlertThreshold}</td>
                                 <td className="border px-4 py-2">
-                                    <button onClick={() => openEditModal(item)} className="text-blue-600 hover:text-blue-800 mr-3">
+                                    <button onClick={() => openEditModal(item)} className="text-blue-600 hover:text-blue-800 mr-3 p-1 rounded hover:bg-blue-50">
                                         <LuPencil />
                                     </button>
-                                    <button onClick={() => handleDelete(item._id)} className="text-red-600 hover:text-red-800">
+                                    <button onClick={() => handleDelete(item._id)} className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50">
                                         <LuTrash2 />
                                     </button>
                                 </td>
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="7" className="text-center py-4">No items found. Add items via the Raw Materials page.</td>
+                                <td colSpan="8" className="text-center py-4">No items found. Add items via the Raw Materials page.</td>
                             </tr>
                         )}
                     </tbody>
@@ -205,6 +225,10 @@ const StoreRoom = () => {
                             <div>
                                 <label className="block text-sm font-medium">Vendor</label>
                                 <input type="text" name="vendor" value={currentItem.vendor || ''} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Address</label>
+                                <input type="text" name="address" value={currentItem.address || ''} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Expiry Date</label>
@@ -303,6 +327,40 @@ const StoreRoom = () => {
                             >
                                 Close
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Delete Confirmation Modal */}
+            {isDeleteModalOpen && itemToDelete && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md mx-4">
+                        <div className="text-center">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Item</h3>
+                            <p className="text-gray-500 mb-6">
+                                Are you sure you want to delete <span className="font-semibold text-gray-700">{itemToDelete.name}</span>? 
+                                This action cannot be undone.
+                            </p>
+                            <div className="flex justify-center gap-3">
+                                <button
+                                    onClick={cancelDelete}
+                                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmDelete}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                                >
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

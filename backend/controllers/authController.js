@@ -83,6 +83,36 @@ exports.loginUser = async (req, res) => {
                 userType = 'admin';
             }
         }
+        // Handle raw-materials-only users
+        else if (user.role.name === 'raw-materials-only') {
+            // Determine user type (admin or shop) based on associated shop
+            if (user.shop) {
+                shopId = user.shop;
+                userType = 'shop';
+            } else {
+                userType = 'admin';
+            }
+        }
+        // Handle before-packing-only users
+        else if (user.role.name === 'before-packing-only') {
+            // Determine user type (admin or shop) based on associated shop
+            if (user.shop) {
+                shopId = user.shop;
+                userType = 'shop';
+            } else {
+                userType = 'admin';
+            }
+        }
+        // Handle after-packing-only users
+        else if (user.role.name === 'after-packing-only') {
+            // Determine user type (admin or shop) based on associated shop
+            if (user.shop) {
+                shopId = user.shop;
+                userType = 'shop';
+            } else {
+                userType = 'admin';
+            }
+        }
 
         // Add shopId to the token payload
         const token = jwt.sign(
@@ -98,8 +128,8 @@ exports.loginUser = async (req, res) => {
             token,
         };
         
-        // Include userType for attendance-only users
-        if (user.role.name === 'attendance-only') {
+        // Include userType for attendance-only, raw-materials-only, before-packing-only, and after-packing-only users
+        if (user.role.name === 'attendance-only' || user.role.name === 'raw-materials-only' || user.role.name === 'before-packing-only' || user.role.name === 'after-packing-only') {
             response.userType = userType;
         }
 

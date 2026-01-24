@@ -28,6 +28,9 @@ function CreateDepartment({ baseUrl = '/admin' }) {
     } catch (err) {
       if (!err?.response) {
         setError('No Server Response');
+      } else if (err.response?.status === 400 && err.response.data?.message) {
+        // Handle the specific duplicate department error from backend
+        setError(err.response.data.message);
       } else {
         setError('Failed to create department. Please check the form data.');
       }

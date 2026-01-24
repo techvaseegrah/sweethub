@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from '../../api/axios'; // Corrected import path - from shop folder to api folder
 import { LuX, LuPlus, LuTrash2, LuShoppingCart, LuPackage, LuCalendar, LuDollarSign, LuLoader } from 'react-icons/lu';
 import { formatDateToDDMMYYYY } from '../../utils/unitConversion';
+import KeyboardShortcutsGuide from './billing/KeyboardShortcutsGuide'; // Import the keyboard shortcuts guide
 
 function ShopOrderManagement() {
   const [products, setProducts] = useState([]);
@@ -14,6 +15,7 @@ function ShopOrderManagement() {
   
   // UI States
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showStockAlertDropdown, setShowStockAlertDropdown] = useState(false);
   const [selectedProductIndex, setSelectedProductIndex] = useState(-1);
   
   // Current item state
@@ -29,7 +31,27 @@ function ShopOrderManagement() {
   
   // Refs
   const productSearchRef = useRef(null);
+  const stockAlertDropdownRef = useRef(null);
+  
+  // Handle clicks outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (productSearchRef.current && !productSearchRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+      if (stockAlertDropdownRef.current && !stockAlertDropdownRef.current.contains(event.target)) {
+        setShowStockAlertDropdown(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
+  const [stockAlertProducts, setStockAlertProducts] = useState([]);
+  
   // Load products for the shop
   useEffect(() => {
     const fetchProducts = async () => {
@@ -50,7 +72,21 @@ function ShopOrderManagement() {
 
     fetchProducts();
   }, []);
-
+  
+  // Load stock alert products
+  useEffect(() => {
+    const fetchStockAlertProducts = async () => {
+      try {
+        const response = await axios.get('/shop/products/stock-alerts');
+        setStockAlertProducts(response.data);
+      } catch (err) {
+        console.error('Error fetching stock alert products:', err);
+      }
+    };
+    
+    fetchStockAlertProducts();
+  }, []);
+  
   const filteredProducts = useMemo(() => {
     if (!searchTerm) return products;
     return products.filter(p =>
@@ -58,10 +94,86 @@ function ShopOrderManagement() {
       p.sku.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [searchTerm, products]);
+  
+  // Keyboard shortcuts functionality
+  useEffect(() => {
+    const handleKey = (e) => {
+      // Ctrl + Enter to submit order
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        if (orderItems.length > 0 && !isSubmitting) {
+          handleSubmitOrder();
+        }
+      }
+      
+      // Ctrl + N to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        productSearchRef.current?.focus();
+      }
+      
+      // Ctrl + F to focus search (alternative)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        productSearchRef.current?.focus();
+      }
+      
+      // Escape to close dropdowns
+      if (e.key === 'Escape') {
+        setShowDropdown(false);
+        setShowStockAlertDropdown(false);
+        setSelectedProductIndex(-1);
+      }
+      
+      // Arrow navigation in product dropdown
+      if (showDropdown) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedProductIndex(p => p < filteredProducts.length - 1 ? p + 1 : 0);
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedProductIndex(p => p > 0 ? p - 1 : filteredProducts.length - 1);
+        }
+        if (e.key === 'Enter' && selectedProductIndex >= 0) {
+          e.preventDefault();
+          handleSelectProduct(filteredProducts[selectedProductIndex]);
+        }
+      }
+      
+      // Enter to add item when quantity is filled
+      if (e.key === 'Enter' && currentItem.product && currentItem.quantity && document.activeElement === productSearchRef.current) {
+        handleAddItem();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [showDropdown, filteredProducts, selectedProductIndex, currentItem, orderItems, isSubmitting]);
 
   const handleSelectProduct = (product) => {
     setSearchTerm(`${product.name}`);
     setShowDropdown(false);
+    
+    if (product.prices && product.prices.length > 0) {
+      setCurrentItem({
+        product,
+        unit: product.prices[0].unit,
+        quantity: '',
+        price: product.prices[0].sellingPrice,
+        productName: product.name,
+        sku: product.sku,
+        rawInput: ''
+      });
+      setError('');
+    } else {
+      setError(`Product "${product.name}" has no purchase rates.`);
+    }
+  };
+  
+  const handleSelectStockAlertProduct = (product) => {
+    setSearchTerm(`${product.name}`);
+    setShowStockAlertDropdown(false);
     
     if (product.prices && product.prices.length > 0) {
       setCurrentItem({
@@ -275,7 +387,10 @@ function ShopOrderManagement() {
           </div>
         </div>
       </div>
-
+            
+      {/* Keyboard Shortcuts Guide */}
+      <KeyboardShortcutsGuide context="order" />
+            
       {/* Main Table Area */}
       <div className="flex-1 bg-white p-2">
         <table className="w-full border-collapse border border-gray-200">
@@ -297,15 +412,27 @@ function ShopOrderManagement() {
             <tr className="bg-blue-50">
               <td className="p-2 border border-blue-200 text-center text-blue-500 font-bold">⚡</td>
               <td className="p-2 border border-blue-200 relative">
-                <input 
-                  ref={productSearchRef}
-                  type="text" 
-                  className="w-full bg-transparent outline-none placeholder-blue-400 font-medium"
-                  placeholder="Scan/Search Item..."
-                  value={searchTerm}
-                  onChange={handleSearchChange}
-                  onFocus={() => searchTerm && setShowDropdown(true)}
-                />
+                <div className="flex gap-2">
+                  <input 
+                    ref={productSearchRef}
+                    type="text" 
+                    className="flex-1 bg-transparent outline-none placeholder-blue-400 font-medium"
+                    placeholder="Scan/Search Item..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    onFocus={() => searchTerm && setShowDropdown(true)}
+                  />
+                  <button 
+                    type="button"
+                    className="px-3 py-2 bg-yellow-100 text-yellow-800 rounded border border-yellow-300 hover:bg-yellow-200 text-sm font-medium"
+                    onClick={() => {
+                      setShowStockAlertDropdown(!showStockAlertDropdown);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    Stock Alerts
+                  </button>
+                </div>
                 {showDropdown && (
                   <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
                     {filteredProducts.map((p, i) => (
@@ -320,6 +447,26 @@ function ShopOrderManagement() {
                     ))}
                   </ul>
                 )}
+                <div ref={stockAlertDropdownRef}>
+                  {showStockAlertDropdown && (
+                    <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                      {stockAlertProducts.length > 0 ? (
+                        stockAlertProducts.map((p, i) => (
+                          <li 
+                            key={p._id} 
+                            className={`p-2 cursor-pointer border-b flex justify-between hover:bg-gray-50`}
+                            onClick={() => handleSelectStockAlertProduct(p)}
+                          >
+                            <span>{p.name} <small className="text-gray-400">({p.sku})</small></span>
+                            <span className="font-bold text-red-600">⚠️ Low: {p.stockLevel}</span>
+                          </li>
+                        ))
+                      ) : (
+                        <li className="p-2 text-gray-500 text-center">No stock alerts</li>
+                      )}
+                    </ul>
+                  )}
+                </div>
               </td>
               <td className="p-1 border border-blue-200">
                 <input 
@@ -346,7 +493,7 @@ function ShopOrderManagement() {
                 {currentItem.price || 0}
               </td>
               <td className="p-2 border border-blue-200 text-right font-bold">
-                {((parseFloat(currentItem.quantity) || 0) * (currentItem.price || 0)).toFixed(2)}
+                {((parseFloat(currentItem.rawInput || currentItem.quantity) || 0) * (currentItem.price || 0)).toFixed(2)}
               </td>
               <td className="p-1 border border-blue-200 text-center">
                 <button 

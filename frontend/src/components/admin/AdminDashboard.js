@@ -13,7 +13,8 @@ import {
     LuTrendingUp, 
     LuTriangleAlert, 
     LuActivity,
-    LuDollarSign
+    LuDollarSign,
+    LuChartBar
 } from 'react-icons/lu';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
 
@@ -272,32 +273,70 @@ const AdminDashboard = () => {
                 <p className="text-2xl font-bold text-blue-700">₹{revenueData.consolidated.netProfit.toLocaleString()}</p>
               </div>
             </div>
-            <h4 className="text-base font-semibold text-gray-700 mt-6 mb-2">Breakdown by Shop</h4>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Shop</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Revenue</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Expenses</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net P&L</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Margin %</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {revenueData.shopData.map((shop) => (
-                    <tr key={shop.shopId || 'admin'}>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{shop.shopName}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">₹{shop.revenue.totalBillingProfit.toLocaleString()}</td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">₹{shop.expenses.totalExpenses.toLocaleString()}</td>
-                      <td className={`px-4 py-2 whitespace-nowrap text-sm text-right font-medium ${shop.profitability.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ₹{Math.abs(shop.profitability.netProfit).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600 text-right">{shop.profitability.profitMargin.toFixed(2)}%</td>
+            <h4 className="text-lg font-semibold text-gray-800 mt-6 mb-4 flex items-center">
+              <LuChartBar className="w-5 h-5 mr-2 text-blue-600" />
+              Breakdown by Shop
+            </h4>
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shop</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Expenses</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Net P&L</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Margin %</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {revenueData.shopData.map((shop) => {
+                      const indicator = shop.profitability.netProfit >= 0 ? 
+                        { color: 'text-green-600', bgColor: 'bg-green-50' } : 
+                        { color: 'text-red-600', bgColor: 'bg-red-50' };
+                      
+                      return (
+                        <tr key={shop.shopId || 'admin'} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className={`flex-shrink-0 h-10 w-10 rounded-full ${indicator.bgColor} flex items-center justify-center`}>
+                                <span className="text-sm font-medium text-gray-700">
+                                  {shop.shopName.charAt(0)}
+                                </span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">{shop.shopName}</div>
+                                {shop.location && (
+                                  <div className="text-sm text-gray-500">{shop.location}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm text-gray-900 font-medium">₹{shop.revenue.totalBillingProfit.toLocaleString()}</div>
+                            <div className="text-xs text-gray-500">{shop.revenue.totalBills} bills</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm text-gray-900 font-medium">₹{shop.expenses.totalExpenses.toLocaleString()}</div>
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-right font-medium ${indicator.color}`}>
+                            <div className="flex items-center justify-end">
+                              <span>₹{Math.abs(shop.profitability.netProfit).toLocaleString()}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              shop.profitability.profitMargin >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {shop.profitability.profitMargin.toFixed(2)}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

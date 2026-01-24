@@ -28,6 +28,12 @@ const Manufacturing = () => {
     // Add state for search and filter functionality
     const [searchTerm, setSearchTerm] = useState('');
     const [allProducts, setAllProducts] = useState([]); // Store all products from View Products
+    
+    // Worker-related state variables
+    const [workers, setWorkers] = useState([]);
+    const [showWorkerSelection, setShowWorkerSelection] = useState(false);
+    const [workerSearchTerm, setWorkerSearchTerm] = useState('');
+    const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
 
     // State for the modal and form
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,6 +48,7 @@ const Manufacturing = () => {
         unit: '',     // For the output sweet product
         expireDate: '', // New field
         usedByDate: '', // New field
+        createdByWorker: null,
     });
     const [formSubmitting, setFormSubmitting] = useState(false); // To prevent multiple submissions
 
@@ -86,6 +93,19 @@ const Manufacturing = () => {
             }
         };
         fetchAllProducts();
+    }, []);
+
+    // Fetch all workers
+    useEffect(() => {
+        const fetchWorkers = async () => {
+            try {
+                const response = await axios.get('/admin/workers');
+                setWorkers(response.data);
+            } catch (error) {
+                console.error('Error fetching workers:', error);
+            }
+        };
+        fetchWorkers();
     }, []);
 
     // Filter processes based on search term
@@ -143,6 +163,7 @@ const Manufacturing = () => {
             unit: '',
             expireDate: '',
             usedByDate: '',
+            createdByWorker: null,
         });
         setIsEditing(false);
         setIsModalOpen(true);
@@ -159,27 +180,47 @@ const Manufacturing = () => {
             quantity: process.quantity?.toString() || '',
             price: process.price?.toString() || '',
             unit: process.unit || '',
-            expireDate: process.expireDate ? new Date(process.expireDate).toISOString().split('T')[0] : '',
-            usedByDate: process.usedByDate ? new Date(process.usedByDate).toISOString().split('T')[0] : '',
+            expireDate: process.expiryDays || '',
+            usedByDate: process.usedByDays || '',
+            createdByWorker: process.createdByWorker?._id || null,
         });
         setIsEditing(true);
         setIsModalOpen(true);
     };
 
+    // State for delete confirmation modal
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [processToDelete, setProcessToDelete] = useState(null);
+    
     // Function to delete a process
     const deleteProcess = async (id) => {
-        if (!window.confirm('Are you sure you want to delete this manufacturing process?')) {
-            return;
-        }
+        const process = processes.find(p => p._id === id);
+        setProcessToDelete(process);
+        setShowDeleteModal(true);
+    };
+    
+    // Function to confirm deletion
+    const confirmDelete = async () => {
+        if (!processToDelete) return;
         
         try {
-            await axios.delete(`/admin/warehouse/manufacturing/${id}`);
+            await axios.delete(`/admin/warehouse/manufacturing/${processToDelete._id}`);
             setMessage('Process deleted successfully');
             fetchProcesses();
+            setShowDeleteModal(false);
+            setProcessToDelete(null);
         } catch (err) {
             console.error('Failed to delete the process:', err);
             setError(err.response?.data?.message || 'Failed to delete the process.');
+            setShowDeleteModal(false);
+            setProcessToDelete(null);
         }
+    };
+    
+    // Function to cancel deletion
+    const cancelDelete = () => {
+        setShowDeleteModal(false);
+        setProcessToDelete(null);
     };
 
     // Function to submit the form
@@ -213,8 +254,9 @@ const Manufacturing = () => {
                 quantity: parseFloat(currentProcess.quantity),
                 price: parseFloat(currentProcess.price),
                 unit: currentProcess.unit,
-                expireDate: currentProcess.expireDate || undefined,
-                usedByDate: currentProcess.usedByDate || undefined
+                expiryDays: currentProcess.expireDate ? parseInt(currentProcess.expireDate) : undefined,
+                usedByDays: currentProcess.usedByDate ? parseInt(currentProcess.usedByDate) : undefined,
+                createdByWorker: currentProcess.createdByWorker
             };
 
             let response;
@@ -237,6 +279,7 @@ const Manufacturing = () => {
                 unit: '',
                 expireDate: '',
                 usedByDate: '',
+                createdByWorker: null,
             });
         } catch (err) {
             console.error('Error saving the process:', err);
@@ -337,8 +380,9 @@ const Manufacturing = () => {
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Quantity</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Price</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Unit</th>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Expire Date</th>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Used By Date</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Expiry Days</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Use-by Days</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Created By</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Actions</th>
                             </tr>
                         </thead>
@@ -360,8 +404,9 @@ const Manufacturing = () => {
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.quantity} {process.unit}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">₹{process.price}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.unit}</td>
-                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.expireDate)}</td>
-                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.usedByDate)}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-700">{process.expiryDays || '-'}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-700">{process.usedByDays || '-'}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-700">{process.createdByWorker?.name || '-'}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">
                                         <button
                                             onClick={() => editProcess(process)}
@@ -453,29 +498,118 @@ const Manufacturing = () => {
                                 </div>
                             </div>
 
-                            {/* New Date Fields */}
+                            {/* New Date Fields - Expiry Days and Use-by Days */}
                             <h3 className="text-lg font-semibold mb-3 mt-6 text-gray-800">Date Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Expire Date</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Days</label>
                                     <input
-                                        type="date"
+                                        type="number"
                                         name="expireDate"
                                         value={currentProcess.expireDate}
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
+                                        min="0"
+                                        placeholder="e.g., 30"
                                     />
+                                    <p className="text-xs text-gray-500 mt-1">Number of days until expiry</p>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Used By Date</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Use-by Days</label>
                                     <input
-                                        type="date"
+                                        type="number"
                                         name="usedByDate"
                                         value={currentProcess.usedByDate}
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
+                                        min="0"
+                                        placeholder="e.g., 15"
                                     />
+                                    <p className="text-xs text-gray-500 mt-1">Number of days until use-by date</p>
                                 </div>
+                            </div>
+
+                            {/* Worker Selection Section */}
+                            <div className="mb-4">
+                                <div className="flex items-center mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 mr-3">Assign Worker</label>
+                                    <div className="flex items-center">
+                                        <span className="mr-2 text-sm text-gray-600">No</span>
+                                        <label className="inline-flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={showWorkerSelection}
+                                                onChange={(e) => {
+                                                    setShowWorkerSelection(e.target.checked);
+                                                    if (!e.target.checked) {
+                                                        setCurrentProcess(prev => ({
+                                                            ...prev,
+                                                            createdByWorker: null
+                                                        }));
+                                                    }
+                                                }}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        </label>
+                                        <span className="ml-2 text-sm text-gray-600">Yes</span>
+                                    </div>
+                                </div>
+                                
+                                {showWorkerSelection && (
+                                    <div className="mt-2 relative">
+                                        <input
+                                            type="text"
+                                            placeholder="Select Worker (Optional)"
+                                            className="w-full p-2 border rounded text-sm"
+                                            value={workers.find(w => w._id === currentProcess.createdByWorker)?.name || workerSearchTerm}
+                                            onChange={(e) => {
+                                                setWorkerSearchTerm(e.target.value);
+                                                setShowWorkerDropdown(true);
+                                                if (e.target.value === '') {
+                                                    setCurrentProcess(prev => ({
+                                                        ...prev,
+                                                        createdByWorker: null
+                                                    }));
+                                                }
+                                            }}
+                                            onFocus={() => {
+                                                setWorkerSearchTerm('');
+                                                setShowWorkerDropdown(true);
+                                            }}
+                                            onBlur={() => {
+                                                setTimeout(() => {
+                                                    setShowWorkerDropdown(false);
+                                                }, 200);
+                                            }}
+                                        />
+                                        {showWorkerDropdown && (
+                                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                                {workers
+                                                    .filter(worker => 
+                                                        worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
+                                                    )
+                                                    .map(worker => (
+                                                        <div
+                                                            key={worker._id}
+                                                            className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
+                                                            onClick={() => {
+                                                                setCurrentProcess(prev => ({
+                                                                    ...prev,
+                                                                    createdByWorker: worker._id
+                                                                }));
+                                                                setWorkerSearchTerm('');
+                                                                setShowWorkerDropdown(false);
+                                                            }}
+                                                        >
+                                                            {worker.name}
+                                                        </div>
+                                                    ))
+                                                }
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             <h3 className="text-lg font-semibold mb-3 mt-6 text-gray-800">Ingredients</h3>
@@ -580,6 +714,36 @@ const Manufacturing = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+            
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Confirm Deletion</h3>
+                        <p className="text-gray-600 mb-2">
+                            Are you sure you want to delete the manufacturing process "<strong>{processToDelete?.sweetName}</strong>"?
+                        </p>
+                        <p className="text-gray-600 mb-6">This action cannot be undone.</p>
+                        
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={cancelDelete}
+                                className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDelete}
+                                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                            >
+                                Delete
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

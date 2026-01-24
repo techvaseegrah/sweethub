@@ -123,7 +123,14 @@ function ViewProducts({ baseUrl = '/admin' }) {
   };
 
   const handleInputChange = (e, field) => {
-    setEditedProduct({ ...editedProduct, [field]: e.target.value });
+    let value = e.target.value;
+    
+    // Handle date fields - convert to Date object if not empty
+    if (field === 'expiryDate' || field === 'usedByDate') {
+      value = value ? new Date(value) : null;
+    }
+    
+    setEditedProduct({ ...editedProduct, [field]: value });
   };
 
   const handlePriceChange = (index, field, value) => {
@@ -172,14 +179,16 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
   const confirmUpdate = async () => {
     try {
-      // Prepare the update payload, ensuring prices are properly formatted as numbers
+      // Prepare the update payload, ensuring prices are properly formatted as numbers and dates are properly handled
       const updatePayload = {
         ...editedProduct,
         prices: editedProduct.prices.map(price => ({
           unit: price.unit,
           netPrice: parseFloat(price.netPrice),
           sellingPrice: parseFloat(price.sellingPrice)
-        }))
+        })),
+        expiryDate: editedProduct.expiryDate ? new Date(editedProduct.expiryDate).toISOString() : null,
+        usedByDate: editedProduct.usedByDate ? new Date(editedProduct.usedByDate).toISOString() : null
       };
       
       let requestPromise;
@@ -365,6 +374,8 @@ function ViewProducts({ baseUrl = '/admin' }) {
                 <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                 <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Price</th>
                 <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sell Price</th>
+                <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry Date</th>
+                <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Used By Date</th>
                 <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                 <th className="px-2 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -399,6 +410,12 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   </td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
                     ₹{product.sellingPrice}
+                  </td>
+                  <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('en-GB') : 'N/A'}
+                  </td>
+                  <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {product.usedByDate ? new Date(product.usedByDate).toLocaleDateString('en-GB') : 'N/A'}
                   </td>
                   <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {product.category ? (typeof product.category === 'object' ? product.category.name : 
@@ -557,6 +574,28 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
                   readOnly={false}
                 />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Expiry Date (dd-mm-yyyy)</label>
+                  <input
+                    type="date"
+                    value={editedProduct.expiryDate ? new Date(editedProduct.expiryDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => handleInputChange(e, 'expiryDate')}
+                    className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                    readOnly={false}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Used By Date (dd-mm-yyyy)</label>
+                  <input
+                    type="date"
+                    value={editedProduct.usedByDate ? new Date(editedProduct.usedByDate).toISOString().split('T')[0] : ''}
+                    onChange={(e) => handleInputChange(e, 'usedByDate')}
+                    className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                    readOnly={false}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Category</label>

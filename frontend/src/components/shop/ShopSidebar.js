@@ -191,11 +191,8 @@ function ShopSidebar() {
       try {
         // Only fetch if not an attendance-only user
         if (authState?.role !== 'attendance-only') {
-          const response = await axios.get('/shop/products');
-          const lowStock = response.data.filter(
-            (product) => product.stockLevel <= (product.stockAlertThreshold || 0)
-          );
-          setLowStockCount(lowStock.length);
+          const response = await axios.get('/shop/products/stock-alerts');
+          setLowStockCount(response.data.length);
         }
       } catch (err) {
         console.error('Failed to fetch low stock count:', err);
@@ -347,7 +344,6 @@ function ShopSidebar() {
         </NavLink>
         )}
 
-        {authState?.role !== 'attendance-only' && (
         <details className="group">
           <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
             <div className="flex items-center">
@@ -357,27 +353,36 @@ function ShopSidebar() {
             <LuChevronRight className="w-4 h-4 text-gray-400" />
           </summary>
            <nav className="mt-1 ml-6 space-y-1">
+             {authState?.role !== 'attendance-only' && (
              <NavLink to="/shop/workers/add" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">Add Worker</span>
               </NavLink>
+              )}
+              {authState?.role !== 'attendance-only' && (
               <NavLink to="/shop/workers/view" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">View Workers</span>
               </NavLink>
+              )}
               <NavLink to="/shop/workers/attendance" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">Attendance Tracking</span>
               </NavLink>
+              {authState?.role !== 'attendance-only' && (
               <NavLink to="/shop/workers/salary-report" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">Salary Report</span>
               </NavLink>
+              )}
+              {authState?.role !== 'attendance-only' && (
               <NavLink to="/shop/workers/holidays" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">Holidays</span>
               </NavLink>
+              )}
+              {authState?.role !== 'attendance-only' && (
               <NavLink to="/shop/face-enrollment" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">Face Enrollment</span>
               </NavLink>
+              )}
            </nav>
         </details>
-        )}
 
         {authState?.role !== 'attendance-only' && (
         <details className="group">
@@ -424,6 +429,9 @@ function ShopSidebar() {
             </NavLink>
             <NavLink to="/shop/products/view" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
               <span className="font-medium">View Products</span>
+            </NavLink>
+            <NavLink to="/shop/products/expired" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+              <span className="font-medium">Expire Materials</span>
             </NavLink>
             <NavLink to="/shop/warehouse/stock" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${ isActive ? activeRed : `${textSecondary} ${hoverBg}` }`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
               <span className="font-medium">Track Stock</span>

@@ -8,11 +8,13 @@ const ReturnProduct = require('../../models/returnProductModel');
 const VendorHistory = require('../../models/vendorHistoryModel');
 const DailySchedule = require('../../models/dailyScheduleModel');
 const Product = require('../../models/productModel');
+const BeforePacking = require('../../models/beforePackingModel');
+const AfterPacking = require('../../models/afterPackingModel');
 
 // Raw Materials / Store Room
 const addRawMaterial = async (req, res) => {
     try {
-        const { name, quantity, unit, price, vendor, expiryDate, usedByDate } = req.body;
+        const { name, quantity, unit, price, vendor, address, expiryDate, usedByDate } = req.body;
         // Find item case-insensitively and trim whitespace
         let item = await StoreRoomItem.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } });
 
@@ -34,12 +36,14 @@ const addRawMaterial = async (req, res) => {
             if (unit) item.unit = unit; // Update unit if provided
             // Only update vendor if provided (keep existing vendor if not provided)
             if (vendor) item.vendor = vendor; 
+            // Update address if provided
+            if (address) item.address = address;
             // Update expiry and used by dates if provided
             if (expiryDate) item.expiryDate = new Date(expiryDate);
             if (usedByDate) item.usedByDate = new Date(usedByDate);
         } else {
             // Otherwise, create a new item
-            item = new StoreRoomItem({ name, quantity, unit, price, vendor, expiryDate: expiryDate ? new Date(expiryDate) : undefined, usedByDate: usedByDate ? new Date(usedByDate) : undefined });
+            item = new StoreRoomItem({ name, quantity, unit, price, vendor, address, expiryDate: expiryDate ? new Date(expiryDate) : undefined, usedByDate: usedByDate ? new Date(usedByDate) : undefined });
         }
         await item.save();
         res.status(201).json(item);
@@ -175,6 +179,41 @@ const getStoreRoomItems = async (req, res) => {
         res.json(items);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+const getExpiredMaterials = async (req, res) => {
+    try {
+        // Find ALL store room items
+        const items = await StoreRoomItem.find();
+        
+        // Sort items: first expired/near expiry items (by expiry date), then items without expiry dates
+        const sortedItems = items.sort((a, b) => {
+            const today = new Date();
+            
+            // Items without expiry dates go last
+            if (!a.expiryDate && !b.expiryDate) return 0;
+            if (!a.expiryDate) return 1;  // a goes last
+            if (!b.expiryDate) return -1; // b goes last
+            
+            // Both have expiry dates - sort by expiry date (earliest first)
+            const aExpiry = new Date(a.expiryDate);
+            const bExpiry = new Date(b.expiryDate);
+            
+            // Calculate days remaining
+            const aDiffTime = aExpiry - today;
+            const aDiffDays = Math.ceil(aDiffTime / (1000 * 60 * 60 * 24));
+            
+            const bDiffTime = bExpiry - today;
+            const bDiffDays = Math.ceil(bDiffTime / (1000 * 60 * 60 * 24));
+            
+            // Items expiring soonest come first
+            return aDiffDays - bDiffDays;
+        });
+        
+        res.json(sortedItems);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
 
@@ -335,25 +374,25 @@ const getAllVendorHistory = async (req, res) => {
 const addManufacturingProcess = async (req, res) => {
     try {
         // Now expecting ingredients to be an array of objects
-        const { sweetName, ingredients, quantity, price, unit } = req.body; 
-
+        const { sweetName, ingredients, quantity, price, unit, createdByWorker, expiryDays, usedByDays } = req.body;
+        
         // Validate required fields for manufacturing, including checking if ingredients is a non-empty array
         if (!sweetName || !quantity || !price || !unit || !Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ message: 'Please provide sweet name, quantity, price, unit, and at least one ingredient with its details.' });
         }
-
+        
         // Validate each ingredient object
         for (const ingredient of ingredients) {
             if (!ingredient.name || !ingredient.quantity || !ingredient.unit || !ingredient.price) {
                 return res.status(400).json({ message: 'Each ingredient must have a name, quantity, unit, and price.' });
             }
         }
-
+        
         // Check if the product exists in the products collection
         let product = await Product.findOne({ 
             name: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } 
         });
-
+        
         // If product doesn't exist, create it with minimal information
         if (!product) {
             product = new Product({
@@ -370,18 +409,30 @@ const addManufacturingProcess = async (req, res) => {
             });
             await product.save();
         }
-
+        
         let process = await Manufacturing.findOne({ sweetName: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } });
-
+        
         if (process) {
             // If it exists, update all fields, including the ingredients array
             process.ingredients = ingredients;
             process.quantity = quantity;
             process.price = price;
             process.unit = unit;
+            process.expiryDays = expiryDays ? parseInt(expiryDays) : undefined;
+            process.usedByDays = usedByDays ? parseInt(usedByDays) : undefined;
+            process.createdByWorker = createdByWorker || process.createdByWorker; // Update worker if provided, otherwise keep existing
         } else {
             // If it doesn't exist, create a new one with all fields
-            process = new Manufacturing({ sweetName, ingredients, quantity, price, unit });
+            process = new Manufacturing({ 
+                sweetName, 
+                ingredients, 
+                quantity, 
+                price, 
+                unit, 
+                expiryDays: expiryDays ? parseInt(expiryDays) : undefined,
+                usedByDays: usedByDays ? parseInt(usedByDays) : undefined,
+                createdByWorker 
+            });
         }
         
         await process.save();
@@ -394,7 +445,7 @@ const addManufacturingProcess = async (req, res) => {
 
 const getAllManufacturingProcesses = async (req, res) => {
     try {
-        const processes = await Manufacturing.find({}); // This will now fetch structured ingredients
+        const processes = await Manufacturing.find({}).populate('createdByWorker', 'name'); // This will now fetch structured ingredients and worker info
         res.json(processes);
     } catch (error) {
         console.error('Error fetching manufacturing processes:', error); 
@@ -405,7 +456,7 @@ const getAllManufacturingProcesses = async (req, res) => {
 const getManufacturingProcessByName = async (req, res) => {
     try {
         const { sweetName } = req.params;
-        const process = await Manufacturing.findOne({ sweetName }); 
+        const process = await Manufacturing.findOne({ sweetName }).populate('createdByWorker', 'name'); 
         if (!process) {
             return res.status(404).json({ message: 'Process not found' });
         }
@@ -421,25 +472,25 @@ const updateManufacturingProcess = async (req, res) => {
     try {
         const { id } = req.params;
         // Now expecting ingredients to be an array of objects
-        const { sweetName, ingredients, quantity, price, unit } = req.body; 
-
+        const { sweetName, ingredients, quantity, price, unit, createdByWorker, expiryDays, usedByDays } = req.body;
+        
         // Validate required fields for manufacturing update
         if (!sweetName || !quantity || !price || !unit || !Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ message: 'Please provide sweet name, quantity, price, unit, and at least one ingredient with its details for update.' });
         }
-
+        
         // Validate each ingredient object
         for (const ingredient of ingredients) {
             if (!ingredient.name || !ingredient.quantity || !ingredient.unit || !ingredient.price) {
                 return res.status(400).json({ message: 'Each ingredient must have a name, quantity, unit, and price for update.' });
             }
         }
-
+        
         // Check if the product exists in the products collection
         let product = await Product.findOne({ 
             name: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } 
         });
-
+        
         // If product doesn't exist, create it with minimal information
         if (!product) {
             product = new Product({
@@ -474,10 +525,24 @@ const updateManufacturingProcess = async (req, res) => {
             }
             await product.save();
         }
+        
+        const updateFields = { 
+            sweetName, 
+            ingredients, 
+            quantity, 
+            price, 
+            unit,
+            expiryDays: expiryDays !== undefined ? parseInt(expiryDays) : undefined,
+            usedByDays: usedByDays !== undefined ? parseInt(usedByDays) : undefined
+        };
+        // Only include createdByWorker in update if it was provided in the request
+        if (createdByWorker !== undefined) {
+            updateFields.createdByWorker = createdByWorker;
+        }
 
         const updatedProcess = await Manufacturing.findByIdAndUpdate(
             id, 
-            { sweetName, ingredients, quantity, price, unit }, // Include all fields in update
+            updateFields, // Include all fields in update
             { new: true, runValidators: true }
         );
         if (!updatedProcess) {
@@ -871,6 +936,338 @@ const updateDailyScheduleStatus = async (req, res) => {
     }
 };
 
+// Before Packing Functions
+const getBeforePackingItems = async (req, res) => {
+    try {
+        const items = await BeforePacking.find().sort({ date: -1, createdAt: -1 });
+        res.json(items);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+const addToBeforePacking = async (req, res) => {
+    try {
+        const { scheduleId, sweetName, quantity, unit, price, date, description } = req.body;
+        
+        // Check if item already exists for this schedule
+        const existingItem = await BeforePacking.findOne({ scheduleId });
+        if (existingItem) {
+            return res.status(400).json({ message: 'Item already exists in Before Packing' });
+        }
+        
+        const newItem = new BeforePacking({
+            scheduleId,
+            sweetName,
+            quantity: Number(quantity),
+            unit,
+            price: Number(price),
+            date: new Date(date),
+            description: description || ''
+        });
+        
+        await newItem.save();
+        res.status(201).json({ message: 'Item added to Before Packing successfully', item: newItem });
+    } catch (error) {
+        console.error('Error adding to Before Packing:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+const updateBeforePackingStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        
+        if (!status || !['Pending', 'Completed'].includes(status)) {
+            return res.status(400).json({ message: 'Status must be either "Pending" or "Completed"' });
+        }
+        
+        const item = await BeforePacking.findById(id);
+        if (!item) {
+            return res.status(404).json({ message: 'Before Packing item not found' });
+        }
+        
+        // Prevent changing status from Completed back to Pending
+        if (item.status === 'Completed' && status === 'Pending') {
+            return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
+        }
+        
+        // If changing to Completed, move to After Packing
+        if (status === 'Completed' && item.status !== 'Completed') {
+            // Add to After Packing
+            const afterPackingItem = new AfterPacking({
+                scheduleId: item.scheduleId,
+                sweetName: item.sweetName,
+                quantity: item.quantity,
+                unit: item.unit,
+                price: item.price,
+                date: new Date(),
+                description: `Moved from Before Packing - ${item.description || ''}`
+            });
+            
+            await afterPackingItem.save();
+        }
+        
+        // Update the Before Packing item status
+        const updatedItem = await BeforePacking.findByIdAndUpdate(
+            id,
+            { 
+                status,
+                completedAt: status === 'Completed' ? new Date() : null
+            },
+            { new: true }
+        );
+        
+        res.json({
+            message: `Before Packing status updated to ${status}`,
+            item: updatedItem
+        });
+    } catch (error) {
+        console.error('Error updating Before Packing status:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+// After Packing Functions
+const getAfterPackingItems = async (req, res) => {
+    try {
+        const items = await AfterPacking.find().sort({ date: -1, createdAt: -1 });
+        res.json(items);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+const updateAfterPackingStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        
+        if (!status || !['Pending', 'Completed'].includes(status)) {
+            return res.status(400).json({ message: 'Status must be either "Pending" or "Completed"' });
+        }
+        
+        const item = await AfterPacking.findById(id);
+        if (!item) {
+            return res.status(404).json({ message: 'After Packing item not found' });
+        }
+        
+        // Prevent changing status from Completed back to Pending
+        if (item.status === 'Completed' && status === 'Pending') {
+            return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
+        }
+        
+        // If changing to Completed, add to final products
+        if (status === 'Completed' && item.status !== 'Completed') {
+            // Find the manufacturing process to get expiry and use-by days
+            const manufacturingProcess = await Manufacturing.findOne({ 
+                sweetName: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
+            });
+            
+            // Calculate expiry and use-by dates based on manufacturing process
+            let expiryDate = null;
+            let usedByDate = null;
+            
+            if (manufacturingProcess) {
+                if (manufacturingProcess.expiryDays) {
+                    expiryDate = new Date();
+                    expiryDate.setDate(expiryDate.getDate() + parseInt(manufacturingProcess.expiryDays));
+                }
+                
+                if (manufacturingProcess.usedByDays) {
+                    usedByDate = new Date();
+                    usedByDate.setDate(usedByDate.getDate() + parseInt(manufacturingProcess.usedByDays));
+                }
+            }
+            
+            // Find the product by name (case-insensitive)
+            const product = await Product.findOne({ 
+                name: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
+            });
+            
+            if (product) {
+                // Find if there's already a price entry with the same unit
+                let priceObj = product.prices.find(p => p.unit.toLowerCase() === item.unit.toLowerCase());
+                
+                if (!priceObj) {
+                    // If unit doesn't exist, create a new price entry
+                    priceObj = {
+                        unit: item.unit,
+                        netPrice: item.price,
+                        sellingPrice: item.price * 1.2 // Assuming 20% profit margin
+                    };
+                    product.prices.push(priceObj);
+                } else {
+                    // If unit exists, update the price if it's different
+                    if (priceObj.netPrice !== item.price) {
+                        priceObj.netPrice = item.price;
+                        priceObj.sellingPrice = item.price * 1.2;
+                    }
+                }
+                
+                // Update the stock level by adding the packed quantity
+                product.stockLevel = (product.stockLevel || 0) + Number(item.quantity);
+                
+                // Update expiry and use-by dates if available from manufacturing process
+                if (expiryDate) {
+                    product.expiryDate = expiryDate;
+                }
+                if (usedByDate) {
+                    product.usedByDate = usedByDate;
+                }
+                
+                await product.save();
+            } else {
+                // If product doesn't exist in the products collection, create a new one
+                const newProduct = new Product({
+                    name: item.sweetName,
+                    category: null,
+                    sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                    stockLevel: Number(item.quantity),
+                    prices: [{
+                        unit: item.unit,
+                        netPrice: item.price,
+                        sellingPrice: item.price * 1.2
+                    }],
+                    // Add expiry and use-by dates if available from manufacturing process
+                    ...(expiryDate && { expiryDate }),
+                    ...(usedByDate && { usedByDate }),
+                    admin: req.user._id
+                });
+                
+                await newProduct.save();
+            }
+        }
+        
+        // Update the After Packing item status
+        const updatedItem = await AfterPacking.findByIdAndUpdate(
+            id,
+            { 
+                status,
+                completedAt: status === 'Completed' ? new Date() : null
+            },
+            { new: true }
+        );
+        
+        res.json({
+            message: `After Packing status updated to ${status}`,
+            item: updatedItem
+        });
+    } catch (error) {
+        console.error('Error updating After Packing status:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+const addToStockFromAfterPacking = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const item = await AfterPacking.findById(id);
+        if (!item) {
+            return res.status(404).json({ message: 'After Packing item not found' });
+        }
+        
+        // Find the manufacturing process to get expiry and use-by days
+        const manufacturingProcess = await Manufacturing.findOne({ 
+            sweetName: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
+        });
+        
+        // Calculate expiry and use-by dates based on manufacturing process
+        let expiryDate = null;
+        let usedByDate = null;
+        
+        if (manufacturingProcess) {
+            if (manufacturingProcess.expiryDays) {
+                expiryDate = new Date();
+                expiryDate.setDate(expiryDate.getDate() + parseInt(manufacturingProcess.expiryDays));
+            }
+            
+            if (manufacturingProcess.usedByDays) {
+                usedByDate = new Date();
+                usedByDate.setDate(usedByDate.getDate() + parseInt(manufacturingProcess.usedByDays));
+            }
+        }
+        
+        // Find the product by name (case-insensitive)
+        const product = await Product.findOne({ 
+            name: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
+        });
+        
+        if (product) {
+            // Find if there's already a price entry with the same unit
+            let priceObj = product.prices.find(p => p.unit.toLowerCase() === item.unit.toLowerCase());
+            
+            if (!priceObj) {
+                // If unit doesn't exist, create a new price entry
+                priceObj = {
+                    unit: item.unit,
+                    netPrice: item.price,
+                    sellingPrice: item.price * 1.2 // Assuming 20% profit margin
+                };
+                product.prices.push(priceObj);
+            } else {
+                // If unit exists, update the price if it's different
+                if (priceObj.netPrice !== item.price) {
+                    priceObj.netPrice = item.price;
+                    priceObj.sellingPrice = item.price * 1.2;
+                }
+            }
+            
+            // Update the stock level by adding the packed quantity
+            product.stockLevel = (product.stockLevel || 0) + Number(item.quantity);
+            
+            // Update expiry and use-by dates if available from manufacturing process
+            if (expiryDate) {
+                product.expiryDate = expiryDate;
+            }
+            if (usedByDate) {
+                product.usedByDate = usedByDate;
+            }
+            
+            await product.save();
+        } else {
+            // If product doesn't exist in the products collection, create a new one
+            const newProduct = new Product({
+                name: item.sweetName,
+                category: null,
+                sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                stockLevel: Number(item.quantity),
+                prices: [{
+                    unit: item.unit,
+                    netPrice: item.price,
+                    sellingPrice: item.price * 1.2
+                }],
+                // Add expiry and use-by dates if available from manufacturing process
+                ...(expiryDate && { expiryDate }),
+                ...(usedByDate && { usedByDate }),
+                admin: req.user._id
+            });
+            
+            await newProduct.save();
+        }
+        
+        // Update the After Packing item status to Completed
+        const updatedItem = await AfterPacking.findByIdAndUpdate(
+            id,
+            { 
+                status: 'Completed',
+                completedAt: new Date()
+            },
+            { new: true }
+        );
+        
+        res.json({
+            message: 'Item added to stock successfully',
+            item: updatedItem
+        });
+    } catch (error) {
+        console.error('Error adding to stock from After Packing:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
 module.exports = {
     addRawMaterial,
     getStoreRoomItems,
@@ -897,8 +1294,17 @@ module.exports = {
     getReturnProducts,
     getVendorHistory,
     getAllVendorHistory,
-    getDailySchedules,        // Add this function to exports
-    createDailySchedule,      // Add this function to exports
-    getDailyScheduleById,     // Add this function to exports
-    updateDailyScheduleStatus // Add this function to exports
+    getDailySchedules,
+    createDailySchedule,
+    getDailyScheduleById,
+    updateDailyScheduleStatus,
+    getExpiredMaterials,
+    // Before Packing exports
+    getBeforePackingItems,
+    addToBeforePacking,
+    updateBeforePackingStatus,
+    // After Packing exports
+    getAfterPackingItems,
+    updateAfterPackingStatus,
+    addToStockFromAfterPacking
 };
