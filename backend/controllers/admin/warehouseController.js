@@ -865,56 +865,8 @@ const updateDailyScheduleStatus = async (req, res) => {
             return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
         }
         
-        // If changing to Completed, update product stock
-        if (status === 'Completed' && schedule.status !== 'Completed') {
-            // Find the product by name (case-insensitive)
-            const product = await Product.findOne({ 
-                name: { $regex: new RegExp(`^${schedule.sweetName.trim()}$`, 'i') } 
-            });
-            
-            if (product) {
-                // Find if there's already a price entry with the same unit
-                let priceObj = product.prices.find(p => p.unit.toLowerCase() === schedule.unit.toLowerCase());
-                
-                if (!priceObj) {
-                    // If unit doesn't exist, create a new price entry
-                    priceObj = {
-                        unit: schedule.unit,
-                        netPrice: schedule.price,
-                        sellingPrice: schedule.price * 1.2 // Assuming 20% profit margin
-                    };
-                    product.prices.push(priceObj);
-                } else {
-                    // If unit exists, update the price if it's different
-                    if (priceObj.netPrice !== schedule.price) {
-                        priceObj.netPrice = schedule.price;
-                        priceObj.sellingPrice = schedule.price * 1.2;
-                    }
-                }
-                
-                // Update the stock level by adding the scheduled quantity
-                product.stockLevel = (product.stockLevel || 0) + Number(schedule.quantity);
-                
-                await product.save();
-            } else {
-                // If product doesn't exist in the products collection, create a new one
-                // First, try to find a category for the product (optional - you might want to handle this differently)
-                const newProduct = new Product({
-                    name: schedule.sweetName,
-                    category: null, // You might want to set a default category or get it from somewhere else
-                    sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Generate a unique SKU
-                    stockLevel: Number(schedule.quantity),
-                    prices: [{
-                        unit: schedule.unit,
-                        netPrice: schedule.price,
-                        sellingPrice: schedule.price * 1.2 // Assuming 20% profit margin
-                    }],
-                    admin: req.user._id // Assuming req.user exists from auth middleware
-                });
-                
-                await newProduct.save();
-            }
-        }
+        // NOTE: Product stock is NOT updated here anymore
+        // Product will be added to stock only when moved from After Packing to View Products
         
         // Update the schedule status
         const updatedSchedule = await DailySchedule.findByIdAndUpdate(
@@ -1058,87 +1010,8 @@ const updateAfterPackingStatus = async (req, res) => {
             return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
         }
         
-        // If changing to Completed, add to final products
-        if (status === 'Completed' && item.status !== 'Completed') {
-            // Find the manufacturing process to get expiry and use-by days
-            const manufacturingProcess = await Manufacturing.findOne({ 
-                sweetName: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
-            });
-            
-            // Calculate expiry and use-by dates based on manufacturing process
-            let expiryDate = null;
-            let usedByDate = null;
-            
-            if (manufacturingProcess) {
-                if (manufacturingProcess.expiryDays) {
-                    expiryDate = new Date();
-                    expiryDate.setDate(expiryDate.getDate() + parseInt(manufacturingProcess.expiryDays));
-                }
-                
-                if (manufacturingProcess.usedByDays) {
-                    usedByDate = new Date();
-                    usedByDate.setDate(usedByDate.getDate() + parseInt(manufacturingProcess.usedByDays));
-                }
-            }
-            
-            // Find the product by name (case-insensitive)
-            const product = await Product.findOne({ 
-                name: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
-            });
-            
-            if (product) {
-                // Find if there's already a price entry with the same unit
-                let priceObj = product.prices.find(p => p.unit.toLowerCase() === item.unit.toLowerCase());
-                
-                if (!priceObj) {
-                    // If unit doesn't exist, create a new price entry
-                    priceObj = {
-                        unit: item.unit,
-                        netPrice: item.price,
-                        sellingPrice: item.price * 1.2 // Assuming 20% profit margin
-                    };
-                    product.prices.push(priceObj);
-                } else {
-                    // If unit exists, update the price if it's different
-                    if (priceObj.netPrice !== item.price) {
-                        priceObj.netPrice = item.price;
-                        priceObj.sellingPrice = item.price * 1.2;
-                    }
-                }
-                
-                // Update the stock level by adding the packed quantity
-                product.stockLevel = (product.stockLevel || 0) + Number(item.quantity);
-                
-                // Update expiry and use-by dates if available from manufacturing process
-                if (expiryDate) {
-                    product.expiryDate = expiryDate;
-                }
-                if (usedByDate) {
-                    product.usedByDate = usedByDate;
-                }
-                
-                await product.save();
-            } else {
-                // If product doesn't exist in the products collection, create a new one
-                const newProduct = new Product({
-                    name: item.sweetName,
-                    category: null,
-                    sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                    stockLevel: Number(item.quantity),
-                    prices: [{
-                        unit: item.unit,
-                        netPrice: item.price,
-                        sellingPrice: item.price * 1.2
-                    }],
-                    // Add expiry and use-by dates if available from manufacturing process
-                    ...(expiryDate && { expiryDate }),
-                    ...(usedByDate && { usedByDate }),
-                    admin: req.user._id
-                });
-                
-                await newProduct.save();
-            }
-        }
+        // NOTE: Product stock is NOT updated here anymore
+        // Product will be added to stock only when "Add to Stock" button is clicked
         
         // Update the After Packing item status
         const updatedItem = await AfterPacking.findByIdAndUpdate(
