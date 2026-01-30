@@ -73,14 +73,26 @@ const calculateAttendanceDetails = (checkIn, checkOut, shiftDetails) => {
   };
 };
 
-// Helper function to get today's and yesterday's date bounds
-const getTodayAndYesterdayBounds = () => {
+// Helper function to get date bounds for a wider range (last 30 days)
+const getWiderDateBounds = () => {
     const now = new Date();
+    // Get start of 30 days ago for a wider range of attendance data
+    const startOfRange = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+    const endOfRange = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1); // End of today
+    
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     const endOfYesterday = startOfToday; // Start of today is end of yesterday
-    return { startOfToday, endOfToday, startOfYesterday, endOfYesterday };
+    
+    return { 
+        startOfRange, 
+        endOfRange, 
+        startOfToday, 
+        endOfToday, 
+        startOfYesterday, 
+        endOfYesterday 
+    };
 };
 
 // Helper function to check for incomplete records from previous day
@@ -210,19 +222,19 @@ const handleAttendancePunch = async (workerId, shopId) => {
 
 exports.getTodaysAttendance = async (req, res) => {
     try {
-        console.log('Fetching today\'s attendance for shopId:', req.shopId);
-        const { startOfToday, endOfToday, startOfYesterday, endOfYesterday } = getTodayAndYesterdayBounds();
-        console.log('Date bounds:', { startOfToday, endOfToday, startOfYesterday, endOfYesterday });
+        console.log('Fetching attendance for shopId:', req.shopId, '(last 30 days)');
+        const { startOfRange, endOfRange, startOfToday, endOfToday, startOfYesterday, endOfYesterday } = getWiderDateBounds();
+        console.log('Date bounds:', { startOfRange, endOfRange, startOfToday, endOfToday, startOfYesterday, endOfYesterday });
         
-        // Fetch ALL attendance records for today and yesterday for workers in this shop
-        const todaysAttendance = await Attendance.find({ 
+        // Fetch ALL attendance records for the wider date range for workers in this shop
+        const allAttendance = await Attendance.find({ 
             $and: [
                 { 
                     $or: [
-                        { checkIn: { $gte: startOfYesterday, $lt: endOfToday } },
+                        { checkIn: { $gte: startOfRange, $lt: endOfRange } },
                         { 
-                            checkIn: { $lt: startOfToday },
-                            checkOut: { $gte: startOfToday, $lt: endOfToday }
+                            checkIn: { $lt: startOfRange },
+                            checkOut: { $gte: startOfRange, $lt: endOfRange }
                         }
                     ]
                 },
@@ -232,10 +244,10 @@ exports.getTodaysAttendance = async (req, res) => {
             ]
         }).populate('worker', 'name rfid shift').lean();
         
-        console.log('Found attendance records:', todaysAttendance.length);
+        console.log('Found attendance records:', allAttendance.length);
         
         // Group attendance records by worker and date
-        const groupedAttendance = groupAttendanceByWorkerAndDate(todaysAttendance);
+        const groupedAttendance = groupAttendanceByWorkerAndDate(allAttendance);
         console.log('Grouped attendance by worker and date');
         
         // Get workers - only get workers belonging to this shop
@@ -281,7 +293,7 @@ exports.getTodaysAttendance = async (req, res) => {
         console.log('Sending combined data:', combinedData.length);
         res.json(combinedData);
     } catch (error) {
-        console.error('Error fetching today\'s attendance:', error);
+        console.error('Error fetching attendance:', error);
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
