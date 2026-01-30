@@ -40,6 +40,34 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
     }
   }
 
+  // Special handling for before-packing-only users - restrict to before packing modules only
+  if (authState?.role === 'before-packing-only') {
+    const currentPath = window.location.pathname;
+    
+    // Define allowed paths for before-packing-only users
+    const isBeforePackingPath = currentPath.startsWith('/admin/warehouse/before-packing');
+    const isDashboardPath = currentPath === '/admin/dashboard';
+    
+    // If accessing unauthorized paths, redirect to before packing module
+    if (!isBeforePackingPath && !isDashboardPath) {
+      return <Navigate to="/admin/warehouse/before-packing" replace />;
+    }
+  }
+
+  // Special handling for after-packing-only users - restrict to after packing modules only
+  if (authState?.role === 'after-packing-only') {
+    const currentPath = window.location.pathname;
+    
+    // Define allowed paths for after-packing-only users
+    const isAfterPackingPath = currentPath.startsWith('/admin/warehouse/after-packing');
+    const isDashboardPath = currentPath === '/admin/dashboard';
+    
+    // If accessing unauthorized paths, redirect to after packing module
+    if (!isAfterPackingPath && !isDashboardPath) {
+      return <Navigate to="/admin/warehouse/after-packing" replace />;
+    }
+  }
+
   // If specific roles are required, check if user has one of them
   if (allowedRoles.length > 0) {
     if (!allowedRoles.includes(authState?.role)) {
