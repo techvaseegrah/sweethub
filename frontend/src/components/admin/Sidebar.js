@@ -1,6 +1,6 @@
 // frontend/src/components/admin/Sidebar.js
 import React, { useState, useEffect, useRef } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { 
   LuLayoutDashboard, 
   LuUsers, 
@@ -86,6 +86,7 @@ const CandySVG = ({ size = "w-5 h-5", color = "purple" }) => (
 );
 
 const Sidebar = () => {
+    const location = useLocation();
     const [totalStockAlerts, setTotalStockAlerts] = useState(0);
     const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
     const [isWarehouseMenuOpen, setIsWarehouseMenuOpen] = useState(false);
@@ -266,8 +267,8 @@ const Sidebar = () => {
             </div>
 
             <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
-                {/* Dashboard */}
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {/* Dashboard - Hide for packing-only and raw-materials-only users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && authState?.role !== 'raw-materials-only' && (
                 <NavLink
                     to="/admin/dashboard"
                     className={({ isActive }) =>
@@ -465,8 +466,8 @@ const Sidebar = () => {
                 )}
                 {/* End of Raw Materials and Manufacturing for raw-materials-only users */}
 
-                {/* Worker Management */}
-                {authState?.role !== 'raw-materials-only' && (
+                {/* Worker Management - Hide for packing-only users */}
+                {authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -569,9 +570,9 @@ const Sidebar = () => {
                 </details>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <>
-                {/* Department Management */}
+                {/* Department Management - Hide for packing-only users */}
                 <details className="group">
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -618,9 +619,9 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <>
-                {/* Product Management */}
+                {/* Product Management - Hide for packing-only users */}
                 <details className="group" open={isProductMenuOpen} onToggle={toggleProductMenu}>
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -745,8 +746,8 @@ const Sidebar = () => {
 
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                 <>
-                {/* Warehouse Management - Role-based visibility */}
-                {(authState?.role === 'admin' || authState?.role === 'raw-materials-only' || authState?.role === 'before-packing-only' || authState?.role === 'after-packing-only') && (
+                {/* Warehouse Management - Hide for packing-only users (they see their specific modules below) */}
+                {(authState?.role === 'admin' || authState?.role === 'raw-materials-only') && (
                 <details className="group" open={isWarehouseMenuOpen} onToggle={toggleWarehouseMenu}>
                     <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                         <div className="flex items-center">
@@ -831,7 +832,8 @@ const Sidebar = () => {
                         </div>
                         )}
                         
-                        {/* Raw Materials Toggle */}
+                        {/* Raw Materials Toggle - Hide for packing-only users */}
+                        {authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                         <div className="space-y-1">
                             <div 
                                 className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg cursor-pointer ${textSecondary} ${hoverBg}`}
@@ -896,8 +898,10 @@ const Sidebar = () => {
                                 </nav>
                             )}
                         </div>
+                        )}
 
-                        {/* Manufacturing Toggle */}
+                        {/* Manufacturing Toggle - Hide for packing-only users */}
+                        {authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                         <div className="space-y-1">
                             <div 
                                 className={`flex items-center justify-between w-full px-3 py-2 text-sm rounded-lg cursor-pointer ${textSecondary} ${hoverBg}`}
@@ -996,6 +1000,7 @@ const Sidebar = () => {
                                 </nav>
                             )}
                         </div>
+                        )}
 
 
                     </nav>
@@ -1019,11 +1024,12 @@ const Sidebar = () => {
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
                                     to="/admin/warehouse/before-packing"
-                                    className={({ isActive }) =>
-                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                        }`
-                                    }
+                                    className={({ isActive }) => {
+                                        const isExactMatch = location.pathname === '/admin/warehouse/before-packing';
+                                        return `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isExactMatch ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`;
+                                    }}
                                     onClick={() => {
                                         // Close sidebar on mobile when link is clicked
                                         if (window.innerWidth < 1024) {
@@ -1082,11 +1088,12 @@ const Sidebar = () => {
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
                                     to="/admin/warehouse/after-packing"
-                                    className={({ isActive }) =>
-                                        `flex items-center px-3 py-2 text-sm rounded-lg ${
-                                            isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                        }`
-                                    }
+                                    className={({ isActive }) => {
+                                        const isExactMatch = location.pathname === '/admin/warehouse/after-packing';
+                                        return `flex items-center px-3 py-2 text-sm rounded-lg ${
+                                            isExactMatch ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`;
+                                    }}
                                     onClick={() => {
                                         // Close sidebar on mobile when link is clicked
                                         if (window.innerWidth < 1024) {
@@ -1197,7 +1204,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <>
                 {/* Task Management */}
                 <details className="group">
@@ -1246,7 +1253,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <>
                 {/* Billing Management */}
                 <details className="group">
@@ -1295,7 +1302,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <>
                 {/* E-Way Bill Management */}
                 <details className="group">
@@ -1344,7 +1351,7 @@ const Sidebar = () => {
                 </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <NavLink
                     to="/admin/invoices/history"
                     className={({ isActive }) =>
@@ -1370,7 +1377,7 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <NavLink
                     to="/admin/orders"
                     className={({ isActive }) =>
@@ -1396,7 +1403,7 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <NavLink
                     to="/admin/warehouse/return-products"
                     className={({ isActive }) =>
@@ -1422,7 +1429,7 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <NavLink
                     to="/admin/expenses"
                     className={({ isActive }) =>
@@ -1450,7 +1457,7 @@ const Sidebar = () => {
                 
                 {/* Removed Face Service Diagnostic */}
                 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <NavLink
                     to="/admin/profit-loss"
                     className={({ isActive }) =>
@@ -1476,7 +1483,7 @@ const Sidebar = () => {
                 </NavLink>
                 )}
                 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                 <>
                 <NavLink
                     to="/admin/settings"
