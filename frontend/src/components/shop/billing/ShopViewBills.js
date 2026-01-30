@@ -61,6 +61,17 @@ function ShopViewBills() {
     fetchBills();
   }, []);
 
+  // Calculate total sales amount for filtered bills
+  const calculateTotalSales = (billsList) => {
+    return billsList.reduce((total, bill) => {
+      // Only count non-deleted ORDINARY bills (exclude REFERENCE bills)
+      if (!bill.isDeleted && bill.billType !== 'REFERENCE') {
+        return total + (bill.totalAmount || 0);
+      }
+      return total;
+    }, 0);
+  };
+
   // Filter bills on the frontend
   useEffect(() => {
     let tempBills = [...bills];
@@ -152,6 +163,9 @@ function ShopViewBills() {
 
     setFilteredBills(tempBills);
   }, [bills, searchTerm, paymentMethodFilter, fromDate, toDate, timeFilterType, selectedHour]);
+
+  // Calculate total sales for current filtered bills
+  const totalSalesAmount = calculateTotalSales(filteredBills);
 
   const generateInvoice = (bill) => {
     // For shop bills, use the shop data from the bill itself
@@ -248,6 +262,59 @@ function ShopViewBills() {
       
       {/* Filter and Search Section */}
       <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+        {/* Total Sales Summary */}
+        <div className="mb-4 p-3 bg-green-50 rounded-lg border border-green-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h4 className="text-lg font-semibold text-green-800">Sales Summary</h4>
+              <p className="text-sm text-green-600">
+                Showing {filteredBills.length} bill{filteredBills.length !== 1 ? 's' : ''}
+                {filteredBills.length > 0 && (
+                  <span> ({filteredBills.filter(bill => !bill.isDeleted).length} active)</span>
+                )}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-green-700">₹{totalSalesAmount.toFixed(2)}</div>
+              <div className="text-sm text-green-600">Total Sales Amount</div>
+            </div>
+          </div>
+          
+          {/* Show applied filters */}
+          {(searchTerm || paymentMethodFilter !== 'All' || fromDate || toDate || timeFilterType !== 'All') && (
+            <div className="mt-2 pt-2 border-t border-green-200">
+              <p className="text-xs text-green-700 font-medium">Applied Filters:</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {searchTerm && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Search: {searchTerm}
+                  </span>
+                )}
+                {paymentMethodFilter !== 'All' && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    Payment: {paymentMethodFilter}
+                  </span>
+                )}
+                {timeFilterType !== 'All' && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    Time: {timeFilterType}
+                    {timeFilterType === 'PerHour' && selectedHour && ` (${selectedHour})`}
+                  </span>
+                )}
+                {fromDate && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                    From: {fromDate}
+                  </span>
+                )}
+                {toDate && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                    To: {toDate}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="flex flex-col md:flex-row md:items-end gap-4">
           <div className="flex-1">
             <label className="block text-gray-700 text-sm font-bold mb-2">Search</label>
