@@ -4,7 +4,7 @@ import axios from '../../../api/axios';
 // We will use local logic for the specific format, but keeping imports if you use them elsewhere
 import { getAvailableUnits, convertUnit, areRelatedUnits, formatDateToDDMMYYYY } from '../../../utils/unitConversion';
 import CustomModal from '../../CustomModal';
-import KeyboardShortcutsGuide from './KeyboardShortcutsGuide';
+
 import { useFullScreenBill } from '../../../context/FullScreenBillContext';
 import MessageAlert from '../../MessageAlert';
 import jsPDF from 'jspdf';
@@ -70,8 +70,7 @@ function CreateBill({ baseUrl = '/admin' }) {
     sku: '',
     isDecimalAsGram: false,
     rawInput: '',
-    expDate: '',
-    mfgDate: '',
+
     discountPercent: 0,
     discountAmount: 0
   });
@@ -202,8 +201,7 @@ function CreateBill({ baseUrl = '/admin' }) {
         price: item.price,
         baseUnitPrice: item.price,
         baseUnit: item.unit,
-        expDate: item.expDate || '',
-        mfgDate: item.mfgDate || '',
+
       }));
       setBillItems(formattedItems);
       setDiscountType(bill.discountType || 'none');
@@ -421,8 +419,8 @@ function CreateBill({ baseUrl = '/admin' }) {
         price: product.prices.find(p => p.unit === availableUnits[0])?.sellingPrice || product.prices[0].sellingPrice,
         productName: product.name,
         sku: product.sku,
-        expDate: '',
-        mfgDate: ''
+
+
       });
       setError('');
       setTimeout(() => quantityRef.current?.focus(), 50);
@@ -523,8 +521,8 @@ function CreateBill({ baseUrl = '/admin' }) {
       price: pricePerUnit,
       baseUnitPrice: currentItem.price,
       baseUnit: currentItem.product.prices[0].unit,
-      expDate: currentItem.expDate,
-      mfgDate: currentItem.mfgDate,
+
+
       discountPercent: currentItem.discountPercent || 0,
       discountAmount: currentItem.discountAmount || 0,
     };
@@ -539,7 +537,7 @@ function CreateBill({ baseUrl = '/admin' }) {
     }
 
     setSearchTerm('');
-    setCurrentItem({ ...currentItem, product: null, unit: '', quantity: '', price: 0, productName: '', sku: '', isDecimalAsGram: false, rawInput: '', expDate: '', mfgDate: '', discountPercent: 0, discountAmount: 0 }); 
+    setCurrentItem({ ...currentItem, product: null, unit: '', quantity: '', price: 0, productName: '', sku: '', isDecimalAsGram: false, rawInput: '', discountPercent: 0, discountAmount: 0 }); 
     setError('');
     setTimeout(() => productSearchRef.current?.focus(), 50);
   };
@@ -702,7 +700,6 @@ function CreateBill({ baseUrl = '/admin' }) {
         `}</style>
 
         {showNotification && <div className="fixed top-5 right-5 z-50"><MessageAlert type="success" message={notificationMessage} /></div>}
-        <KeyboardShortcutsGuide />
         
         <CustomModal isOpen={showOutOfStockModal} onClose={() => setShowOutOfStockModal(false)} title="Out of Stock" customZIndex="z-[100]">
             <div className="p-4 text-center">
@@ -881,21 +878,13 @@ function CreateBill({ baseUrl = '/admin' }) {
                     <tr>
                         <th className="p-2 border border-gray-200 w-8">#</th>
                         <th className="p-2 border border-gray-200 text-left min-w-[200px]">ITEM</th>
-                        <th className="p-2 border border-gray-200 w-24">EXP. DATE</th>
-                        <th className="p-2 border border-gray-200 w-24">MFG. DATE</th>
+
                         <th className="p-2 border border-gray-200 w-16">QTY</th>
                         <th className="p-2 border border-gray-200 w-20">UNIT</th>
                         <th className="p-2 border border-gray-200 w-28 text-right">
                             PRICE/UNIT <br/><span className="text-[10px] lowercase font-normal">(Without Tax)</span>
                         </th>
-                        <th className="p-2 border border-gray-200 w-32 text-center">
-                            DISCOUNT <br/>
-                            <div className="flex text-[10px] justify-between px-2 font-normal"><span>%</span> <span>AMT</span></div>
-                        </th>
-                        <th className="p-2 border border-gray-200 w-32 text-center">
-                            TAX <br/>
-                            <div className="flex text-[10px] justify-between px-2 font-normal"><span>%</span> <span>AMT</span></div>
-                        </th>
+
                         <th className="p-2 border border-gray-200 w-24 text-right">AMOUNT</th>
                         <th className="p-2 border border-gray-200 w-8"></th>
                     </tr>
@@ -929,12 +918,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                                 </ul>
                             )}
                         </td>
-                        <td className="p-1 border border-blue-200">
-                            <input type="date" className="w-full bg-transparent text-xs outline-none" value={currentItem.expDate} onChange={e => setCurrentItem({...currentItem, expDate: e.target.value})} />
-                        </td>
-                        <td className="p-1 border border-blue-200">
-                            <input type="date" className="w-full bg-transparent text-xs outline-none" value={currentItem.mfgDate} onChange={e => setCurrentItem({...currentItem, mfgDate: e.target.value})} />
-                        </td>
+
                         <td className="p-1 border border-blue-200">
                             <input 
                                 ref={quantityRef}
@@ -953,28 +937,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                         <td className="p-2 border border-blue-200 text-right">
                             {currentItem.price || 0}
                         </td>
-                        <td className="p-1 border border-blue-200">
-                            <div className="flex gap-1">
-                                <input 
-                                    placeholder="\%" 
-                                    className="w-1/2 bg-white border border-blue-200 text-center text-xs" 
-                                    value={currentItem.discountPercent || ''} 
-                                    onChange={e => setCurrentItem({...currentItem, discountPercent: parseFloat(e.target.value) || 0, discountAmount: 0})} 
-                                />
-                                <input 
-                                    placeholder="₹" 
-                                    className="w-1/2 bg-white border border-blue-200 text-center text-xs" 
-                                    value={currentItem.discountAmount || ''} 
-                                    onChange={e => setCurrentItem({...currentItem, discountAmount: parseFloat(e.target.value) || 0, discountPercent: 0})} 
-                                />
-                            </div>
-                        </td>
-                        <td className="p-1 border border-blue-200">
-                             <div className="flex items-center justify-between text-xs px-1">
-                                <span>GST@{gstPercentage}%</span>
-                                <span>{calculateItemTaxAmount(currentItem.rawInput || currentItem.quantity, currentItem.price, gstPercentage).toFixed(2)}</span>
-                             </div>
-                        </td>
+
                         <td className="p-2 border border-blue-200 text-right font-bold">
                             {calculateItemAmount(currentItem.rawInput || currentItem.quantity, currentItem.price, currentItem.discountPercent, currentItem.discountAmount).toFixed(2)}
                         </td>
@@ -988,22 +951,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                         <tr key={idx} className="hover:bg-gray-50">
                             <td className="p-2 border border-gray-200 text-center text-gray-500">{idx + 1}</td>
                             <td className="p-2 border border-gray-200 font-medium">{item.productName}</td>
-                            <td className="p-2 border border-gray-200 text-xs">
-                                <input 
-                                    type="date" 
-                                    className="w-full text-xs p-1 border rounded bg-transparent hover:bg-white" 
-                                    value={item.expDate || ''} 
-                                    onChange={e => updateBillItem(idx, 'expDate', e.target.value)} 
-                                />
-                            </td>
-                            <td className="p-2 border border-gray-200 text-xs">
-                                <input 
-                                    type="date" 
-                                    className="w-full text-xs p-1 border rounded bg-transparent hover:bg-white" 
-                                    value={item.mfgDate || ''} 
-                                    onChange={e => updateBillItem(idx, 'mfgDate', e.target.value)} 
-                                />
-                            </td>
+
                             <td className="p-2 border border-gray-200 text-center">
                                 <input 
                                     type="text" 
@@ -1034,46 +982,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                                     step="0.01"
                                 />
                             </td>
-                            <td className="p-2 border border-gray-200 text-center">
-                                <div className="flex gap-1">
-                                    <input 
-                                        placeholder="%" 
-                                        className="w-1/2 bg-white border border-gray-200 text-center text-xs p-1" 
-                                        value={item.discountPercent || ''} 
-                                        onChange={e => {
-                                            const value = parseFloat(e.target.value) || 0;
-                                            const updatedItems = [...billItems];
-                                            updatedItems[idx] = { 
-                                                ...updatedItems[idx], 
-                                                discountPercent: value,
-                                                discountAmount: 0  // Reset discountAmount when discountPercent is set
-                                            };
-                                            setBillItems(updatedItems);
-                                        }}
-                                    />
-                                    <input 
-                                        placeholder="₹" 
-                                        className="w-1/2 bg-white border border-gray-200 text-center text-xs p-1" 
-                                        value={item.discountAmount || ''} 
-                                        onChange={e => {
-                                            const value = parseFloat(e.target.value) || 0;
-                                            const updatedItems = [...billItems];
-                                            updatedItems[idx] = { 
-                                                ...updatedItems[idx], 
-                                                discountAmount: value,
-                                                discountPercent: 0  // Reset discountPercent when discountAmount is set
-                                            };
-                                            setBillItems(updatedItems);
-                                        }}
-                                    />
-                                </div>
-                            </td>
-                            <td className="p-2 border border-gray-200 text-xs text-right">
-                                <div className="flex justify-between">
-                                    <span>{gstPercentage}%</span>
-                                    <span>{calculateItemTaxAmount(item.quantity, item.price, gstPercentage).toFixed(2)}</span>
-                                </div>
-                            </td>
+
                             <td className="p-2 border border-gray-200 text-right font-bold">
                                 {calculateItemAmount(item.quantity, item.price, item.discountPercent, item.discountAmount).toFixed(2)}
                             </td>
@@ -1093,8 +1002,7 @@ function CreateBill({ baseUrl = '/admin' }) {
                     <tr className="bg-gray-50 font-bold">
                          <td colSpan="4" className="border border-gray-200 p-2 text-right">TOTAL</td>
                          <td className="border border-gray-200 p-2 text-center">{billItems.reduce((acc, i) => acc + parseFloat(i.quantity), 0)}</td>
-                         <td colSpan="3" className="border border-gray-200"></td>
-                         <td className="border border-gray-200 p-2 text-right">{gstAmount.toFixed(2)}</td>
+                         <td colSpan="1" className="border border-gray-200"></td>
                          <td className="border border-gray-200 p-2 text-right">{subtotal.toFixed(2)}</td>
                          <td className="border border-gray-200"></td>
                     </tr>
