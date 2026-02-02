@@ -4,7 +4,6 @@ const categorySchema = new mongoose.Schema({
   name: {
     type: String,
     required: true,
-    unique: true,
   },
   shop: {
     type: mongoose.Schema.Types.ObjectId,
@@ -17,5 +16,8 @@ const categorySchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
+
+// Compound index to ensure unique category names within each shop
+categorySchema.index({ name: 1, shop: 1 }, { unique: true });
 
 module.exports = mongoose.model('Category', categorySchema);
