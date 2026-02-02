@@ -3,6 +3,17 @@ const Category = require('../../models/Category');
 exports.createCategory = async (req, res) => {
   try {
     const { name } = req.body;
+    
+    // Check if a category with the same name already exists for this shop
+    const existingCategory = await Category.findOne({
+      name: name,
+      shop: req.shopId
+    });
+    
+    if (existingCategory) {
+      return res.status(400).json({ message: 'Category already exists for this shop.' });
+    }
+    
     // Create the new category with the shop ID if it exists on the request
     const newCategory = new Category({
       name,
@@ -12,6 +23,12 @@ exports.createCategory = async (req, res) => {
     res.status(201).json(newCategory);
   } catch (error) {
     console.error('Error creating category:', error);
+    
+    // Handle MongoDB duplicate key error
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Category already exists for this shop.' });
+    }
+    
     res.status(500).json({ message: 'Server Error' });
   }
 };
