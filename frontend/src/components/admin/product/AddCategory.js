@@ -50,7 +50,12 @@ function AddCategory({ baseUrl = '/admin' }) {
       setCategoryName('');
       fetchCategories();
     } catch (err) {
-      setError('Failed to create category. Please check the form data.');
+      // Handle specific error message for duplicate category
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError('Failed to create category. Please check the form data.');
+      }
       console.error(err);
     }
   };
