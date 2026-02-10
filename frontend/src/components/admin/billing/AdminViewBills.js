@@ -17,24 +17,25 @@ function AdminViewBills({ baseUrl = '/admin' }) {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('All');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  
+
   // Time-based filters
   const [timeFilterType, setTimeFilterType] = useState('All'); // 'All', 'Today', 'Yesterday', 'Last7Days', 'ThisWeek', 'ThisMonth', 'PerHour'
   const [selectedHour, setSelectedHour] = useState(''); // For per-hour filter
 
   const [shops, setShops] = useState([]);
-  const [selectedShop, setSelectedShop] = useState('all'); 
-  
+  const [selectedShop, setSelectedShop] = useState('all');
+
   const [selectedBill, setSelectedBill] = useState(null);
   const [isBillDetailModalOpen, setIsBillDetailModalOpen] = useState(false);
-  
+  const [initialEditMode, setInitialEditMode] = useState(false);
+
   // State for edit/delete functionality
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState(null);
   const [deletionReason, setDeletionReason] = useState('');
   const [customDeletionReason, setCustomDeletionReason] = useState('');
   const [deletionLoading, setDeletionLoading] = useState(false);
-  
+
   const navigate = useNavigate();
 
   const fetchBills = async () => {
@@ -45,7 +46,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
       } else if (selectedShop && selectedShop !== 'all') {
         params = { shopId: selectedShop };
       }
-      
+
       const response = await axios.get(`${baseUrl}/bills`, {
         params,
         headers: { 'Content-Type': 'application/json' },
@@ -71,10 +72,10 @@ function AdminViewBills({ baseUrl = '/admin' }) {
 
   const fetchShops = async () => {
     try {
-        const response = await axios.get(SHOPS_URL, { withCredentials: true });
-        setShops(response.data);
+      const response = await axios.get(SHOPS_URL, { withCredentials: true });
+      setShops(response.data);
     } catch (err) {
-        console.error('Failed to fetch shops:', err);
+      console.error('Failed to fetch shops:', err);
     }
   };
 
@@ -115,8 +116,8 @@ function AdminViewBills({ baseUrl = '/admin' }) {
 
     // Time-based filtering
     const now = new Date();
-    
-    switch(timeFilterType) {
+
+    switch (timeFilterType) {
       case 'Today':
         tempBills = tempBills.filter(bill => {
           const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
@@ -168,7 +169,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
         // No time-based filter applied
         break;
     }
-    
+
     // Filter by bill date range
     if (fromDate) {
       const from = new Date(fromDate).setHours(0, 0, 0, 0);
@@ -193,40 +194,47 @@ function AdminViewBills({ baseUrl = '/admin' }) {
 
   const generateInvoice = (bill) => {
     // Find the shop data for this bill
-    const shop = selectedShop === 'admin' 
+    const shop = selectedShop === 'admin'
       ? { name: 'Admin Shop', address: 'Main Admin Location', phone: '7339200636' }
       : shops.find(s => s._id === selectedShop) || bill.shop;
-      
+
     generateBillPdf(bill, shop);
   };
-  
+
   const viewBillDetails = (bill) => {
     setSelectedBill(bill);
+    setInitialEditMode(false);
     setIsBillDetailModalOpen(true);
   };
-  
+
+  const handleEditPaymentMethod = (bill) => {
+    setSelectedBill(bill);
+    setInitialEditMode(true);
+    setIsBillDetailModalOpen(true);
+  };
+
   const handleEditBill = (bill) => {
     // Navigate to create bill page in edit mode with bill data
     navigate('/admin/bills/create', { state: { billData: bill, isEditMode: true } });
   };
-  
+
   const handleDeleteClick = (bill) => {
     setBillToDelete(bill);
     setDeletionReason('');
     setIsDeleteModalOpen(true);
   };
-  
+
   const handleDeleteConfirm = async () => {
     let finalReason = deletionReason;
     if (deletionReason === 'Other' && customDeletionReason.trim()) {
       finalReason = customDeletionReason;
     }
-    
+
     if (!finalReason.trim()) {
       alert('Please enter a reason for deletion');
       return;
     }
-    
+
     setDeletionLoading(true);
     try {
       await axios({
@@ -236,16 +244,16 @@ function AdminViewBills({ baseUrl = '/admin' }) {
         headers: { 'Content-Type': 'application/json' },
         withCredentials: true
       });
-      
+
       // Update the local bills state to mark the bill as deleted instead of refetching
-      setBills(prevBills => 
-        prevBills.map(bill => 
-          bill._id === billToDelete._id 
-            ? { ...bill, isDeleted: true, deletionReason: finalReason, deletedBy: { name: 'Current User' }, deletedAt: new Date().toISOString() } 
+      setBills(prevBills =>
+        prevBills.map(bill =>
+          bill._id === billToDelete._id
+            ? { ...bill, isDeleted: true, deletionReason: finalReason, deletedBy: { name: 'Current User' }, deletedAt: new Date().toISOString() }
             : bill
         )
       );
-      
+
       setIsDeleteModalOpen(false);
       setBillToDelete(null);
       setDeletionReason('');
@@ -257,13 +265,13 @@ function AdminViewBills({ baseUrl = '/admin' }) {
       setDeletionLoading(false);
     }
   };
-  
+
   const handleDownloadPDF = (bill) => {
     // Find the shop data for this bill
-    const shop = selectedShop === 'admin' 
+    const shop = selectedShop === 'admin'
       ? { name: 'Admin Shop', address: 'Main Admin Location', phone: '7339200636' }
       : shops.find(s => s._id === selectedShop) || bill.shop;
-      
+
     generateBillPdf(bill, shop);
   };
 
@@ -272,9 +280,9 @@ function AdminViewBills({ baseUrl = '/admin' }) {
       <div className="p-6 flex flex-col items-center justify-center">
         <div className="relative flex justify-center items-center mb-4">
           <div className="w-16 h-16 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
+          <img
+            src="/sweethub-logo.png"
+            alt="Sweet Hub Logo"
             className="absolute w-10 h-10"
           />
         </div>
@@ -289,10 +297,10 @@ function AdminViewBills({ baseUrl = '/admin' }) {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
-    <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800">View Bills</h3>
+      <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800">View Bills</h3>
 
-       {/* Add filter dropdown for admin panel */}
-       {baseUrl === '/admin' && (
+      {/* Add filter dropdown for admin panel */}
+      {baseUrl === '/admin' && (
         <div className="mb-4">
           <label className="block text-gray-700 text-sm font-bold mb-2">Filter by Shop</label>
           <select
@@ -310,7 +318,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
           </select>
         </div>
       )}
-      
+
       {/* Filter and Search Section */}
       <div className="mb-6 p-4 border rounded-lg bg-gray-50">
         {/* Total Sales Summary */}
@@ -330,7 +338,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
               <div className="text-sm text-green-600">Total Sales Amount</div>
             </div>
           </div>
-          
+
           {/* Show applied filters */}
           {(searchTerm || paymentMethodFilter !== 'All' || fromDate || toDate || timeFilterType !== 'All') && (
             <div className="mt-2 pt-2 border-t border-green-200">
@@ -411,7 +419,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
               className="w-full px-4 py-2 border rounded-lg"
             />
           </div>
-          
+
           <div className="flex-1">
             <label className="block text-gray-700 text-sm font-bold mb-2">Time Filter</label>
             <select
@@ -428,7 +436,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
               <option value="PerHour">Per Hour</option>
             </select>
           </div>
-          
+
           {timeFilterType === 'PerHour' && (
             <div className="flex-1">
               <label className="block text-gray-700 text-sm font-bold mb-2">Select Hour</label>
@@ -447,11 +455,11 @@ function AdminViewBills({ baseUrl = '/admin' }) {
         <p>No bills found.</p>
       ) : (
         <div className="overflow-x-auto">
-        <table className="w-full divide-y divide-gray-200">
+          <table className="w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-               <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill ID</td>
-               <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</td>
+                <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill ID</td>
+                <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</td>
                 <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Worker</td>
                 <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</td>
                 <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
@@ -463,58 +471,58 @@ function AdminViewBills({ baseUrl = '/admin' }) {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredBills.map((bill) => ( // Use filteredBills here
                 <tr key={bill._id} className={bill.isDeleted ? 'bg-red-50' : ''}>
-                 <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {bill.isDeleted && <span className="text-red-600 mr-1">[DELETED]</span>}
-                  <div>{bill.billId || bill._id.slice(-8)}</div>
-                  <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block mt-1 ${bill.billType === 'REFERENCE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
-                    {bill.billType || 'ORDINARY'}
-                  </div>
-                 </td>
-                 <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {bill.isDeleted && <span className="text-red-600 mr-1">[DELETED]</span>}
+                    <div>{bill.billId || bill._id.slice(-8)}</div>
+                    <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block mt-1 ${bill.billType === 'REFERENCE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {bill.billType || 'ORDINARY'}
+                    </div>
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
                     <div>{bill.customerName}</div>
                     <div>{bill.customerMobileNumber}</div>
                   </td>
-                 <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
                     {bill.worker ? bill.worker.name : 'N/A'}
                   </td>
-                 <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
                     {bill.items.map(item => (
-                    <div key={item._id}>
-                      {item.productName || (item.product ? item.product.name : '[Deleted Product]')} ({item.quantity} {item.unit || (item.product ? item.product.unit : 'unit')})
-                    </div>
+                      <div key={item._id}>
+                        {item.productName || (item.product ? item.product.name : '[Deleted Product]')} ({item.quantity} {item.unit || (item.product ? item.product.unit : 'unit')})
+                      </div>
                     ))}
                   </td>
-                 <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                      <div>₹{bill.totalAmount.toFixed(2)}</div>
-                      <div className="text-xs text-gray-400">({bill.paymentMethod})</div>
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <div>₹{bill.totalAmount.toFixed(2)}</div>
+                    <div className="text-xs text-gray-400">({bill.paymentMethod})</div>
                   </td>
-                 <td className="hidden md:table-cell px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                                     {bill.createdAt ? (
-                                       <>
-                                         <div>{formatDateTime(bill.createdAt).date}</div>
-                                         <div className="text-xs text-gray-500">{formatDateTime(bill.createdAt).time}</div>
-                                       </>
-                                     ) : bill.billDate ? (
-                                       <>
-                                         <div>{formatDateTime(bill.billDate).date}</div>
-                                         <div className="text-xs text-gray-500">{formatDateTime(bill.billDate).time}</div>
-                                       </>
-                                     ) : (
-                                       'N/A'
-                                     )}
-                                   </td>
-                 <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                   {bill.isDeleted ? (
-                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                       Deleted
-                     </span>
-                   ) : (
-                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                       Active
-                     </span>
-                   )}
-                 </td>
-                 <td className="px-2 py-3 whitespace-nowrap text-sm font-medium space-x-2">
+                  <td className="hidden md:table-cell px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                    {bill.createdAt ? (
+                      <>
+                        <div>{formatDateTime(bill.createdAt).date}</div>
+                        <div className="text-xs text-gray-500">{formatDateTime(bill.createdAt).time}</div>
+                      </>
+                    ) : bill.billDate ? (
+                      <>
+                        <div>{formatDateTime(bill.billDate).date}</div>
+                        <div className="text-xs text-gray-500">{formatDateTime(bill.billDate).time}</div>
+                      </>
+                    ) : (
+                      'N/A'
+                    )}
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                    {bill.isDeleted ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        Deleted
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Active
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-sm font-medium space-x-2">
                     <button
                       onClick={() => viewBillDetails(bill)}
                       className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 p-2 rounded-md transition-colors duration-200"
@@ -527,6 +535,15 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                     </button>
                     {!bill.isDeleted && (
                       <>
+                        <button
+                          onClick={() => handleEditPaymentMethod(bill)}
+                          className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 p-2 rounded-md transition-colors duration-200"
+                          title="Edit Payment Method"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => handleDownloadPDF(bill)}
                           className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 p-2 rounded-md transition-colors duration-200"
@@ -556,22 +573,24 @@ function AdminViewBills({ baseUrl = '/admin' }) {
           </table>
         </div>
       )}
-      
+
       {/* Bill Detail Modal */}
       {isBillDetailModalOpen && selectedBill && (
-        <BillDetailView 
-          bill={selectedBill} 
-          onClose={() => setIsBillDetailModalOpen(false)} 
+        <BillDetailView
+          bill={selectedBill}
+          onClose={() => setIsBillDetailModalOpen(false)}
+          onUpdate={fetchBills}
+          initialEditMode={initialEditMode}
         />
       )}
-      
+
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Confirm Bill Deletion</h3>
             <p className="text-gray-600 mb-4">Are you sure you want to restore quantities for this deleted bill? This will add the quantities back to the product stock.</p>
-            
+
             <div className="mb-4">
               <label className="block text-gray-700 text-sm font-bold mb-2">Reason for Deletion *</label>
               <select
@@ -587,7 +606,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                 <option value="Other">Other</option>
               </select>
             </div>
-            
+
             {deletionReason === 'Other' && (
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2">Please specify reason</label>
@@ -600,7 +619,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                 />
               </div>
             )}
-            
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}

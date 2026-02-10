@@ -16,21 +16,22 @@ function ShopViewBills() {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('All');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  
+
   // Time-based filters
   const [timeFilterType, setTimeFilterType] = useState('All'); // 'All', 'Today', 'Yesterday', 'Last7Days', 'ThisWeek', 'ThisMonth', 'PerHour'
   const [selectedHour, setSelectedHour] = useState(''); // For per-hour filter
 
   const [selectedBill, setSelectedBill] = useState(null);
   const [isBillDetailModalOpen, setIsBillDetailModalOpen] = useState(false);
-  
+  const [initialEditMode, setInitialEditMode] = useState(false);
+
   // State for edit/delete functionality
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState(null);
   const [deletionReason, setDeletionReason] = useState('');
   const [customDeletionReason, setCustomDeletionReason] = useState('');
   const [deletionLoading, setDeletionLoading] = useState(false);
-  
+
   const navigate = useNavigate();
 
   const fetchBills = async () => {
@@ -91,8 +92,8 @@ function ShopViewBills() {
 
     // Time-based filtering
     const now = new Date();
-    
-    switch(timeFilterType) {
+
+    switch (timeFilterType) {
       case 'Today':
         tempBills = tempBills.filter(bill => {
           const billDate = bill.createdAt ? new Date(bill.createdAt) : new Date(bill.billDate);
@@ -144,7 +145,7 @@ function ShopViewBills() {
         // No time-based filter applied
         break;
     }
-    
+
     // Filter by bill date range
     if (fromDate) {
       const from = new Date(fromDate).setHours(0, 0, 0, 0);
@@ -177,35 +178,42 @@ function ShopViewBills() {
       phone: bill.shopPhone || bill.shop?.shopPhoneNumber
     });
   };
-  
+
   const viewBillDetails = (bill) => {
     setSelectedBill(bill);
+    setInitialEditMode(false);
     setIsBillDetailModalOpen(true);
   };
-  
+
+  const handleEditPaymentMethod = (bill) => {
+    setSelectedBill(bill);
+    setInitialEditMode(true);
+    setIsBillDetailModalOpen(true);
+  };
+
   const handleEditBill = (bill) => {
     // Navigate to create bill page in edit mode with bill data
     navigate('/shop/billing/create', { state: { billData: bill, isEditMode: true } });
   };
-  
+
   const handleDeleteClick = (bill) => {
     setBillToDelete(bill);
     setDeletionReason('');
     setCustomDeletionReason('');
     setIsDeleteModalOpen(true);
   };
-  
+
   const handleDeleteConfirm = async () => {
     let finalReason = deletionReason;
     if (deletionReason === 'Other' && customDeletionReason.trim()) {
       finalReason = customDeletionReason;
     }
-    
+
     if (!finalReason.trim()) {
       alert('Please enter a reason for deletion');
       return;
     }
-    
+
     setDeletionLoading(true);
     try {
       await axios({
@@ -215,16 +223,16 @@ function ShopViewBills() {
         headers: { 'Content-Type': 'application/json' },
         withCredentials: true
       });
-      
+
       // Update the local bills state to mark the bill as deleted instead of refetching
-      setBills(prevBills => 
-        prevBills.map(bill => 
-          bill._id === billToDelete._id 
-            ? { ...bill, isDeleted: true, deletionReason: finalReason, deletedBy: { name: 'Current User' }, deletedAt: new Date().toISOString() } 
+      setBills(prevBills =>
+        prevBills.map(bill =>
+          bill._id === billToDelete._id
+            ? { ...bill, isDeleted: true, deletionReason: finalReason, deletedBy: { name: 'Current User' }, deletedAt: new Date().toISOString() }
             : bill
         )
       );
-      
+
       setIsDeleteModalOpen(false);
       setBillToDelete(null);
       setDeletionReason('');
@@ -236,7 +244,7 @@ function ShopViewBills() {
       setDeletionLoading(false);
     }
   };
-  
+
   const handleDownloadPDF = (bill) => {
     // For shop bills, use the shop data from the bill itself
     generateBillPdf(bill, {
@@ -259,7 +267,7 @@ function ShopViewBills() {
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
       <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800">View Bills</h3>
-      
+
       {/* Filter and Search Section */}
       <div className="mb-6 p-4 border rounded-lg bg-gray-50">
         {/* Total Sales Summary */}
@@ -279,7 +287,7 @@ function ShopViewBills() {
               <div className="text-sm text-green-600">Total Sales Amount</div>
             </div>
           </div>
-          
+
           {/* Show applied filters */}
           {(searchTerm || paymentMethodFilter !== 'All' || fromDate || toDate || timeFilterType !== 'All') && (
             <div className="mt-2 pt-2 border-t border-green-200">
@@ -360,7 +368,7 @@ function ShopViewBills() {
               className="w-full px-4 py-2 border rounded-lg"
             />
           </div>
-          
+
           <div className="flex-1">
             <label className="block text-gray-700 text-sm font-bold mb-2">Time Filter</label>
             <select
@@ -377,7 +385,7 @@ function ShopViewBills() {
               <option value="PerHour">Per Hour</option>
             </select>
           </div>
-          
+
           {timeFilterType === 'PerHour' && (
             <div className="flex-1">
               <label className="block text-gray-700 text-sm font-bold mb-2">Select Hour</label>
@@ -488,6 +496,15 @@ function ShopViewBills() {
                     {!bill.isDeleted && (
                       <>
                         <button
+                          onClick={() => handleEditPaymentMethod(bill)}
+                          className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 p-2 rounded-md transition-colors duration-200"
+                          title="Edit Payment Method"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
                           onClick={() => handleDownloadPDF(bill)}
                           className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 p-2 rounded-md transition-colors duration-200"
                           title="Download PDF"
@@ -516,22 +533,24 @@ function ShopViewBills() {
           </table>
         </div>
       )}
-      
+
       {/* Bill Detail Modal */}
       {isBillDetailModalOpen && selectedBill && (
-        <BillDetailView 
-          bill={selectedBill} 
-          onClose={() => setIsBillDetailModalOpen(false)} 
+        <BillDetailView
+          bill={selectedBill}
+          onClose={() => setIsBillDetailModalOpen(false)}
+          onUpdate={fetchBills}
+          initialEditMode={initialEditMode}
         />
       )}
-      
+
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Confirm Bill Deletion</h3>
             <p className="text-gray-600 mb-4">Are you sure you want to restore quantities for this deleted bill? This will add the quantities back to the product stock.</p>
-            
+
             <div className="mb-4">
               <label className="block text-gray-700 text-sm font-bold mb-2">Reason for Deletion *</label>
               <select
@@ -547,7 +566,7 @@ function ShopViewBills() {
                 <option value="Other">Other</option>
               </select>
             </div>
-            
+
             {deletionReason === 'Other' && (
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2">Please specify reason</label>
@@ -560,7 +579,7 @@ function ShopViewBills() {
                 />
               </div>
             )}
-            
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setIsDeleteModalOpen(false)}

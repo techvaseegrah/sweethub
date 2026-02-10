@@ -70,25 +70,29 @@ const orderSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Invoice',
   },
+  isAdminViewed: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true,
 });
 
 // Generate order ID
-orderSchema.pre('save', async function(next) {
+orderSchema.pre('save', async function (next) {
   if (!this.orderId) {  // Generate if not already set
     const year = new Date().getFullYear();
     const prefix = `ORD-${year}`;
-    
+
     const lastOrder = await this.constructor.findOne({ orderId: new RegExp(`^${prefix}`) })
-                                     .sort({ createdAt: -1 });
-    
+      .sort({ createdAt: -1 });
+
     let nextSequence = 1;
     if (lastOrder) {
       const lastSequence = parseInt(lastOrder.orderId.split('-')[2]);
       nextSequence = lastSequence + 1;
     }
-    
+
     const sequenceString = nextSequence.toString().padStart(3, '0');
     this.orderId = `${prefix}-${sequenceString}`;
   }

@@ -4,6 +4,7 @@ import { LuCheck, LuClock, LuRefreshCw } from 'react-icons/lu';
 import CreateBeforePackingAccountModal from './CreateBeforePackingAccountModal';
 import CustomModal from '../../CustomModal';
 import { AuthContext } from '../../../context/AuthContext';
+import { formatDateWithTime } from '../../../utils/unitConversion';
 
 const BeforePacking = () => {
     const { authState } = useContext(AuthContext);
@@ -141,7 +142,9 @@ const BeforePacking = () => {
                                 <td className="border px-4 py-2">{item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
                                 <td className="border px-4 py-2">₹{item.price}</td>
-                                <td className="border px-4 py-2">{new Date(item.date).toLocaleDateString()}</td>
+                                <td className="border px-4 py-2">
+                                    {formatDateWithTime(item.date)}
+                                </td>
                                 <td className="border px-4 py-2">
                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                         item.status === 'Pending' 

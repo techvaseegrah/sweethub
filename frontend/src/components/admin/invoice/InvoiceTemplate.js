@@ -28,6 +28,9 @@ const InvoiceTemplate = ({ invoice }) => {
         <div className="text-right">
           <h2 className="text-3xl font-bold uppercase text-gray-400">Invoice</h2>
           <p className="font-semibold text-gray-700">{invoice.invoiceNumber}</p>
+          {invoice.sourceOrderId && (
+            <p className="text-sm text-gray-600">Order ID: {invoice.sourceOrderId}</p>
+          )}
           <p className="text-sm text-gray-500">Date: {new Date(invoice.issueDate).toLocaleDateString()}</p>
         </div>
       </header>

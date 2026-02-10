@@ -10,7 +10,7 @@ const { convertUnit, areRelatedUnits } = require('../../utils/unitConversion');
 
 exports.createBill = async (req, res) => {
   const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY' } = req.body;
-  
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -55,7 +55,7 @@ exports.createBill = async (req, res) => {
           itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
         }
       }
-      
+
       if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
         await session.abortTransaction();
         session.endSession();
@@ -75,7 +75,7 @@ exports.createBill = async (req, res) => {
     // Create Bill
     const newBill = new Bill({
       billId,
-      ...(finalShopId && finalShopId !== 'admin' && { 
+      ...(finalShopId && finalShopId !== 'admin' && {
         shop: finalShopId,
         // Include shop details for PDF generation
         shopName: shopDetails?.name,
@@ -102,7 +102,7 @@ exports.createBill = async (req, res) => {
       billType,
       ...(worker && { worker })
     });
-    
+
     await newBill.save({ session });
 
     // Deduct stock - convert quantity to product's unit if units are related
@@ -110,7 +110,7 @@ exports.createBill = async (req, res) => {
     if (billType !== 'REFERENCE') {
       for (const item of items) {
         const product = await Product.findById(item.product).session(session);
-        
+
         let quantityToDeduct = item.quantity;
         if (product.prices && product.prices.length > 0) {
           const productBaseUnit = product.prices[0].unit;
@@ -118,7 +118,7 @@ exports.createBill = async (req, res) => {
             quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
           }
         }
-        
+
         await Product.findByIdAndUpdate(
           item.product,
           { $inc: { stockLevel: -quantityToDeduct } },
@@ -154,11 +154,11 @@ exports.getBillById = async (req, res) => {
       .populate('shop', 'name location gstNumber fssaiNumber shopPhoneNumber')
       .populate('deletedBy', 'name')
       .populate('worker', 'name');
-      
+
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found' });
     }
-    
+
     // Return the bill even if it's soft deleted, so users can see deletion details
     res.json(bill);
   } catch (error) {
@@ -170,26 +170,26 @@ exports.getBillById = async (req, res) => {
 // Update an existing bill
 exports.updateBill = async (req, res) => {
   const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY' } = req.body;
-  
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const bill = await Bill.findById(req.params.id).session(session);
-    
+
     if (!bill) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Don't allow editing soft deleted bills
     if (bill.isDeleted) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Check if this is a shop bill and user has permission
     const isShopBill = bill.shop;
     if (isShopBill) {
@@ -201,16 +201,16 @@ exports.updateBill = async (req, res) => {
         return res.status(403).json({ message: 'Not authorized to edit this bill.' });
       }
     }
-    
+
     // Prepare items and check stock
     const itemsWithDetails = [];
-    
+
     // First, restore original stock for the items in the original bill
     // Only restore stock if the original bill was ORDINARY, skip if REFERENCE
     if (bill.billType !== 'REFERENCE') {
       for (const originalItem of bill.items) {
         const product = await Product.findById(originalItem.product).session(session);
-        
+
         if (product) {
           let originalQuantityInProductUnit = originalItem.quantity;
           if (product.prices && product.prices.length > 0) {
@@ -219,7 +219,7 @@ exports.updateBill = async (req, res) => {
               originalQuantityInProductUnit = convertUnit(originalItem.quantity, originalItem.unit, productBaseUnit);
             }
           }
-          
+
           // Add back the original quantity
           await Product.findByIdAndUpdate(
             originalItem.product,
@@ -229,7 +229,7 @@ exports.updateBill = async (req, res) => {
         }
       }
     }
-    
+
     // Process new items and deduct new stock
     for (const item of items) {
       const product = await Product.findById(item.product).session(session);
@@ -238,7 +238,7 @@ exports.updateBill = async (req, res) => {
         session.endSession();
         return res.status(404).json({ message: `Product with ID ${item.product} not found.` });
       }
-      
+
       // Check Stock - convert item quantity to product's unit if units are related
       // Only check stock if billType is ORDINARY, skip if REFERENCE
       if (billType !== 'REFERENCE') {
@@ -249,7 +249,7 @@ exports.updateBill = async (req, res) => {
             itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
           }
         }
-        
+
         if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
           await session.abortTransaction();
           session.endSession();
@@ -276,7 +276,7 @@ exports.updateBill = async (req, res) => {
             quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
           }
         }
-        
+
         await Product.findByIdAndUpdate(
           item.product,
           { $inc: { stockLevel: -quantityToDeduct } },
@@ -309,10 +309,10 @@ exports.updateBill = async (req, res) => {
       },
       { new: true, session }
     );
-    
+
     await session.commitTransaction();
     session.endSession();
-    
+
     // Send WhatsApp message only for ordinary bills, not reference bills
     if (updatedBill.billType === 'ORDINARY') {
       const shopDetails = await Shop.findById(updatedBill.shop);
@@ -337,22 +337,22 @@ exports.deleteBill = async (req, res) => {
 
   try {
     const { reason } = req.body;
-    
+
     if (!reason || reason.trim() === '') {
       return res.status(400).json({ message: 'Deletion reason is required.' });
     }
-    
+
     const bill = await Bill.findOne({ _id: req.params.id, isDeleted: { $ne: true } }).session(session);
-    
+
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Don't allow deleting already soft deleted bills
     if (bill.isDeleted) {
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Check if this is a shop bill and user has permission
     const isShopBill = bill.shop;
     if (isShopBill) {
@@ -362,13 +362,13 @@ exports.deleteBill = async (req, res) => {
         return res.status(403).json({ message: 'Not authorized to delete this bill.' });
       }
     }
-    
+
     // Restore stock for the items in the bill if it was an ORDINARY bill
     // Only restore stock if the original bill was ORDINARY, skip if REFERENCE
     if (bill.billType !== 'REFERENCE') {
       for (const originalItem of bill.items) {
         const product = await Product.findById(originalItem.product).session(session);
-        
+
         if (product) {
           let originalQuantityInProductUnit = originalItem.quantity;
           if (product.prices && product.prices.length > 0) {
@@ -377,7 +377,7 @@ exports.deleteBill = async (req, res) => {
               originalQuantityInProductUnit = convertUnit(originalItem.quantity, originalItem.unit, productBaseUnit);
             }
           }
-          
+
           // Add back the original quantity
           await Product.findByIdAndUpdate(
             originalItem.product,
@@ -387,7 +387,7 @@ exports.deleteBill = async (req, res) => {
         }
       }
     }
-    
+
     // Update the bill to mark as deleted
     const updatedBill = await Bill.findByIdAndUpdate(
       req.params.id,
@@ -399,10 +399,10 @@ exports.deleteBill = async (req, res) => {
       },
       { new: true, session }
     );
-    
+
     await session.commitTransaction();
     session.endSession();
-    
+
     res.json({ message: 'Bill deleted successfully', bill: updatedBill });
   } catch (error) {
     if (session.inTransaction()) {
@@ -420,29 +420,59 @@ exports.getBills = async (req, res) => {
     // For admin, we might want to get all bills or filter by shop
     // If shopId is provided in query, filter by that shop
     const { shopId } = req.query;
-    
+
     let filter = {}; // Include soft deleted bills
     if (shopId && shopId !== 'admin') {
       filter.shop = shopId;
     } else if (shopId === 'admin') {
       // Only admin bills (no shop field or shop is null)
       filter.$or = [
-        { shop: null }, 
+        { shop: null },
         { shop: { $exists: false } },
         { shop: { $eq: null } }
       ];
     }
-    
+
     const bills = await Bill.find(filter)
       .sort({ createdAt: -1 })
       .populate('items.product', 'name sku')
       .populate('deletedBy', 'name')
       .populate('worker', 'name');
-      
+
     res.json(bills);
   } catch (error) {
     console.error('Admin Get Bills Error:', error);
     res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// Update only the payment method of a bill
+exports.updatePaymentMethod = async (req, res) => {
+  const { paymentMethod } = req.body;
+
+  if (!['Cash', 'UPI', 'Card'].includes(paymentMethod)) {
+    return res.status(400).json({ message: 'Invalid payment method.' });
+  }
+
+  try {
+    const bill = await Bill.findById(req.params.id);
+
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found.' });
+    }
+
+    if (bill.isDeleted) {
+      return res.status(400).json({ message: 'Cannot update a deleted bill.' });
+    }
+
+    bill.paymentMethod = paymentMethod;
+    bill.isEdited = true;
+    await bill.save();
+
+    res.json({ message: 'Payment method updated successfully', bill });
+  } catch (error) {
+    console.error('Update Payment Method Error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 

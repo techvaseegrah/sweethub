@@ -4,7 +4,7 @@ import { LuFilter, LuEye, LuDownload } from 'react-icons/lu';
 
 // NOTE: These are new components we will create in the next steps.
 // For now, we will import them so the code is ready.
-import InvoiceTemplate from './InvoiceTemplate'; 
+import InvoiceTemplate from './InvoiceTemplate';
 import PartialInvoiceDetailView from './PartialInvoiceDetailView'; // NEW: Import the partial invoice detail view
 import { generateInvoicePdf } from '../../../utils/generateInvoicePdf';
 
@@ -25,7 +25,7 @@ const InvoiceHistory = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState('standard'); // NEW: Track view mode (standard or partial detail)
-  
+
   // Fetch invoices on component mount
   useEffect(() => {
     const fetchInvoices = async () => {
@@ -58,7 +58,7 @@ const InvoiceHistory = () => {
       if (filters.status !== 'All' && invoice.status !== filters.status) return false;
       if (filters.shop !== 'All' && (!invoice.shop || !invoice.shop._id || invoice.shop._id !== filters.shop)) return false;
       if (!invoice._id) return false; // Skip invoices with no _id
-      
+
       return true;
     });
   }, [invoices, filters]);
@@ -93,9 +93,9 @@ const InvoiceHistory = () => {
     <div className="text-center p-8 flex flex-col items-center justify-center">
       <div className="relative flex justify-center items-center mb-4">
         <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-        <img 
-          src="/sweethub-logo.png" 
-          alt="Sweet Hub Logo" 
+        <img
+          src="/sweethub-logo.png"
+          alt="Sweet Hub Logo"
           className="absolute w-8 h-8"
         />
       </div>
@@ -140,35 +140,41 @@ const InvoiceHistory = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredInvoices.filter(inv => inv && inv._id).map(invoice => (
               <tr key={invoice._id}>
-                <td className="td-style font-medium text-blue-600">{invoice.invoiceNumber || 'N/A'}</td>
+                <td className="td-style font-medium text-blue-600">
+                  <div>{invoice.invoiceNumber || 'N/A'}</div>
+                  {invoice.sourceOrderId && (
+                    <div className="text-xs text-gray-500 font-normal">
+                      ({invoice.sourceOrderId})
+                    </div>
+                  )}
+                </td>
                 <td className="td-style">{invoice.shop?.name || 'N/A'}</td>
                 <td className="td-style">
-                                  {invoice.issueDate ? (
-                                    <div>
-                                      <div>{new Date(invoice.issueDate).toLocaleDateString('en-GB')}</div>
-                                      <div className="text-xs text-gray-500">
-                                        {new Date(invoice.issueDate).toLocaleTimeString('en-US', { 
-                                          hour: 'numeric', 
-                                          minute: '2-digit', 
-                                          hour12: true 
-                                        }).toLowerCase()}
-                                      </div>
-                                    </div>
-                                  ) : 'N/A'}
-                                </td>
+                  {invoice.issueDate ? (
+                    <div>
+                      <div>{new Date(invoice.issueDate).toLocaleDateString('en-GB')}</div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(invoice.issueDate).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        }).toLowerCase()}
+                      </div>
+                    </div>
+                  ) : 'N/A'}
+                </td>
                 <td className="td-style">₹{(invoice.grandTotal || 0).toFixed(2)}</td>
                 <td className="td-style">
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    invoice.status === 'Confirmed' ? 'bg-green-100 text-green-800' : 
-                    invoice.status === 'Partial' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-                  }`}>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${invoice.status === 'Confirmed' ? 'bg-green-100 text-green-800' :
+                      invoice.status === 'Partial' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
                     {invoice.status || 'N/A'}
                   </span>
                 </td>
                 <td className="td-style text-right space-x-2">
                   {/* Standard View Button */}
-                  <button 
-                    onClick={() => viewInvoice(invoice, 'standard')} 
+                  <button
+                    onClick={() => viewInvoice(invoice, 'standard')}
                     className="inline-flex items-center px-3 py-1.5 bg-blue-100 text-blue-700 text-sm font-medium rounded-md hover:bg-blue-200 transition-colors"
                   >
                     <LuEye className="mr-1 h-4 w-4" />
@@ -176,8 +182,8 @@ const InvoiceHistory = () => {
                   </button>
                   {/* NEW: Improved Partial View Button with distinct styling */}
                   {invoice.status === 'Partial' && (
-                    <button 
-                      onClick={() => viewInvoice(invoice, 'partial-detail')} 
+                    <button
+                      onClick={() => viewInvoice(invoice, 'partial-detail')}
                       className="inline-flex items-center px-3 py-1.5 bg-purple-100 text-purple-700 text-sm font-medium rounded-md hover:bg-purple-200 transition-colors"
                       title="View Partial Details"
                     >

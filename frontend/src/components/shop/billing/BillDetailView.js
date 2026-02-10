@@ -1,8 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatDateToDDMMYYYY } from '../../../utils/unitConversion';
+import axios from '../../../api/axios';
 
-const BillDetailView = ({ bill, onClose }) => {
+const BillDetailView = ({ bill, onClose, onUpdate, initialEditMode = false }) => {
+  const [isEditingPayment, setIsEditingPayment] = useState(initialEditMode);
+  const [paymentMethod, setPaymentMethod] = useState(bill?.paymentMethod || 'Cash');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
   if (!bill) return null;
+
+  const handleUpdatePaymentMethod = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await axios.patch(`/shop/billing/${bill._id}/payment-method`, {
+        paymentMethod
+      }, { withCredentials: true });
+
+      setIsEditingPayment(false);
+      if (onUpdate) {
+        onUpdate(); // Trigger refresh in parent
+      } else {
+        // Fallback: reload
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error('Error updating payment method:', err);
+      setError(err.response?.data?.message || 'Failed to update payment method');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
@@ -10,7 +39,7 @@ const BillDetailView = ({ bill, onClose }) => {
         <div className="p-6">
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Bill Details</h2>
-            <button 
+            <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
             >
@@ -18,15 +47,56 @@ const BillDetailView = ({ bill, onClose }) => {
             </button>
           </div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
+
           {/* Bill Header */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 p-4 bg-gray-50 rounded-lg">
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Bill Information</h3>
               <p className="text-gray-600"><span className="font-medium">Bill ID:</span> {bill.billId || bill._id}</p>
               <p className="text-gray-600"><span className="font-medium">Date:</span> {bill.createdAt ? formatDateToDDMMYYYY(bill.createdAt) : (bill.billDate ? formatDateToDDMMYYYY(bill.billDate) : 'N/A')}</p>
-              <p className="text-gray-600"><span className="font-medium">Payment Method:</span> {bill.paymentMethod}</p>
+
+              <div className="flex items-center space-x-2 mt-1">
+                <span className="text-gray-600 font-medium">Payment Method:</span>
+                {isEditingPayment ? (
+                  <div className="flex items-center space-x-2">
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="px-2 py-1 border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Card">Card</option>
+                    </select>
+                    <button
+                      onClick={handleUpdatePaymentMethod}
+                      disabled={loading}
+                      className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600"
+                    >
+                      {loading ? '...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => setIsEditingPayment(false)}
+                      disabled={loading}
+                      className="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-600">{paymentMethod}</span>
+                  </div>
+                )}
+              </div>
+
               {bill.worker && (
-                <p className="text-gray-600"><span className="font-medium">Worker:</span> {bill.worker.name}</p>
+                <p className="text-gray-600 mt-1"><span className="font-medium">Worker:</span> {bill.worker.name}</p>
               )}
               {bill.isDeleted && (
                 <div className="mt-2 p-3 bg-red-100 rounded-lg">

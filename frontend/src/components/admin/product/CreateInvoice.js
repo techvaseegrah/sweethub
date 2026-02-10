@@ -25,7 +25,7 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     // Don't clear message here - let it display for the full 3 seconds
     setError('');
   };
-  
+
   // --- FIX 2: Define the handleItemChange function ---
   const handleItemChange = (productId, unit, field, value) => {
     setInvoiceItems(prevItems =>
@@ -48,7 +48,7 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
       })
     );
   };
-  
+
   // --- FIX 3: Calculate subtotal, taxAmount, and grandTotal ---
   const { subtotal, taxAmount, grandTotal } = useMemo(() => {
     const sub = invoiceItems.reduce((acc, item) => {
@@ -73,7 +73,7 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
         console.log('Shops response:', response.data);
         const fetchedShops = response.data;
         setShops(fetchedShops);
-        
+
         // Select shop from props if provided, otherwise select first shop
         if (propShopId) {
           setSelectedShop(propShopId);
@@ -95,26 +95,66 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
 
   // Pre-populate invoice items from order items if provided
   useEffect(() => {
+    console.log('[CreateInvoice] Pre-population useEffect triggered');
+    console.log('[CreateInvoice] propOrderItems:', propOrderItems);
+    console.log('[CreateInvoice] adminProducts count:', adminProducts?.length);
+
     if (propOrderItems && propOrderItems.length > 0 && adminProducts.length > 0) {
+      console.log('[CreateInvoice] Starting pre-population of', propOrderItems.length, 'order items');
+
       const populatedItems = propOrderItems.map(orderItem => {
+        console.log('[CreateInvoice] Processing orderItem:', orderItem);
+
+        // Handle both populated and unpopulated product references
+        const orderProductId = orderItem.product?._id || orderItem.product;
+        console.log('[CreateInvoice] Looking for admin product match for ID:', orderProductId);
+
         // Find the corresponding admin product
-        const adminProduct = adminProducts.find(p => p._id === orderItem.product);
-        if (!adminProduct) return null;
-        
+        const adminProduct = adminProducts.find(p => String(p._id) === String(orderProductId));
+
+        if (!adminProduct) {
+          console.warn('[CreateInvoice] Admin product NOT found for product ID:', orderProductId);
+          console.log('[CreateInvoice] Available admin product IDs:', adminProducts.map(p => p._id));
+          return null;
+        }
+        console.log('[CreateInvoice] Found admin product match:', adminProduct.name);
+
         // Find the price for this unit
         const price = adminProduct.prices.find(p => p.unit === orderItem.unit);
-        if (!price) return null;
-        
-        return {
+        if (!price) {
+          console.warn('[CreateInvoice] Price not found for unit:', orderItem.unit, 'in product:', adminProduct.name);
+          console.log('[CreateInvoice] Available units for product:', adminProduct.prices.map(p => p.unit));
+          return null;
+        }
+        console.log('[CreateInvoice] Found price for unit', orderItem.unit, ':', price.sellingPrice);
+
+        const invoiceItem = {
           product: adminProduct,
           quantity: orderItem.quantity, // Use the quantity from the order
           unitPrice: price.sellingPrice,
           maxQuantity: adminProduct.stockLevel,
           unit: orderItem.unit,
+          productName: orderItem.productName || adminProduct.name,
+          isFromOrder: true // Mark as shop order product
         };
+
+        console.log('[CreateInvoice] Created invoice item successfully:', {
+          productName: invoiceItem.productName,
+          quantity: invoiceItem.quantity,
+          unit: invoiceItem.unit
+        });
+
+        return invoiceItem;
       }).filter(Boolean); // Remove any null items
-      
+
+      console.log('[CreateInvoice] Final populated items count:', populatedItems.length);
+      console.log('[CreateInvoice] Setting', populatedItems.length, 'items to state');
       setInvoiceItems(populatedItems);
+    } else {
+      console.log('[CreateInvoice] Pre-population conditions not met:', {
+        hasOrderItems: !!(propOrderItems && propOrderItems.length > 0),
+        hasAdminProducts: !!(adminProducts && adminProducts.length > 0)
+      });
     }
   }, [propOrderItems, adminProducts]);
 
@@ -122,6 +162,11 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     const existingItem = invoiceItems.find(item => item.product._id === product._id && item.unitPrice === price.sellingPrice);
 
     if (existingItem) {
+      // Prevent removing shop order products
+      if (existingItem.isFromOrder) {
+        console.log('[CreateInvoice] Preventing removal of shop order product:', existingItem.productName);
+        return; // Don't allow removal of shop order products
+      }
       setInvoiceItems(invoiceItems.filter(item => item !== existingItem));
     } else {
       setInvoiceItems([...invoiceItems, {
@@ -130,6 +175,8 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
         unitPrice: price.sellingPrice,
         maxQuantity: product.stockLevel,
         unit: price.unit,
+        productName: product.name, // Include product name for availability checking
+        isFromOrder: false // External product
       }]);
     }
   };
@@ -139,7 +186,7 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     return adminProducts.filter(p =>
       p.stockLevel > 0 &&
       (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [searchTerm, adminProducts]);
 
@@ -156,35 +203,49 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     setIsSubmitting(true);
 
     // Check for partial decimal inputs
-    const hasPartialInputs = invoiceItems.some(item => 
+    const hasPartialInputs = invoiceItems.some(item =>
       typeof item.quantity === 'string' && (item.quantity === '0.' || item.quantity === '.')
     );
-    
+
     if (hasPartialInputs) {
       setError('Please complete all quantity fields. Partial decimal entries (like "0." or ".") are not allowed.');
       setIsSubmitting(false);
       return;
     }
-    
+
     const hasInvalidQuantity = invoiceItems.some(item => {
       // For numeric values, check if they're valid (greater than 0)
       const quantityValue = parseFloat(item.quantity);
       return !item.quantity || isNaN(quantityValue) || quantityValue <= 0;
     });
     if (hasInvalidQuantity) {
-        setError('All products in the invoice must have a quantity greater than 0.');
-        setIsSubmitting(false); // Stop the submission from proceeding
-        return;
+      setError('All products in the invoice must have a quantity greater than 0.');
+      setIsSubmitting(false); // Stop the submission from proceeding
+      return;
     }
 
-    
+    // Check if requested quantities exceed available stock
+    const stockExceededErrors = [];
+    invoiceItems.forEach(item => {
+      if (item.maxQuantity !== undefined && parseFloat(item.quantity) > item.maxQuantity) {
+        stockExceededErrors.push(`${item.product.name}: Requested ${item.quantity}, Available ${item.maxQuantity}`);
+      }
+    });
+
+    if (stockExceededErrors.length > 0) {
+      setError(`Insufficient stock for: ${stockExceededErrors.join(', ')}`);
+      setIsSubmitting(false);
+      return;
+    }
+
     setError('');
     setMessage('');
 
     const payload = {
       shopId: selectedShop,
       items: invoiceItems.map(item => ({
-        productId: item.product._id,
+        product: item.product._id, // Changed from productId to product to match backend expectation
+        productName: item.productName || item.product.name, // Include product name for availability checking (using either from order or from product)
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         unit: item.unit, // Include unit information
@@ -199,12 +260,12 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
       // Find the selected shop name to show in success message
       const selectedShopData = shops.find(shop => shop._id === selectedShop);
       const shopName = selectedShopData ? selectedShopData.name : 'the selected shop';
-      
+
       setMessage(`Invoice created and sent successfully to ${shopName}!`);
       if (refreshProducts) {
         refreshProducts();
       }
-      
+
       // Clear form after setting success message
       setTimeout(() => {
         resetForm();
@@ -226,9 +287,9 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     <div className="p-6 text-center flex flex-col items-center justify-center">
       <div className="relative flex justify-center items-center mb-4">
         <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-        <img 
-          src="/sweethub-logo.png" 
-          alt="Sweet Hub Logo" 
+        <img
+          src="/sweethub-logo.png"
+          alt="Sweet Hub Logo"
           className="absolute w-8 h-8"
         />
       </div>
@@ -247,31 +308,39 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           <div className="w-full md:w-1/2 p-4 border-r overflow-y-auto">
             <div className="mb-4">
-                <label className="label-style">Search Products</label>
-                <input
-                    type="text"
-                    placeholder="Search by name or SKU..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="input-style mt-1"
-                />
+              <label className="label-style">Search Products</label>
+              <input
+                type="text"
+                placeholder="Search by name or SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="input-style mt-1"
+              />
             </div>
             <div className="space-y-3">
               {filteredProducts.map(product => (
                 <div key={product._id} className="p-3 border rounded-lg bg-gray-50">
                   <p className="font-semibold">{product.name} <span className="text-gray-500 font-normal"> (Stock: {product.stockLevel})</span></p>
                   <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
-                    {product.prices.map(price => (
-                      <label key={price._id} className="flex items-center space-x-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={invoiceItems.some(item => item.product._id === product._id && item.unitPrice === price.sellingPrice)}
-                          onChange={() => handleProductSelection(product, price)}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span>{price.unit} - ₹{price.sellingPrice}</span>
-                      </label>
-                    ))}
+                    {product.prices.map(price => {
+                      const isOrderProduct = invoiceItems.some(
+                        item => item.product._id === product._id &&
+                          item.unitPrice === price.sellingPrice &&
+                          item.isFromOrder
+                      );
+                      return (
+                        <label key={price._id} className={`flex items-center space-x-2 text-sm ${isOrderProduct ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                          <input
+                            type="checkbox"
+                            checked={invoiceItems.some(item => item.product._id === product._id && item.unitPrice === price.sellingPrice)}
+                            onChange={() => handleProductSelection(product, price)}
+                            disabled={isOrderProduct}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          />
+                          <span>{price.unit} - ₹{price.sellingPrice}</span>
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -280,12 +349,12 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
 
           <main className="w-full md:w-1/2 p-4 sm:p-6 flex flex-col overflow-y-auto">
             <div className="mb-6">
-                <label className="label-style">Deliver To Shop</label>
-                <select value={selectedShop} onChange={(e) => setSelectedShop(e.target.value)} className="input-style mt-1">
-                    {shops.map(shop => <option key={shop._id} value={shop._id}>{shop.name}</option>)}
-                </select>
+              <label className="label-style">Deliver To Shop</label>
+              <select value={selectedShop} onChange={(e) => setSelectedShop(e.target.value)} className="input-style mt-1">
+                {shops.map(shop => <option key={shop._id} value={shop._id}>{shop.name}</option>)}
+              </select>
             </div>
-            
+
             <h4 className="font-semibold mb-2">Products Added to Invoice</h4>
             <div className="flex-1 overflow-x-auto rounded-lg border">
               <table className="min-w-full">
@@ -294,18 +363,28 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
                     <th className="th-style">Product</th>
                     <th className="th-style">Unit</th>
                     <th className="th-style">Qty</th>
+                    <th className="th-style">Max Qty</th>
                     <th className="th-style">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoiceItems.length === 0 ? (
-                    <tr><td colSpan="4" className="text-center py-10 text-gray-500">Select products from the list.</td></tr>
+                    <tr><td colSpan="5" className="text-center py-10 text-gray-500">Select products from the list.</td></tr>
                   ) : (
                     invoiceItems.map(item => (
-                      <tr key={`${item.product._id}-${item.unit}`} className="border-b">
+                      <tr key={`${item.product._id}-${item.unit}`} className={`border-b ${item.isFromOrder ? 'bg-blue-50' : ''}`}>
                         <td className="td-style">
-                          <p className="font-medium">{item.product.name}</p>
-                          <p className="text-xs text-gray-500">SKU: {item.product.sku}</p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{item.product.name}</p>
+                              <p className="text-xs text-gray-500">SKU: {item.product.sku}</p>
+                            </div>
+                            {item.isFromOrder && (
+                              <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full whitespace-nowrap">
+                                Order Item
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="td-style">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -314,13 +393,16 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
                           <p className="text-xs text-gray-500 mt-1">@ ₹{item.unitPrice.toFixed(2)}</p>
                         </td>
                         <td className="td-style">
-                          <input 
-                            type="text" 
-                            value={item.quantity} 
+                          <input
+                            type="text"
+                            value={item.quantity}
                             placeholder="0"
-                            onChange={(e) => handleItemChange(item.product._id, item.unit, 'quantity', e.target.value)} 
-                            className="w-20 sm:w-24 input-style no-spinner" 
+                            onChange={(e) => handleItemChange(item.product._id, item.unit, 'quantity', e.target.value)}
+                            className="w-20 sm:w-24 input-style no-spinner"
                           />
+                        </td>
+                        <td className="td-style">
+                          <span className="text-sm">{item.maxQuantity !== undefined ? item.maxQuantity : 'N/A'}</span>
                         </td>
                         <td className="td-style font-semibold">₹{(item.unitPrice * (typeof item.quantity === 'string' && (item.quantity === '0.' || item.quantity === '.') ? 0 : parseFloat(item.quantity) || 0)).toFixed(2)}</td>
                       </tr>
@@ -331,38 +413,38 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
             </div>
 
             <div className="mt-auto pt-6">
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center"><span className="text-gray-600">Subtotal:</span><span className="font-semibold text-gray-800">₹{subtotal.toFixed(2)}</span></div>
-                    <div className="flex justify-between items-center gap-4"><label className="text-gray-600">Tax (%):</label>
-                        <input 
-                            type="text" 
-                            value={taxRate}
-                            placeholder="0" 
-                            onChange={(e) => setTaxRate(e.target.value)} 
-                            className="w-24 input-style text-right no-spinner" 
-                        />
-                    </div>
-                    <div className="flex justify-between"><span className="text-gray-600">Tax Amount:</span><span className="font-semibold text-gray-800">₹{taxAmount.toFixed(2)}</span></div>
-                    <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Grand Total:</span><span>₹{grandTotal.toFixed(2)}</span></div>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center"><span className="text-gray-600">Subtotal:</span><span className="font-semibold text-gray-800">₹{subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between items-center gap-4"><label className="text-gray-600">Tax (%):</label>
+                  <input
+                    type="text"
+                    value={taxRate}
+                    placeholder="0"
+                    onChange={(e) => setTaxRate(e.target.value)}
+                    className="w-24 input-style text-right no-spinner"
+                  />
                 </div>
+                <div className="flex justify-between"><span className="text-gray-600">Tax Amount:</span><span className="font-semibold text-gray-800">₹{taxAmount.toFixed(2)}</span></div>
+                <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Grand Total:</span><span>₹{grandTotal.toFixed(2)}</span></div>
+              </div>
             </div>
           </main>
         </div>
-        
+
         <footer className="p-4 bg-gray-50 border-t flex justify-end items-center gap-3">
-            {message && (
-              <div className="fixed top-4 right-4 z-[9999] bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
-                <p className="font-semibold">{message}</p>
-              </div>
-            )}
-            {error && <p className="text-red-600 font-semibold">{error}</p>}
-            <button onClick={closeModal} className="btn-secondary">Cancel</button>
-            <button 
-              onClick={handleSubmitInvoice} 
-              className="btn-primary"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Sending...' : 'Create & Send Invoice'}
+          {message && (
+            <div className="fixed top-4 right-4 z-[9999] bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
+              <p className="font-semibold">{message}</p>
+            </div>
+          )}
+          {error && <p className="text-red-600 font-semibold">{error}</p>}
+          <button onClick={closeModal} className="btn-secondary">Cancel</button>
+          <button
+            onClick={handleSubmitInvoice}
+            className="btn-primary"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Sending...' : 'Create & Send Invoice'}
           </button>
         </footer>
       </div>

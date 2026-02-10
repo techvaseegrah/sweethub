@@ -1,143 +1,180 @@
 const Invoice = require('../../models/invoiceModel');
 const Product = require('../../models/productModel');
+const Order = require('../../models/orderModel');
 const Shop = require('../../models/shopModel');
-const Order = require('../../models/orderModel'); // Import the Order model
+const User = require('../../models/User');
+const { recordStockOut } = require('./productHistoryController');
 const mongoose = require('mongoose');
 
-const generateInvoiceNumber = async () => {
-  const year = new Date().getFullYear();
-  const prefix = `INV-${year}`;
-
-  const lastInvoice = await Invoice.findOne({ invoiceNumber: new RegExp(`^${prefix}`) })
-                                   .sort({ createdAt: -1 });
-
-  let nextSequence = 1;
-  if (lastInvoice) {
-    const lastSequence = parseInt(lastInvoice.invoiceNumber.split('-')[2]);
-    nextSequence = lastSequence + 1;
-  }
-  
-  const sequenceString = nextSequence.toString().padStart(3, '0');
-  return `${prefix}-${sequenceString}`;
-};
-
+/**
+ * Creates a new invoice to send products to a shop from admin side.
+ * This happens when admin processes an order and creates an invoice for the shop.
+ */
 exports.createInvoice = async (req, res) => {
   console.log('=== CREATE INVOICE REQUEST ===');
   console.log('Request body:', req.body);
   console.log('User:', req.user);
-  
-  const { shopId, items, tax = 0 } = req.body;
-  const adminId = req.user.id;
 
-  console.log('Items received:', items);
-
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  const { shopId, items, orderId } = req.body;
 
   try {
+    // Validate inputs
     if (!shopId || !items || items.length === 0) {
-      throw new Error('Shop ID and at least one item are required.');
+      return res.status(400).json({ message: 'Shop ID and items are required.' });
     }
-    const shop = await Shop.findById(shopId).session(session);
-    if (!shop) throw new Error('Shop not found.');
 
-    let calculatedSubtotal = 0;
-    const invoiceItems = [];
+    // Find the shop
+    const shop = await Shop.findById(shopId);
+    if (!shop) {
+      return res.status(404).json({ message: 'Shop not found.' });
+    }
+
+    // Find admin creating the invoice
+    const admin = await User.findById(req.user.id);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin user not found.' });
+    }
+
+    // Calculate totals
+    let subtotal = 0;
+    const processedItems = [];
 
     for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product) {
+        return res.status(404).json({ message: `Product with ID ${item.product} not found.` });
+      }
+
       const quantity = parseFloat(item.quantity);
       const unitPrice = parseFloat(item.unitPrice);
-      const unit = item.unit; // Extract unit from the item
+      const totalPrice = quantity * unitPrice;
 
-      if (isNaN(quantity) || quantity <= 0) {
-        throw new Error(`Invalid quantity provided for product ID ${item.productId}.`);
+      subtotal += totalPrice;
+
+      // --- ADDED: Decrease product stock level in admin inventory ---
+      if (product.stockLevel !== undefined) {
+        product.stockLevel = (parseFloat(product.stockLevel) || 0) - quantity;
+        await product.save();
+        console.log(`Decreased stock for ${product.name} by ${quantity}. New stock: ${product.stockLevel}`);
+
+        // Record stock out history
+        try {
+          await recordStockOut(product, req.user.id, quantity);
+        } catch (historyError) {
+          console.error('Failed to record stock out history:', historyError);
+        }
       }
-      if (isNaN(unitPrice) || unitPrice < 0) {
-        throw new Error(`Invalid unit price provided for product ID ${item.productId}.`);
-      }
-      if (!unit) {
-        throw new Error(`Unit is required for product ID ${item.productId}.`);
-      }
 
-      const product = await Product.findById(item.productId).session(session);
-      if (!product) throw new Error(`Product with ID ${item.productId} not found.`);
-      if (product.admin.toString() !== adminId) throw new Error(`Product "${product.name}" is not in your inventory.`);
-      
-      // --- MODIFICATION: The stock level check has been removed ---
-      // if (product.stockLevel < quantity) throw new Error(`Not enough stock for "${product.name}". Available: ${product.stockLevel}, Requested: ${quantity}.`);
-
-      // The stock level is still decreased as before
-      product.stockLevel = parseFloat(product.stockLevel) - parseFloat(quantity);
-      await product.save({ session });
-      
-      const totalPrice = unitPrice * quantity;
-      calculatedSubtotal += totalPrice;
-
-      invoiceItems.push({
-        product: item.productId,
+      processedItems.push({
+        product: item.product,
+        productName: product.name,
+        productSku: product.sku,
         quantity: quantity,
         unitPrice: unitPrice,
         totalPrice: totalPrice,
-        productName: product.name,
-        productSku: product.sku,
-        unit: unit, // Include unit information
+        unit: item.unit,
+        receivedQuantity: 0, // Initially 0, updated when shop confirms
+        shopConfirmed: false // Initially false, updated when shop confirms
       });
     }
 
-    const calculatedTax = (calculatedSubtotal * tax) / 100;
-    const calculatedGrandTotal = calculatedSubtotal + calculatedTax;
-    
-    const newInvoiceNumber = await generateInvoiceNumber();
+    // Tax calculation (if applicable)
+    const taxRate = 0; // Assuming no tax for simplicity, can be modified
+    const tax = (subtotal * taxRate) / 100;
+    const grandTotal = subtotal + tax;
 
+    // Generate invoice number
+    const year = new Date().getFullYear();
+    const prefix = `INV-${year}`;
+
+    const lastInvoice = await Invoice.findOne({ invoiceNumber: new RegExp(`^${prefix}`) })
+      .sort({ createdAt: -1 });
+
+    let nextSequence = 1;
+    if (lastInvoice) {
+      const lastSequence = parseInt(lastInvoice.invoiceNumber.split('-')[2]);
+      nextSequence = lastSequence + 1;
+    }
+
+    const sequenceString = nextSequence.toString().padStart(3, '0');
+    const invoiceNumber = `${prefix}-${sequenceString}`;
+
+    // Create the invoice
     const newInvoice = new Invoice({
-      invoiceNumber: newInvoiceNumber,
-      admin: adminId,
+      invoiceNumber,
+      admin: req.user.id,
       shop: shopId,
-      items: invoiceItems,
-      subtotal: calculatedSubtotal,
-      tax: calculatedTax,
-      grandTotal: calculatedGrandTotal,
-      status: 'Pending',
+      items: processedItems,
+      subtotal,
+      tax,
+      grandTotal,
+      status: 'Pending', // Awaiting shop confirmation
+      issueDate: new Date(),
+      order: orderId || null,
+      sourceOrderId: null // Will be updated below if orderId exists
     });
-    
-    await newInvoice.save({ session });
-    console.log('Invoice saved successfully:', newInvoiceNumber);
 
-    // Check if this invoice is created from an order
-    // If there's a reference to an order ID in the request body, update the order status
-    const orderIdFromRequest = req.body.orderId; // This would be passed from the frontend when creating invoice from order
-    if (orderIdFromRequest) {
-      const order = await Order.findById(orderIdFromRequest).session(session);
+    // If an order ID was provided, update the order status and get human-readable orderId
+    if (orderId) {
+      const order = await Order.findById(orderId);
       if (order) {
         order.status = 'Invoiced';
         order.invoiceId = newInvoice._id;
-        order.admin = adminId;
-        await order.save({ session });
-        console.log('Order status updated to Invoiced for order:', orderIdFromRequest);
+        await order.save();
+        console.log(`Order ${order.orderId} updated to Invoiced status`);
+
+        // Store human-readable orderId in the invoice
+        newInvoice.sourceOrderId = order.orderId;
       }
     }
 
-    await session.commitTransaction();
-    console.log('Transaction committed successfully');
-    res.status(201).json({ message: 'Invoice created successfully!', invoice: newInvoice });
+    await newInvoice.save();
+    console.log('Invoice created successfully:', newInvoice.invoiceNumber);
+
+    res.status(201).json({
+      message: 'Invoice created successfully!',
+      invoice: newInvoice
+    });
 
   } catch (error) {
-    console.log('Error creating invoice:', error.message);
-    await session.abortTransaction();
+    console.error('Error creating invoice:', error.message);
     res.status(400).json({ message: error.message || 'Failed to create invoice.' });
-  } finally {
-    session.endSession();
   }
 };
 
+/**
+ * Gets all invoices created by the admin (across all shops).
+ * Populates shop and admin information for display.
+ */
 exports.getInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find({ admin: req.user.id })
+    const invoices = await Invoice.find({})
       .populate('shop', 'name address')
+      .populate('admin', 'name')
       .sort({ issueDate: -1 });
 
     res.status(200).json(invoices);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch invoices.', error: error.message });
+  }
+};
+
+/**
+ * Gets a specific invoice by ID.
+ * Populates shop and admin information.
+ */
+exports.getInvoiceById = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id)
+      .populate('shop', 'name address')
+      .populate('admin', 'name');
+
+    if (!invoice) {
+      return res.status(404).json({ message: 'Invoice not found.' });
+    }
+
+    res.status(200).json(invoice);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch invoice.', error: error.message });
   }
 };

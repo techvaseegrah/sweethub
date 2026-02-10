@@ -125,3 +125,28 @@ export function formatDateTime(dateString) {
   
   return { date: formattedDate, time: formattedTime };
 }
+
+// Format date with time for display (dd/mm/yyyy on one line, h:mm am/pm on next line)
+export function formatDateWithTime(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  
+  // Format date as dd/mm/yyyy
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  
+  // Format time as h:mm am/pm (12-hour format)
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // Convert 0 to 12
+  
+  return (
+    <>
+      <div>{day}/{month}/{year}</div>
+      <div>{hours}:{minutes} {ampm}</div>
+    </>
+  );
+}

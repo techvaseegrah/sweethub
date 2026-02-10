@@ -9,7 +9,7 @@ exports.createOrder = async (req, res) => {
   console.log('=== CREATE ORDER REQUEST ===');
   console.log('Request body:', req.body);
   console.log('User:', req.user);
-  
+
   const { shopId, items, tax = 0 } = req.body;
   const requestingShopId = req.user.shopId || shopId;
 
@@ -61,16 +61,16 @@ exports.createOrder = async (req, res) => {
     // Generate order ID manually to ensure it's set before save
     const year = new Date().getFullYear();
     const prefix = `ORD-${year}`;
-    
+
     const lastOrder = await Order.findOne({ orderId: new RegExp(`^${prefix}`) })
-                                 .sort({ createdAt: -1 });
-    
+      .sort({ createdAt: -1 });
+
     let nextSequence = 1;
     if (lastOrder) {
       const lastSequence = parseInt(lastOrder.orderId.split('-')[2]);
       nextSequence = lastSequence + 1;
     }
-    
+
     const sequenceString = nextSequence.toString().padStart(3, '0');
     const orderId = `${prefix}-${sequenceString}`;
 
@@ -101,6 +101,7 @@ exports.getOrders = async (req, res) => {
     const orders = await Order.find({})
       .populate('shop', 'name address')
       .populate('admin', 'name')
+      .populate('invoiceId', 'grandTotal')
       .sort({ orderDate: -1 });
 
     res.status(200).json(orders);
@@ -113,10 +114,11 @@ exports.getOrders = async (req, res) => {
 exports.getOrdersForShop = async (req, res) => {
   try {
     const { shopId } = req.params;
-    
+
     const orders = await Order.find({ shop: shopId })
       .populate('shop', 'name address')
       .populate('admin', 'name')
+      .populate('invoiceId', 'grandTotal')
       .sort({ orderDate: -1 });
 
     res.status(200).json(orders);
@@ -146,7 +148,7 @@ exports.getOrderById = async (req, res) => {
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { orderId, status, invoiceId } = req.body;
-    
+
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ message: 'Order not found.' });
@@ -165,5 +167,26 @@ exports.updateOrderStatus = async (req, res) => {
     res.status(200).json({ message: 'Order updated successfully!', order });
   } catch (error) {
     res.status(500).json({ message: 'Failed to update order.', error: error.message });
+  }
+};
+
+// Get unviewed orders count for admin
+exports.getUnviewedOrderCount = async (req, res) => {
+  try {
+    const count = await Order.countDocuments({ isAdminViewed: false });
+    res.status(200).json({ count });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to get unviewed order count.', error: error.message });
+  }
+};
+
+// Mark all unviewed orders as viewed
+exports.markOrdersAsViewed = async (req, res) => {
+  try {
+    const result = await Order.updateMany({ isAdminViewed: false }, { $set: { isAdminViewed: true } });
+    console.log(`[OrderController] Marked ${result.modifiedCount} orders as viewed`);
+    res.status(200).json({ message: 'Orders marked as viewed.' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to mark orders as viewed.', error: error.message });
   }
 };

@@ -27,10 +27,15 @@ function AdminOrderManagement() {
           axios.get('/admin/shops'),
           axios.get('/admin/products?showAdmin=true')
         ]);
-        
+
         setOrders(ordersResponse.data);
         setShops(shopsResponse.data);
         setAdminProducts(productsResponse.data);
+
+        // Mark orders as viewed when tab is active
+        if (activeTab === 'Orders' && ordersResponse.data.some(o => !o.isAdminViewed)) {
+          await axios.put('/admin/orders/mark-as-viewed');
+        }
       } catch (err) {
         if (err.response?.status === 403) {
           setError('Access denied. Please log in again.');
@@ -73,19 +78,19 @@ function AdminOrderManagement() {
 
   const formatDateWithTime = (dateString) => {
     const date = new Date(dateString);
-    
+
     // Format date as dd/mm/yyyy
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
-    
+
     // Format time as hh:mm am/pm
     let hours = date.getHours();
     const minutes = String(date.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'pm' : 'am';
     hours = hours % 12;
     hours = hours ? hours : 12; // Convert 0 to 12 for 12 AM/PM
-    
+
     return {
       date: `${day}/${month}/${year}`,
       time: `${hours}:${minutes} ${ampm}`
@@ -98,6 +103,8 @@ function AdminOrderManagement() {
   };
 
   const handleCreateInvoice = (order) => {
+    console.log('[OrderManagement] Create Invoice clicked for order:', order.orderId);
+    console.log('[OrderManagement] Order items:', order.items);
     setSelectedOrder(order);
     setIsCreateInvoiceModalOpen(true);
     setIsAdminViewOpen(false); // Close admin view if open
@@ -142,21 +149,19 @@ function AdminOrderManagement() {
         <nav className="flex space-x-8">
           <button
             onClick={() => setActiveTab('Orders')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'Orders'
-                ? 'border-red-500 text-red-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'Orders'
+              ? 'border-red-500 text-red-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
           >
             Orders
           </button>
           <button
             onClick={() => setActiveTab('InvoiceHistory')}
-            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'InvoiceHistory'
-                ? 'border-red-500 text-red-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === 'InvoiceHistory'
+              ? 'border-red-500 text-red-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
           >
             Invoice History
           </button>
@@ -200,7 +205,11 @@ function AdminOrderManagement() {
                         {order.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">₹{(order.grandTotal || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                      ₹{order.status === 'Invoiced' && order.invoiceId?.grandTotal
+                        ? (order.invoiceId.grandTotal || 0).toFixed(2)
+                        : (order.grandTotal || 0).toFixed(2)}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium space-x-2">
                       <button
                         onClick={() => handleViewOrder(order)}
@@ -210,10 +219,10 @@ function AdminOrderManagement() {
                         <LuEye size={18} />
                       </button>
                       <button
-                        onClick={() => handleCreateInvoice(order)}
-                        className="text-green-600 hover:text-green-900 mr-2"
-                        title="Create Invoice"
-                        disabled={order.status !== 'Pending'}
+                        onClick={() => order.status === 'Invoiced' ? handleViewOrder(order) : handleCreateInvoice(order)}
+                        className={`${order.status === 'Invoiced' ? 'text-blue-600 hover:text-blue-900' : 'text-green-600 hover:text-green-900'} mr-2`}
+                        title={order.status === 'Invoiced' ? 'View Invoice Details' : 'Create Invoice'}
+                        disabled={order.status !== 'Pending' && order.status !== 'Invoiced'}
                       >
                         <LuFileText size={18} />
                       </button>
@@ -247,15 +256,18 @@ function AdminOrderManagement() {
       {/* Enhanced Order Detail Modal */}
       {selectedOrder && isAdminViewOpen && !isCreateInvoiceModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <ViewOrderDetails 
-            order={selectedOrder} 
+          <ViewOrderDetails
+            order={selectedOrder}
+            adminProducts={adminProducts}
             onClose={() => {
               setIsAdminViewOpen(false);
               setSelectedOrder(null);
             }}
-            onInvoiceCreated={() => {
-              // Refresh orders after invoice is created
-              refreshOrders();
+            onInvoiceCreated={async () => {
+              // Refresh orders to show updated status
+              await refreshOrders();
+              setIsAdminViewOpen(false);
+              setSelectedOrder(null);
             }}
           />
         </div>
@@ -275,9 +287,9 @@ function AdminOrderManagement() {
                   <LuX size={24} />
                 </button>
               </div>
-              
-              <CreateInvoice 
-                closeModal={closeCreateInvoiceModal} 
+
+              <CreateInvoice
+                closeModal={closeCreateInvoiceModal}
                 adminProducts={adminProducts}
                 shopId={selectedOrder.shop?._id}
                 orderItems={selectedOrder.items} // Pass the order items to pre-populate

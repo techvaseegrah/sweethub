@@ -14,7 +14,7 @@ exports.createBill = async (req, res) => {
   try {
     // 1. Identify Shop from Auth Middleware (req.user or req.shopId)
     // Assuming authMiddleware sets req.user.shopId
-    const shopId = req.user?.shopId || req.shopId; 
+    const shopId = req.user?.shopId || req.shopId;
 
     if (!shopId) {
       await session.abortTransaction();
@@ -22,15 +22,15 @@ exports.createBill = async (req, res) => {
       return res.status(403).json({ message: 'Shop identification failed.' });
     }
 
-    const { 
-      customerMobileNumber, 
-      customerName, 
-      items, 
+    const {
+      customerMobileNumber,
+      customerName,
+      items,
       baseAmount,
       gstPercentage,
       gstAmount,
-      totalAmount, 
-      paymentMethod, 
+      totalAmount,
+      paymentMethod,
       amountPaid,
       discountType,
       discountValue,
@@ -48,12 +48,12 @@ exports.createBill = async (req, res) => {
     // where stockLevel is tracked.
     // 3. Process Items & Deduct Stock (Modified)
     const itemsWithDetails = [];
-    
+
     if (items && items.length > 0) {
       for (const item of items) {
         // Find the product
         const product = await Product.findById(item.product).session(session);
-        
+
         if (!product) {
           throw new Error(`Product with ID ${item.product} not found`);
         }
@@ -64,7 +64,7 @@ exports.createBill = async (req, res) => {
         // Only deduct stock if billType is ORDINARY, skip if REFERENCE
         if (billType !== 'REFERENCE') {
           product.stockLevel = product.stockLevel - item.quantity;
-          
+
           await product.save({ session });
         }
         // -----------------------------
@@ -73,7 +73,7 @@ exports.createBill = async (req, res) => {
         itemsWithDetails.push({
           product: product._id,
           productName: product.name,
-          sku: product.sku, 
+          sku: product.sku,
           unit: item.unit,
           quantity: item.quantity,
           price: item.price,
@@ -83,7 +83,7 @@ exports.createBill = async (req, res) => {
 
     // 4. Fetch Shop Details for Bill Creation
     const shopDetails = await Shop.findById(shopId);
-    
+
     // 5. Create Bill
     const newBill = new Bill({
       billId,
@@ -138,9 +138,9 @@ exports.createBill = async (req, res) => {
     }
     session.endSession();
     console.error('Shop Create Bill Error:', error);
-    res.status(500).json({ 
-      message: 'Failed to create bill', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Failed to create bill',
+      error: error.message
     });
   }
 };
@@ -149,21 +149,21 @@ exports.createBill = async (req, res) => {
 exports.getBillById = async (req, res) => {
   try {
     const shopId = req.user?.shopId || req.shopId;
-    
+
     if (!shopId) {
       return res.status(403).json({ message: 'Unauthorized' });
     }
-    
+
     const bill = await Bill.findOne({ _id: req.params.id, shop: shopId })
       .populate('items.product', 'name sku unit prices')
       .populate('shop', 'name location gstNumber fssaiNumber shopPhoneNumber')
       .populate('deletedBy', 'name')
       .populate('worker', 'name');
-      
+
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found' });
     }
-    
+
     // Return the bill even if it's soft deleted, so users can see deletion details
     res.json(bill);
   } catch (error) {
@@ -175,43 +175,43 @@ exports.getBillById = async (req, res) => {
 // Update an existing bill
 exports.updateBill = async (req, res) => {
   const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY' } = req.body;
-  
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     const shopId = req.user?.shopId || req.shopId;
-    
+
     if (!shopId) {
       await session.abortTransaction();
       session.endSession();
       return res.status(403).json({ message: 'Unauthorized' });
     }
-    
+
     const bill = await Bill.findOne({ _id: req.params.id, shop: shopId }).session(session);
-    
+
     if (!bill) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Don't allow editing soft deleted bills
     if (bill.isDeleted) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Prepare items and check stock
     const itemsWithDetails = [];
-    
+
     // First, restore original stock for the items in the original bill
     // Only restore stock if the original bill was ORDINARY, skip if REFERENCE
     if (bill.billType !== 'REFERENCE') {
       for (const originalItem of bill.items) {
         const product = await Product.findById(originalItem.product).session(session);
-        
+
         if (product) {
           let originalQuantityInProductUnit = originalItem.quantity;
           if (product.prices && product.prices.length > 0) {
@@ -220,7 +220,7 @@ exports.updateBill = async (req, res) => {
               originalQuantityInProductUnit = convertUnit(originalItem.quantity, originalItem.unit, productBaseUnit);
             }
           }
-          
+
           // Add back the original quantity
           await Product.findByIdAndUpdate(
             originalItem.product,
@@ -230,7 +230,7 @@ exports.updateBill = async (req, res) => {
         }
       }
     }
-    
+
     // Process new items and deduct new stock
     for (const item of items) {
       const product = await Product.findById(item.product).session(session);
@@ -239,7 +239,7 @@ exports.updateBill = async (req, res) => {
         session.endSession();
         return res.status(404).json({ message: `Product with ID ${item.product} not found.` });
       }
-      
+
       // Check Stock - convert item quantity to product's unit if units are related
       // Only check stock if billType is ORDINARY, skip if REFERENCE
       if (billType !== 'REFERENCE') {
@@ -250,7 +250,7 @@ exports.updateBill = async (req, res) => {
             itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
           }
         }
-        
+
         if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
           await session.abortTransaction();
           session.endSession();
@@ -277,7 +277,7 @@ exports.updateBill = async (req, res) => {
             quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
           }
         }
-        
+
         await Product.findByIdAndUpdate(
           item.product,
           { $inc: { stockLevel: -quantityToDeduct } },
@@ -308,10 +308,10 @@ exports.updateBill = async (req, res) => {
       },
       { new: true, session }
     );
-    
+
     await session.commitTransaction();
     session.endSession();
-    
+
     // Send WhatsApp message only for ordinary bills, not reference bills
     if (updatedBill.billType === 'ORDINARY') {
       const shopDetails = await Shop.findById(updatedBill.shop);
@@ -336,34 +336,34 @@ exports.deleteBill = async (req, res) => {
 
   try {
     const { reason } = req.body;
-    
+
     if (!reason || reason.trim() === '') {
       return res.status(400).json({ message: 'Deletion reason is required.' });
     }
-    
+
     const shopId = req.user?.shopId || req.shopId;
-    
+
     if (!shopId) {
       return res.status(403).json({ message: 'Unauthorized' });
     }
-    
+
     const bill = await Bill.findOne({ _id: req.params.id, shop: shopId, isDeleted: { $ne: true } }).session(session);
-    
+
     if (!bill) {
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Don't allow deleting already soft deleted bills
     if (bill.isDeleted) {
       return res.status(404).json({ message: 'Bill not found.' });
     }
-    
+
     // Restore stock for the items in the bill if it was an ORDINARY bill
     // Only restore stock if the original bill was ORDINARY, skip if REFERENCE
     if (bill.billType !== 'REFERENCE') {
       for (const originalItem of bill.items) {
         const product = await Product.findById(originalItem.product).session(session);
-        
+
         if (product) {
           let originalQuantityInProductUnit = originalItem.quantity;
           if (product.prices && product.prices.length > 0) {
@@ -372,7 +372,7 @@ exports.deleteBill = async (req, res) => {
               originalQuantityInProductUnit = convertUnit(originalItem.quantity, originalItem.unit, productBaseUnit);
             }
           }
-          
+
           // Add back the original quantity
           await Product.findByIdAndUpdate(
             originalItem.product,
@@ -382,7 +382,7 @@ exports.deleteBill = async (req, res) => {
         }
       }
     }
-    
+
     // Update the bill to mark as deleted
     const updatedBill = await Bill.findByIdAndUpdate(
       req.params.id,
@@ -394,10 +394,10 @@ exports.deleteBill = async (req, res) => {
       },
       { new: true, session }
     );
-    
+
     await session.commitTransaction();
     session.endSession();
-    
+
     res.json({ message: 'Bill deleted successfully', bill: updatedBill });
   } catch (error) {
     if (session.inTransaction()) {
@@ -413,7 +413,7 @@ exports.deleteBill = async (req, res) => {
 exports.getBills = async (req, res) => {
   try {
     const shopId = req.user?.shopId || req.shopId;
-    
+
     if (!shopId) {
       return res.status(403).json({ message: 'Unauthorized' });
     }
@@ -428,6 +428,41 @@ exports.getBills = async (req, res) => {
   } catch (error) {
     console.error('Shop Get Bills Error:', error);
     res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// Update only the payment method of a bill
+exports.updatePaymentMethod = async (req, res) => {
+  const { paymentMethod } = req.body;
+  const shopId = req.user?.shopId || req.shopId;
+
+  if (!shopId) {
+    return res.status(403).json({ message: 'Unauthorized' });
+  }
+
+  if (!['Cash', 'UPI', 'Card'].includes(paymentMethod)) {
+    return res.status(400).json({ message: 'Invalid payment method.' });
+  }
+
+  try {
+    const bill = await Bill.findOne({ _id: req.params.id, shop: shopId });
+
+    if (!bill) {
+      return res.status(404).json({ message: 'Bill not found.' });
+    }
+
+    if (bill.isDeleted) {
+      return res.status(400).json({ message: 'Cannot update a deleted bill.' });
+    }
+
+    bill.paymentMethod = paymentMethod;
+    bill.isEdited = true;
+    await bill.save();
+
+    res.json({ message: 'Payment method updated successfully', bill });
+  } catch (error) {
+    console.error('Update Payment Method Error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 

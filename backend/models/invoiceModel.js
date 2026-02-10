@@ -81,6 +81,13 @@ const invoiceSchema = new mongoose.Schema({
   confirmedDate: {
     type: Date,
   },
+  order: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+  },
+  sourceOrderId: {
+    type: String,
+  },
 }, {
   timestamps: true, // Automatically adds createdAt and updatedAt fields
 });

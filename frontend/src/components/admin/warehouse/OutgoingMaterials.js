@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuPlus, LuTrash2 } from 'react-icons/lu';
+import { formatDateWithTime } from '../../../utils/unitConversion';
 
 const OutgoingMaterials = () => {
     const [outgoingMaterials, setOutgoingMaterials] = useState([]);
@@ -103,7 +104,9 @@ const OutgoingMaterials = () => {
                                 <td className="border px-4 py-2">{item.unit}</td>
                                 <td className="border px-4 py-2">₹{item.pricePerUnit}</td>
                                 <td className="border px-4 py-2">₹{item.totalCost ? item.totalCost.toFixed(2) : (item.quantityUsed * item.pricePerUnit).toFixed(2)}</td>
-                                <td className="border px-4 py-2">{new Date(item.dateUsed || item.usedDate).toLocaleDateString()}</td>
+                                <td className="border px-4 py-2">
+                                    {formatDateWithTime(item.dateUsed || item.usedDate)}
+                                </td>
                                 <td className="border px-4 py-2">{item.manufacturingProcessReference}</td>
                                 <td className="border px-4 py-2">{item.dailyScheduleReference}</td>
                                 <td className="border px-4 py-2">

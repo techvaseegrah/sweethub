@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuPlus, LuTrash2 } from 'react-icons/lu';
+import { formatDateWithTime } from '../../../utils/unitConversion';
 
 const ProductionSchedules = () => {
     const [schedules, setSchedules] = useState([]);
@@ -132,7 +133,9 @@ const ProductionSchedules = () => {
                                 <td className="border px-4 py-2">{item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
-                                <td className="border px-4 py-2">{new Date(item.date).toLocaleDateString()}</td>
+                                <td className="border px-4 py-2">
+                                    {formatDateWithTime(item.date)}
+                                </td>
                                 <td className="border px-4 py-2">
                                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                                         item.status === 'Pending' 

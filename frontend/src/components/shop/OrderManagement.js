@@ -12,12 +12,15 @@ function ShopOrderManagement() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // UI States
   const [showDropdown, setShowDropdown] = useState(false);
   const [showStockAlertDropdown, setShowStockAlertDropdown] = useState(false);
   const [selectedProductIndex, setSelectedProductIndex] = useState(-1);
-  
+
+  // NEW: Stock alert state
+  const [stockAlertProducts, setStockAlertProducts] = useState([]);
+
   // Current item state
   const [currentItem, setCurrentItem] = useState({
     product: null,
@@ -28,65 +31,70 @@ function ShopOrderManagement() {
     sku: '',
     rawInput: '',
   });
-  
+
   // Refs
   const productSearchRef = useRef(null);
   const stockAlertDropdownRef = useRef(null);
-  
-  // Handle clicks outside to close dropdowns
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (productSearchRef.current && !productSearchRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
-      if (stockAlertDropdownRef.current && !stockAlertDropdownRef.current.contains(event.target)) {
-        setShowStockAlertDropdown(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
-  const [stockAlertProducts, setStockAlertProducts] = useState([]);
-  
-  // Load products for the shop
+  // NEW: Fetch stock alert products
+  useEffect(() => {
+    const fetchStockAlertProducts = async () => {
+      try {
+        const response = await axios.get('/shop/products/low-stock'); // Assuming this endpoint exists
+        setStockAlertProducts(response.data);
+      } catch (err) {
+        // If the endpoint doesn't exist, fetch all products and filter for low stock
+        try {
+          const response = await axios.get('/shop/products');
+          const lowStockProducts = response.data.filter(product => product.stockLevel < 10); // Assuming < 10 is low stock
+          setStockAlertProducts(lowStockProducts);
+        } catch (err2) {
+          console.error('Failed to load stock alert products:', err2);
+          setStockAlertProducts([]); // Set to empty array if both attempts fail
+        }
+      }
+    };
+
+    if (products.length > 0) {
+      fetchStockAlertProducts();
+    }
+  }, [products]);
+
+  // Fetch products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const response = await axios.get('/shop/products');
         setProducts(response.data);
+        setLoading(false);
       } catch (err) {
-        if (err.response?.status === 403) {
-          setError('Access denied. Please log in again.');
-        } else {
-          setError(err.response?.data?.message || 'Failed to load products');
-        }
-        console.error('Error fetching products:', err);
-      } finally {
+        setError('Failed to load products');
         setLoading(false);
       }
     };
-
     fetchProducts();
   }, []);
-  
-  // Load stock alert products
-  useEffect(() => {
-    const fetchStockAlertProducts = async () => {
-      try {
-        const response = await axios.get('/shop/products/stock-alerts');
-        setStockAlertProducts(response.data);
-      } catch (err) {
-        console.error('Error fetching stock alert products:', err);
-      }
-    };
-    
-    fetchStockAlertProducts();
-  }, []);
-  
+
+  // NEW: Handle selecting a stock alert product
+  const handleSelectStockAlertProduct = (product) => {
+    const priceInfo = product.prices && product.prices.length > 0 ? product.prices[0] : { unit: 'N/A', sellingPrice: 0 };
+
+    setCurrentItem({
+      product: product,
+      unit: priceInfo.unit,
+      quantity: '',
+      price: priceInfo.sellingPrice,
+      productName: product.name,
+      sku: product.sku,
+      rawInput: '',
+    });
+    setSearchTerm('');
+    setShowDropdown(false);
+    setShowStockAlertDropdown(false); // Close the dropdown after selection
+    productSearchRef.current?.focus();
+  };
+
+  // Filter products based on search term
   const filteredProducts = useMemo(() => {
     if (!searchTerm) return products;
     return products.filter(p =>
@@ -94,165 +102,72 @@ function ShopOrderManagement() {
       p.sku.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [searchTerm, products]);
-  
-  // Keyboard shortcuts functionality
-  useEffect(() => {
-    const handleKey = (e) => {
-      // Ctrl + Enter to submit order
-      if (e.ctrlKey && e.key === 'Enter') {
-        e.preventDefault();
-        if (orderItems.length > 0 && !isSubmitting) {
-          handleSubmitOrder();
-        }
-      }
-      
-      // Ctrl + N to focus search
-      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault();
-        productSearchRef.current?.focus();
-      }
-      
-      // Ctrl + F to focus search (alternative)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-        e.preventDefault();
-        productSearchRef.current?.focus();
-      }
-      
-      // Escape to close dropdowns
-      if (e.key === 'Escape') {
-        setShowDropdown(false);
-        setShowStockAlertDropdown(false);
-        setSelectedProductIndex(-1);
-      }
-      
-      // Arrow navigation in product dropdown
-      if (showDropdown) {
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          setSelectedProductIndex(p => p < filteredProducts.length - 1 ? p + 1 : 0);
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          setSelectedProductIndex(p => p > 0 ? p - 1 : filteredProducts.length - 1);
-        }
-        if (e.key === 'Enter' && selectedProductIndex >= 0) {
-          e.preventDefault();
-          handleSelectProduct(filteredProducts[selectedProductIndex]);
-        }
-      }
-      
-      // Enter to add item when quantity is filled
-      if (e.key === 'Enter' && currentItem.product && currentItem.quantity && document.activeElement === productSearchRef.current) {
-        handleAddItem();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [showDropdown, filteredProducts, selectedProductIndex, currentItem, orderItems, isSubmitting]);
 
-  const handleSelectProduct = (product) => {
-    setSearchTerm(`${product.name}`);
-    setShowDropdown(false);
-    
-    if (product.prices && product.prices.length > 0) {
-      setCurrentItem({
-        product,
-        unit: product.prices[0].unit,
-        quantity: '',
-        price: product.prices[0].sellingPrice,
-        productName: product.name,
-        sku: product.sku,
-        rawInput: ''
-      });
-      setError('');
-    } else {
-      setError(`Product "${product.name}" has no purchase rates.`);
-    }
-  };
-  
-  const handleSelectStockAlertProduct = (product) => {
-    setSearchTerm(`${product.name}`);
-    setShowStockAlertDropdown(false);
-    
-    if (product.prices && product.prices.length > 0) {
-      setCurrentItem({
-        product,
-        unit: product.prices[0].unit,
-        quantity: '',
-        price: product.prices[0].sellingPrice,
-        productName: product.name,
-        sku: product.sku,
-        rawInput: ''
-      });
-      setError('');
-    } else {
-      setError(`Product "${product.name}" has no purchase rates.`);
-    }
-  };
-
+  // Handle search input change
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearchTerm(value);
-    setShowDropdown(true);
     if (value) {
-      setSelectedProductIndex(0);
+      setShowDropdown(true);
     } else {
       setShowDropdown(false);
     }
   };
 
-  const handleQuantityChange = (e) => {
-    const value = e.target.value;
-    const numValue = parseFloat(value);
-    
-    if (value === "" || value === "0." || value === "." || (!isNaN(numValue) && numValue >= 0)) {
-      setCurrentItem(prev => ({ ...prev, rawInput: value, quantity: value }));
-    }
+  // Handle product selection
+  const handleSelectProduct = (product) => {
+    const priceInfo = product.prices && product.prices.length > 0 ? product.prices[0] : { unit: 'N/A', sellingPrice: 0 };
+
+    setCurrentItem({
+      product: product,
+      unit: priceInfo.unit,
+      quantity: '',
+      price: priceInfo.sellingPrice,
+      productName: product.name,
+      sku: product.sku,
+      rawInput: '',
+    });
+    setSearchTerm('');
+    setShowDropdown(false);
+    productSearchRef.current?.focus();
   };
 
+  // Handle quantity change
+  const handleQuantityChange = (e) => {
+    const value = e.target.value;
+    setCurrentItem({
+      ...currentItem,
+      rawInput: value,
+      quantity: value,
+    });
+  };
+
+  // Handle adding item to order
   const handleAddItem = () => {
-    let finalQuantity;
-    let isValid = false;
-    
-    if (currentItem.rawInput) {
-      const parsedRaw = parseFloat(currentItem.rawInput);
-      if (!isNaN(parsedRaw) && isFinite(parsedRaw) && parsedRaw >= 0) {
-        finalQuantity = parsedRaw;
-        isValid = true;
-      }
-    } else if (currentItem.quantity !== '') {
-      const parsedQuantity = parseFloat(currentItem.quantity);
-      if (!isNaN(parsedQuantity) && isFinite(parsedQuantity) && parsedQuantity >= 0) {
-        finalQuantity = parsedQuantity;
-        isValid = true;
-      }
-    }
-    
-    if (!isValid || !currentItem.product || finalQuantity <= 0) {
-      setError('Invalid product or quantity.');
+    if (!currentItem.product || !currentItem.unit || !currentItem.quantity) {
+      setError('Please select a product, unit, and enter quantity');
       return;
     }
-    
+
+    const quantity = parseFloat(currentItem.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      setError('Please enter a valid quantity');
+      return;
+    }
+
     const newItem = {
       product: currentItem.product._id,
       productName: currentItem.productName,
       sku: currentItem.sku,
       unit: currentItem.unit,
-      quantity: finalQuantity,
+      quantity: quantity,
       price: currentItem.price,
+      amount: quantity * currentItem.price,
     };
-    
-    const existingIndex = orderItems.findIndex(i => i.product === newItem.product && i.unit === newItem.unit);
-    if (existingIndex > -1) {
-      const updated = [...orderItems];
-      updated[existingIndex].quantity += newItem.quantity;
-      setOrderItems(updated);
-    } else {
-      setOrderItems([...orderItems, newItem]);
-    }
 
-    setSearchTerm('');
+    setOrderItems([...orderItems, newItem]);
+
+    // Reset current item
     setCurrentItem({
       product: null,
       unit: '',
@@ -261,49 +176,31 @@ function ShopOrderManagement() {
       productName: '',
       sku: '',
       rawInput: '',
-    }); 
+    });
+
     setError('');
-    setTimeout(() => productSearchRef.current?.focus(), 50);
   };
 
-  const removeItem = (index) => {
+  // Handle removing item from order
+  const handleRemoveItem = (index) => {
     setOrderItems(orderItems.filter((_, i) => i !== index));
   };
 
-  const updateOrderItem = (index, field, value) => {
-    const updatedItems = [...orderItems];
-    updatedItems[index] = { ...updatedItems[index], [field]: value };
-    setOrderItems(updatedItems);
-  };
+  // Calculate subtotal
+  const subtotal = useMemo(() => {
+    return orderItems.reduce((sum, item) => sum + item.amount, 0);
+  }, [orderItems]);
 
-  const calculateTotals = () => {
-    const subtotal = orderItems.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity) || 0;
-      const price = parseFloat(item.price) || 0;
-      return sum + (quantity * price);
-    }, 0);
-
-    return { subtotal };
-  };
-
-  const { subtotal } = calculateTotals();
-
+  // Handle submitting order
   const handleSubmitOrder = async () => {
     if (orderItems.length === 0) {
-      setError('Please add at least one product to the order.');
+      setError('Please add at least one item to the order');
       return;
     }
 
-    // Validate all items have valid quantities
-    for (const item of orderItems) {
-      const quantity = parseFloat(item.quantity);
-      if (isNaN(quantity) || quantity <= 0) {
-        setError(`Please enter a valid quantity for ${item.productName}.`);
-        return;
-      }
-    }
-
     setIsSubmitting(true);
+    setError('');
+    setMessage('');
 
     try {
       const orderData = {
@@ -315,16 +212,17 @@ function ShopOrderManagement() {
       };
 
       await axios.post('/shop/orders', orderData);
-      
-      setMessage('Order submitted successfully!');
+
+      setMessage('✅ Order submitted successfully to Admin!');
       setOrderItems([]);
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setMessage('');
       }, 3000);
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to submit order. Please try again.');
+      const errorMessage = error.response?.data?.message || 'Failed to submit order. Please try again.';
+      setError(`❌ Order submission failed: ${errorMessage}`);
       console.error('Error submitting order:', error);
     } finally {
       setIsSubmitting(false);
@@ -343,9 +241,12 @@ function ShopOrderManagement() {
           .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
+      {/* Display Success Message */}
+      {message && <div className="fixed top-5 right-5 z-50"><div className="p-3 bg-green-100 border border-green-400 text-green-700 rounded-md">{message}</div></div>}
+
       {/* Display Error Alert */}
       {error && <div className="fixed top-5 left-5 z-50"><div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-md">{error}</div></div>}
-      
+
       {/* Header */}
       <div className="bg-white p-3 border-b shadow-sm z-20 shrink-0">
         <div className="flex justify-between items-center mb-2">
@@ -387,10 +288,7 @@ function ShopOrderManagement() {
           </div>
         </div>
       </div>
-            
-      {/* Keyboard Shortcuts Guide */}
-      <KeyboardShortcutsGuide context="order" />
-            
+
       {/* Main Table Area */}
       <div className="flex-1 bg-white p-2">
         <table className="w-full border-collapse border border-gray-200">
@@ -401,7 +299,7 @@ function ShopOrderManagement() {
               <th className="p-2 border border-gray-200 w-16">QTY</th>
               <th className="p-2 border border-gray-200 w-20">UNIT</th>
               <th className="p-2 border border-gray-200 w-28 text-right">
-                PRICE/UNIT <br/><span className="text-[10px] lowercase font-normal">(Without Tax)</span>
+                PRICE/UNIT <br /><span className="text-[10px] lowercase font-normal">(Without Tax)</span>
               </th>
               <th className="p-2 border border-gray-200 w-24 text-right">AMOUNT</th>
               <th className="p-2 border border-gray-200 w-8"></th>
@@ -413,16 +311,17 @@ function ShopOrderManagement() {
               <td className="p-2 border border-blue-200 text-center text-blue-500 font-bold">⚡</td>
               <td className="p-2 border border-blue-200 relative">
                 <div className="flex gap-2">
-                  <input 
+                  <input
                     ref={productSearchRef}
-                    type="text" 
+                    type="text"
                     className="flex-1 bg-transparent outline-none placeholder-blue-400 font-medium"
                     placeholder="Scan/Search Item..."
                     value={searchTerm}
                     onChange={handleSearchChange}
                     onFocus={() => searchTerm && setShowDropdown(true)}
+                    onMouseDown={(e) => e.stopPropagation()}
                   />
-                  <button 
+                  <button
                     type="button"
                     className="px-3 py-2 bg-yellow-100 text-yellow-800 rounded border border-yellow-300 hover:bg-yellow-200 text-sm font-medium"
                     onClick={() => {
@@ -434,12 +333,17 @@ function ShopOrderManagement() {
                   </button>
                 </div>
                 {showDropdown && (
-                  <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                  <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded"
+                    onMouseDown={(e) => e.stopPropagation()}>
                     {filteredProducts.map((p, i) => (
-                      <li 
-                        key={p._id} 
+                      <li
+                        key={p._id}
                         className={`p-2 cursor-pointer border-b flex justify-between ${i === selectedProductIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
-                        onClick={() => handleSelectProduct(p)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectProduct(p);
+                        }}
+                        onMouseDown={(e) => e.preventDefault()}
                       >
                         <span>{p.name} <small className="text-gray-400">({p.sku})</small></span>
                         <span className="font-bold text-green-600">₹{p.prices[0]?.sellingPrice}</span>
@@ -449,13 +353,18 @@ function ShopOrderManagement() {
                 )}
                 <div ref={stockAlertDropdownRef}>
                   {showStockAlertDropdown && (
-                    <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                    <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded"
+                      onMouseDown={(e) => e.stopPropagation()}>
                       {stockAlertProducts.length > 0 ? (
                         stockAlertProducts.map((p, i) => (
-                          <li 
-                            key={p._id} 
+                          <li
+                            key={p._id}
                             className={`p-2 cursor-pointer border-b flex justify-between hover:bg-gray-50`}
-                            onClick={() => handleSelectStockAlertProduct(p)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectStockAlertProduct(p);
+                            }}
+                            onMouseDown={(e) => e.preventDefault()}
                           >
                             <span>{p.name} <small className="text-gray-400">({p.sku})</small></span>
                             <span className="font-bold text-red-600">⚠️ Low: {p.stockLevel}</span>
@@ -469,8 +378,8 @@ function ShopOrderManagement() {
                 </div>
               </td>
               <td className="p-1 border border-blue-200">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   className="w-full bg-transparent outline-none text-center font-bold"
                   placeholder="0"
                   value={currentItem.rawInput || currentItem.quantity}
@@ -478,13 +387,13 @@ function ShopOrderManagement() {
                 />
               </td>
               <td className="p-1 border border-blue-200">
-                <select 
-                  className="w-full bg-transparent outline-none text-xs" 
-                  value={currentItem.unit} 
-                  onChange={(e) => setCurrentItem({...currentItem, unit: e.target.value})}
+                <select
+                  className="w-full bg-transparent outline-none text-xs"
+                  value={currentItem.unit}
+                  onChange={(e) => setCurrentItem({ ...currentItem, unit: e.target.value })}
                 >
-                  {currentItem.product && currentItem.product.prices ? 
-                    currentItem.product.prices.map(u => <option key={u.unit} value={u.unit}>{u.unit}</option>) : 
+                  {currentItem.product && currentItem.product.prices ?
+                    currentItem.product.prices.map(u => <option key={u.unit} value={u.unit}>{u.unit}</option>) :
                     <option>NONE</option>
                   }
                 </select>
@@ -496,100 +405,63 @@ function ShopOrderManagement() {
                 {((parseFloat(currentItem.rawInput || currentItem.quantity) || 0) * (currentItem.price || 0)).toFixed(2)}
               </td>
               <td className="p-1 border border-blue-200 text-center">
-                <button 
-                  onClick={handleAddItem} 
-                  className="text-blue-600 font-bold text-xl hover:scale-110 transition-transform" 
-                  disabled={!currentItem.product}
+                <button
+                  type="button"
+                  className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  onClick={handleAddItem}
+                  disabled={!currentItem.product || !currentItem.unit || !currentItem.quantity}
                 >
-                  +
+                  <LuPlus size={16} />
                 </button>
               </td>
             </tr>
 
-            {/* Data Rows */}
-            {orderItems.map((item, idx) => (
-              <tr key={idx} className="hover:bg-gray-50">
-                <td className="p-2 border border-gray-200 text-center text-gray-500">{idx + 1}</td>
-                <td className="p-2 border border-gray-200 font-medium">{item.productName}</td>
-                <td className="p-2 border border-gray-200 text-center">
-                  <input 
-                    type="text" 
-                    className="w-full text-center p-1 border rounded bg-transparent hover:bg-white" 
-                    value={item.quantity} 
-                    onChange={e => updateOrderItem(idx, 'quantity', parseFloat(e.target.value) || 0)} 
-                    min="0"
-                  />
+            {/* Order Items */}
+            {orderItems.map((item, index) => (
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="p-2 border border-gray-200 text-center">{index + 1}</td>
+                <td className="p-2 border border-gray-200">
+                  <div>
+                    <div className="font-medium">{item.productName}</div>
+                    <div className="text-xs text-gray-500">{item.sku}</div>
+                  </div>
                 </td>
-                <td className="p-2 border border-gray-200 text-center">
-                  <select 
-                    className="w-full text-center p-1 border rounded bg-transparent hover:bg-white" 
-                    value={item.unit} 
-                    onChange={e => updateOrderItem(idx, 'unit', e.target.value)}
+                <td className="p-2 border border-gray-200 text-center">{item.quantity}</td>
+                <td className="p-2 border border-gray-200 text-center">{item.unit}</td>
+                <td className="p-2 border border-gray-200 text-right">₹{item.price.toFixed(2)}</td>
+                <td className="p-2 border border-gray-200 text-right font-bold">₹{item.amount.toFixed(2)}</td>
+                <td className="p-1 border border-gray-200 text-center">
+                  <button
+                    type="button"
+                    className="p-1 bg-red-500 text-white rounded hover:bg-red-600"
+                    onClick={() => handleRemoveItem(index)}
                   >
-                    <option value={item.unit}>{item.unit}</option>
-                  </select>
-                </td>
-                <td className="p-2 border border-gray-200 text-right">
-                  <input 
-                    type="text" 
-                    className="w-full text-right p-1 border rounded bg-transparent hover:bg-white" 
-                    value={item.price} 
-                    onChange={e => updateOrderItem(idx, 'price', parseFloat(e.target.value) || 0)} 
-                    min="0"
-                    step="0.01"
-                  />
-                </td>
-                <td className="p-2 border border-gray-200 text-right font-bold">
-                  {(item.quantity * item.price).toFixed(2)}
-                </td>
-                <td className="p-2 border border-gray-200 text-center">
-                  <button 
-                    onClick={() => removeItem(idx)} 
-                    className="text-red-400 hover:text-red-600 font-bold"
-                    title="Remove"
-                  >
-                    ×
+                    <LuTrash2 size={16} />
                   </button>
                 </td>
               </tr>
             ))}
-            
-            {/* Add Row Button Row */}
-            <tr>
-              <td colSpan="7" className="p-2 border border-gray-200">
-                <button 
-                  onClick={() => productSearchRef.current?.focus()}
-                  className="bg-white border border-blue-300 text-blue-500 px-4 py-1 rounded text-sm font-bold hover:bg-blue-50 uppercase"
-                >
-                  + Add Row
-                </button>
-              </td>
-            </tr>
-            
-            {/* Total Row */}
-            <tr className="bg-gray-50 font-bold">
-              <td colSpan="4" className="border border-gray-200 p-2 text-right">TOTAL</td>
-              <td className="border border-gray-200 p-2 text-center">{orderItems.reduce((acc, i) => acc + parseFloat(i.quantity), 0)}</td>
-              <td className="border border-gray-200 p-2 text-right">{subtotal.toFixed(2)}</td>
-              <td className="border border-gray-200"></td>
-            </tr>
+
+            {/* Empty State */}
+            {orderItems.length === 0 && (
+              <tr>
+                <td colSpan="7" className="p-8 text-center text-gray-500">
+                  <LuShoppingCart className="mx-auto mb-2" size={24} />
+                  <div>No items added yet</div>
+                  <div className="text-sm">Add products using the search above</div>
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Footer */}
-      <div className="bg-white border-t p-4 shrink-0 z-30 shadow-[0_-4px_8px_rgba(0,0,0,0.05)] text-sm">
-        <div className="flex flex-col md:flex-row gap-8">
-          
-          {/* Left Column - Empty to maintain layout */}
-          <div className="flex-1 space-y-4">
-            {/* Empty to maintain layout */}
-          </div>
-
-          {/* Right Column: Calculations */}
+      {/* Footer with Totals and Actions */}
+      <div className="bg-gray-50 p-3 border-t shrink-0">
+        <div className="flex justify-end">
           <div className="flex-1 max-w-2xl">
             <div className="grid grid-cols-[1fr_auto] gap-y-2 items-center">
-              
+
               {/* Row 1: Total */}
               <div className="flex justify-end items-center gap-4">
                 <span className="font-bold text-gray-700">Total</span>
@@ -600,14 +472,13 @@ function ShopOrderManagement() {
 
               {/* Row 2: Buttons */}
               <div className="col-span-2 flex justify-end gap-2 mt-2">
-                <button 
+                <button
                   onClick={handleSubmitOrder}
                   disabled={isSubmitting || orderItems.length === 0}
-                  className={`px-8 py-2 rounded font-bold ${
-                    isSubmitting || orderItems.length === 0
+                  className={`px-8 py-2 rounded font-bold ${isSubmitting || orderItems.length === 0
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }`}
+                    }`}
                 >
                   {isSubmitting ? (
                     <>
