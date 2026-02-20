@@ -3,17 +3,17 @@ const Category = require('../../models/Category');
 exports.createCategory = async (req, res) => {
   try {
     const { name } = req.body;
-    
+
     // Check if a category with the same name already exists for this shop
     const existingCategory = await Category.findOne({
       name: name,
       shop: req.shopId
     });
-    
+
     if (existingCategory) {
       return res.status(400).json({ message: 'Category already exists for this shop.' });
     }
-    
+
     // Create the new category with the shop ID if it exists on the request
     const newCategory = new Category({
       name,
@@ -23,20 +23,33 @@ exports.createCategory = async (req, res) => {
     res.status(201).json(newCategory);
   } catch (error) {
     console.error('Error creating category:', error);
-    
+
     // Handle MongoDB duplicate key error
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Category already exists for this shop.' });
     }
-    
+
     res.status(500).json({ message: 'Server Error' });
   }
 };
 
 exports.getCategories = async (req, res) => {
   try {
-    // If req.shopId exists, filter by it. Otherwise, return all for the main admin.
-    const filter = req.shopId ? { shop: req.shopId } : {};
+    // If req.shopId exists, return shop specific categories AND global categories (where shop is null or doesn't exist)
+    // Otherwise, return all for the main admin (which effectively lists everything or just admin ones depending on how admin uses it, 
+    // but usually admin wants to see their own. For now, let's keep the admin logic as is or just make it broad)
+
+    let filter = {};
+    if (req.shopId) {
+      filter = {
+        $or: [
+          { shop: req.shopId },
+          { shop: { $exists: false } },
+          { shop: null }
+        ]
+      };
+    }
+
     const categories = await Category.find(filter).populate('products');
     res.json(categories);
   } catch (error) {
@@ -55,7 +68,7 @@ exports.deleteCategory = async (req, res) => {
     if (!deletedCategory) {
       return res.status(404).json({ message: 'Category not found or not authorized to delete.' });
     }
-    
+
     res.status(200).json({ message: 'Category deleted successfully.' });
   } catch (error) {
     console.error('Error deleting category:', error);
@@ -80,28 +93,28 @@ exports.getShopCategories = async (req, res) => {
   try {
     // Import Product model here to avoid circular dependency
     const Product = require('../../models/productModel');
-    
+
     // Get shop ID from the authenticated user
     const shopId = req.user.shopId;
-    
+
     if (!shopId) {
       return res.status(400).json({ message: 'Shop ID not found in user token.' });
     }
-    
+
     // Find all products that belong to this shop
     const shopProducts = await Product.find({ shop: shopId }).select('category').populate('category');
-    
+
     // Extract unique categories from products
     const categoryMap = {};
     const uniqueCategories = [];
-    
+
     shopProducts.forEach(product => {
       if (product.category && !categoryMap[product.category._id]) {
         categoryMap[product.category._id] = true;
         uniqueCategories.push(product.category);
       }
     });
-    
+
     res.json(uniqueCategories);
   } catch (error) {
     console.error('Error fetching shop categories:', error);

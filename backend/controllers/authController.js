@@ -56,7 +56,7 @@ exports.loginUser = async (req, res) => {
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
-        
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid credentials' });
@@ -64,7 +64,7 @@ exports.loginUser = async (req, res) => {
 
         let shopId = null;
         let userType = null;
-        
+
         // Handle shop users
         if (user.role.name === 'shop') {
             const shop = await Shop.findOne({ user: user._id });
@@ -116,8 +116,8 @@ exports.loginUser = async (req, res) => {
 
         // Add shopId to the token payload
         const token = jwt.sign(
-            { id: user._id, role: user.role.name, shopId }, 
-            process.env.JWT_SECRET, 
+            { id: user._id, role: user.role.name, shopId },
+            process.env.JWT_SECRET,
             { expiresIn: '24h' } // Extended from 1h to 24h
         );
 
@@ -127,7 +127,7 @@ exports.loginUser = async (req, res) => {
             role: user.role.name,
             token,
         };
-        
+
         // Include userType for attendance-only, raw-materials-only, before-packing-only, and after-packing-only users
         if (user.role.name === 'attendance-only' || user.role.name === 'raw-materials-only' || user.role.name === 'before-packing-only' || user.role.name === 'after-packing-only') {
             response.userType = userType;
@@ -135,6 +135,12 @@ exports.loginUser = async (req, res) => {
 
         res.status(200).json(response);
     } catch (error) {
+        // DEBUG: Log error to file
+        const fs = require('fs');
+        const path = require('path');
+        const logPath = path.join(__dirname, '..', 'server_debug.log');
+        fs.appendFileSync(logPath, `${new Date().toISOString()} - Login Error: ${error.stack || error}\n`);
+
         console.error('Login error:', error);
         res.status(500).json({ message: 'Server error' });
     }
@@ -153,7 +159,7 @@ exports.attendanceOnlyLogin = async (req, res) => {
         if (user.role.name !== 'attendance-only') {
             return res.status(400).json({ message: 'User does not have attendance-only role' });
         }
-        
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Invalid credentials' });
@@ -168,7 +174,7 @@ exports.attendanceOnlyLogin = async (req, res) => {
         // Generate token for attendance-only user
         const token = jwt.sign(
             { id: user._id, role: user.role.name, shopId: user.shop || null }, // Include shopId if available
-            process.env.JWT_SECRET, 
+            process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
 

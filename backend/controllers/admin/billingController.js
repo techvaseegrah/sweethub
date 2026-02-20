@@ -9,7 +9,7 @@ const { generateAdminBillId, generateShopBillId } = require('../../utils/billIdG
 const { convertUnit, areRelatedUnits } = require('../../utils/unitConversion');
 
 exports.createBill = async (req, res) => {
-  const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY' } = req.body;
+  const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate } = req.body;
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -100,7 +100,9 @@ exports.createBill = async (req, res) => {
       discountValue: discountValue || 0,
       discountAmount: discountAmount || 0,
       billType,
-      ...(worker && { worker })
+      billType,
+      ...(worker && { worker }),
+      billDate: billDate || Date.now() // Use provided date or default to now
     });
 
     await newBill.save({ session });
@@ -169,7 +171,7 @@ exports.getBillById = async (req, res) => {
 
 // Update an existing bill
 exports.updateBill = async (req, res) => {
-  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY' } = req.body;
+  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate } = req.body;
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -305,6 +307,9 @@ exports.updateBill = async (req, res) => {
         discountAmount: discountAmount || 0,
         billType,
         ...(worker && { worker }),
+        billType,
+        ...(worker && { worker }),
+        ...(billDate && { billDate }), // Update billDate if provided
         isEdited: true // Mark as edited
       },
       { new: true, session }
@@ -419,7 +424,7 @@ exports.getBills = async (req, res) => {
   try {
     // For admin, we might want to get all bills or filter by shop
     // If shopId is provided in query, filter by that shop
-    const { shopId } = req.query;
+    const { shopId, categoryId } = req.query;
 
     let filter = {}; // Include soft deleted bills
     if (shopId && shopId !== 'admin') {
@@ -431,6 +436,16 @@ exports.getBills = async (req, res) => {
         { shop: { $exists: false } },
         { shop: { $eq: null } }
       ];
+    }
+
+    // If categoryId is provided, filter bills that have items from this category
+    if (categoryId) {
+      // Find all products in this category
+      const products = await Product.find({ category: categoryId }).select('_id');
+      const productIds = products.map(p => p._id);
+
+      // Add to filter: bills where at least one item's product is in productIds
+      filter['items.product'] = { $in: productIds };
     }
 
     const bills = await Bill.find(filter)

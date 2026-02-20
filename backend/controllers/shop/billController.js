@@ -36,7 +36,8 @@ exports.createBill = async (req, res) => {
       discountValue,
       discountAmount,
       worker,
-      billType = 'ORDINARY'
+      billType = 'ORDINARY',
+      billDate // Extract billDate
       // Note: fromInfo and toInfo are not used for shop bills
     } = req.body;
 
@@ -110,7 +111,9 @@ exports.createBill = async (req, res) => {
       shopAddress: shopDetails?.location,
       shopGstNumber: shopDetails?.gstNumber,
       shopFssaiNumber: shopDetails?.fssaiNumber,
-      shopPhone: shopDetails?.shopPhoneNumber
+      shopFssaiNumber: shopDetails?.fssaiNumber,
+      shopPhone: shopDetails?.shopPhoneNumber,
+      billDate: billDate || Date.now() // Use provided date or default to now
     });
 
     await newBill.save({ session });
@@ -174,7 +177,7 @@ exports.getBillById = async (req, res) => {
 
 // Update an existing bill
 exports.updateBill = async (req, res) => {
-  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY' } = req.body;
+  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate } = req.body;
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -304,6 +307,9 @@ exports.updateBill = async (req, res) => {
         discountAmount: discountAmount || 0,
         billType,
         ...(worker && { worker }),
+        billType,
+        ...(worker && { worker }),
+        ...(billDate && { billDate }), // Update billDate if provided
         isEdited: true // Mark as edited
       },
       { new: true, session }
@@ -413,12 +419,25 @@ exports.deleteBill = async (req, res) => {
 exports.getBills = async (req, res) => {
   try {
     const shopId = req.user?.shopId || req.shopId;
+    const { categoryId } = req.query;
 
     if (!shopId) {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
-    const bills = await Bill.find({ shop: shopId })
+    let filter = { shop: shopId };
+
+    // If categoryId is provided, filter bills that have items from this category
+    if (categoryId) {
+      // Find all products in this category
+      const products = await Product.find({ category: categoryId }).select('_id');
+      const productIds = products.map(p => p._id);
+
+      // Add to filter: bills where at least one item's product is in productIds
+      filter['items.product'] = { $in: productIds };
+    }
+
+    const bills = await Bill.find(filter)
       .sort({ createdAt: -1 })
       .populate('items.product', 'name sku')
       .populate('deletedBy', 'name')

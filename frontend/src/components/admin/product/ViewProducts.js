@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
 import CreateInvoice from './CreateInvoice';
-import InvoiceHistory from './InvoiceHistory'; 
+import InvoiceHistory from './InvoiceHistory';
 import ProductHistory from './ProductHistory'; // Add this import
 import { generateProductReportPdf } from '../../../utils/generateProductReportPdf';
 
 function ViewProducts({ baseUrl = '/admin' }) {
   const PRODUCT_URL = `${baseUrl}/products`;
   const CATEGORY_URL = baseUrl === '/shop' ? '/shop/categories' : `${baseUrl}/categories`;
-  
+
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -57,7 +57,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
       setCategories([]);
     }
   };
-  
+
   useEffect(() => {
     fetchProducts();
     fetchCategories();
@@ -70,7 +70,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
       tempProducts = tempProducts.filter(
         (product) => {
           // Check if product.category is an object with _id or just an ID string
-          const categoryId = typeof product.category === 'object' ? product.category._id : product.category;
+          const categoryId = (product.category && typeof product.category === 'object') ? product.category._id : product.category;
           return categoryId === selectedCategory;
         }
       );
@@ -98,7 +98,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
       if (baseUrl === '/shop') {
         deleteUrl = `/shop/products/${productToDelete}`;
       }
-      
+
       await axios.delete(deleteUrl, {
         withCredentials: true,
       });
@@ -124,12 +124,12 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
   const handleInputChange = (e, field) => {
     let value = e.target.value;
-    
+
     // Handle date fields - convert to Date object if not empty
     if (field === 'expiryDate' || field === 'usedByDate') {
       value = value ? new Date(value) : null;
     }
-    
+
     setEditedProduct({ ...editedProduct, [field]: value });
   };
 
@@ -141,9 +141,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
   const addNewPrice = () => {
     const newPrice = { unit: 'piece', netPrice: '', sellingPrice: '' };
-    setEditedProduct({ 
-      ...editedProduct, 
-      prices: [...editedProduct.prices, newPrice] 
+    setEditedProduct({
+      ...editedProduct,
+      prices: [...editedProduct.prices, newPrice]
     });
   };
 
@@ -190,9 +190,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
         expiryDate: editedProduct.expiryDate ? new Date(editedProduct.expiryDate).toISOString() : null,
         usedByDate: editedProduct.usedByDate ? new Date(editedProduct.usedByDate).toISOString() : null
       };
-      
+
       let requestPromise;
-      
+
       if (editedProduct._id) {
         // Update existing product
         let updateUrl = `${PRODUCT_URL}/${editedProduct._id}`;
@@ -212,7 +212,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
           withCredentials: true,
         });
       }
-      
+
       await requestPromise;
       fetchProducts();
       handleCancelEdit();
@@ -246,9 +246,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
       <div className="p-6 flex flex-col items-center justify-center">
         <div className="relative flex justify-center items-center mb-4">
           <div className="w-16 h-16 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
+          <img
+            src="/sweethub-logo.png"
+            alt="Sweet Hub Logo"
             className="absolute w-10 h-10"
           />
         </div>
@@ -286,33 +286,33 @@ function ViewProducts({ baseUrl = '/admin' }) {
     }
   });
 
-    return (
-      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
+  return (
+    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl sm:text-2xl font-semibold text-gray-800">View Products</h3>
-          <div className="flex gap-3">
+        <h3 className="text-xl sm:text-2xl font-semibold text-gray-800">View Products</h3>
+        <div className="flex gap-3">
           {baseUrl === '/admin' ? (
             <>
               <button
-                  onClick={() => setIsHistoryModalOpen(true)}
-                  className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                onClick={() => setIsHistoryModalOpen(true)}
+                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
               >
-                  Invoice History
+                Invoice History
               </button>
               <button
-                  onClick={() => setIsInvoiceModalOpen(true)}
-                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                onClick={() => setIsInvoiceModalOpen(true)}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
               >
-                  Create Invoice
+                Create Invoice
               </button>
               <button
-                  onClick={downloadProductReport}
-                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
+                onClick={downloadProductReport}
+                className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
               >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                  Download PDF
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+                Download PDF
               </button>
             </>
           ) : (
@@ -326,7 +326,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
               Download PDF
             </button>
           )}
-          </div>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-4">
@@ -349,21 +349,21 @@ function ViewProducts({ baseUrl = '/admin' }) {
             </option>
           ))}
         </select>
+      </div>
+
+      {flattenedProducts.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-gray-400 text-lg mb-2">📦</div>
+          <p className="text-gray-600 font-medium">No products found in your inventory.</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {baseUrl === '/shop'
+              ? 'Start by adding your first product to get started.'
+              : 'Start by adding your first product to get started.'}
+          </p>
         </div>
-        
-        {flattenedProducts.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-lg mb-2">📦</div>
-            <p className="text-gray-600 font-medium">No products found in your inventory.</p>
-            <p className="text-gray-500 text-sm mt-1">
-              {baseUrl === '/shop' 
-                ? 'Start by adding your first product to get started.' 
-                : 'Start by adding your first product to get started.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -395,13 +395,12 @@ function ViewProducts({ baseUrl = '/admin' }) {
                     </span>
                   </td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      product.stockLevel <= (product.stockAlertThreshold || 0) 
-                        ? 'bg-red-100 text-red-800' 
-                        : product.stockLevel <= (product.stockAlertThreshold || 0) * 2 
-                        ? 'bg-yellow-100 text-yellow-800' 
-                        : 'bg-green-100 text-green-800'
-                    }`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.stockLevel <= (product.stockAlertThreshold || 0)
+                        ? 'bg-red-100 text-red-800'
+                        : product.stockLevel <= (product.stockAlertThreshold || 0) * 2
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
                       {product.stockLevel}
                     </span>
                   </td>
@@ -418,7 +417,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                     {product.usedByDate ? new Date(product.usedByDate).toLocaleDateString('en-GB') : 'N/A'}
                   </td>
                   <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.category ? (typeof product.category === 'object' ? product.category.name : 
+                    {product.category ? (typeof product.category === 'object' ? product.category.name :
                       categories.find(cat => cat._id === product.category)?.name || 'N/A') : 'N/A'}
                   </td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -447,119 +446,119 @@ function ViewProducts({ baseUrl = '/admin' }) {
               ))}
             </tbody>
           </table>
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* Update Confirmation Modal */}
-        {isUpdateConfirmationOpen && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-            <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
-              <div className="text-center py-4">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100">
-                  <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
+      {/* Update Confirmation Modal */}
+      {isUpdateConfirmationOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+          <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div className="text-center py-4">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100">
+                <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="mt-3">
+                <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
+                <div className="mt-2">
+                  <p className="text-sm text-gray-500">
+                    {editedProduct._id ? 'Are you sure you want to update this product? This action cannot be undone.' : 'Are you sure you want to create this product?'}
+                  </p>
                 </div>
-                <div className="mt-3">
-                  <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                      {editedProduct._id ? 'Are you sure you want to update this product? This action cannot be undone.' : 'Are you sure you want to create this product?'}
-                    </p>
-                  </div>
-                  <div className="mt-6 flex justify-center gap-3">
-                    <button
-                      type="button"
-                      onClick={cancelUpdate}
-                      className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={confirmUpdate}
-                      className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      {editedProduct._id ? 'Update' : 'Create'}
-                    </button>
-                  </div>
+                <div className="mt-6 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={cancelUpdate}
+                    className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmUpdate}
+                    className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  >
+                    {editedProduct._id ? 'Update' : 'Create'}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        )}
-        
-        {/* Delete Confirmation Modal */}
-        {isDeleteConfirmationOpen && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
-            <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
-              <div className="text-center py-4">
-                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
-                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteConfirmationOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+          <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <div className="text-center py-4">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="mt-3">
+                <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
+                <div className="mt-2">
+                  <p className="text-sm text-gray-500">
+                    Are you sure you want to delete this product? This action cannot be undone.
+                  </p>
                 </div>
-                <div className="mt-3">
-                  <h3 className="text-lg font-medium text-gray-900">Are you sure?</h3>
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                      Are you sure you want to delete this product? This action cannot be undone.
-                    </p>
-                  </div>
-                  <div className="mt-6 flex justify-center gap-3">
-                    <button
-                      type="button"
-                      onClick={cancelDelete}
-                      className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={confirmDelete}
-                      className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                <div className="mt-6 flex justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={cancelDelete}
+                    className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDelete}
+                    className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        )}
-        
-        {isEditModalOpen && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
+        </div>
+      )}
+
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
           <div className="relative m-4 p-4 sm:p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Edit Product</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input 
-                  type="text" 
-                  value={editedProduct.name} 
-                  onChange={(e) => handleInputChange(e, 'name')} 
+                <input
+                  type="text"
+                  value={editedProduct.name}
+                  onChange={(e) => handleInputChange(e, 'name')}
                   className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
                   readOnly={false}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">SKU</label>
-                <input 
-                  type="text" 
-                  value={editedProduct.sku} 
-                  onChange={(e) => handleInputChange(e, 'sku')} 
+                <input
+                  type="text"
+                  value={editedProduct.sku}
+                  onChange={(e) => handleInputChange(e, 'sku')}
                   className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
                   readOnly={false}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Stock</label>
-                <input 
-                  type="text" 
-                  step="0.01" 
-                  value={editedProduct.stockLevel} 
-                  onChange={(e) => handleInputChange(e, 'stockLevel')} 
+                <input
+                  type="text"
+                  step="0.01"
+                  value={editedProduct.stockLevel}
+                  onChange={(e) => handleInputChange(e, 'stockLevel')}
                   className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
                   readOnly={false}
                 />
@@ -599,16 +598,16 @@ function ViewProducts({ baseUrl = '/admin' }) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Category</label>
-                <select 
-                  value={editedProduct.category} 
-                  onChange={(e) => setEditedProduct({...editedProduct, category: e.target.value})} 
+                <select
+                  value={editedProduct.category}
+                  onChange={(e) => setEditedProduct({ ...editedProduct, category: e.target.value })}
                   className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
                   disabled={false}
                 >
                   <option value="">Select Category</option>
                   {Array.isArray(categories) && categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}</select>
               </div>
-              
+
               {/* Unit Configuration Section */}
               <div className="mt-6">
                 <div className="flex justify-between items-center mb-3">
@@ -621,7 +620,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                     Add Unit
                   </button>
                 </div>
-                
+
                 {editedProduct.prices && editedProduct.prices.map((price, index) => (
                   <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3 p-3 border rounded">
                     <div className="md:col-span-1">
@@ -683,35 +682,35 @@ function ViewProducts({ baseUrl = '/admin' }) {
               <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
               <button onClick={handleModalUpdate} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Update</button>
             </div>
-            </div>
           </div>
-        )}
-        
-        {/* Product History Modal */}
-        {isProductHistoryModalOpen && baseUrl === '/admin' && (
-          <ProductHistory
-            closeModal={() => setIsProductHistoryModalOpen(false)}
-            productId={selectedProductId}
-          />
-        )}
-      
-        {/* Only show invoice modal for admin, not for shop */}
-        {isInvoiceModalOpen && baseUrl === '/admin' && (
-          <CreateInvoice
-           closeModal={() => setIsInvoiceModalOpen(false)}
-           adminProducts={products}
-           refreshProducts={fetchProducts}
-          />
-        )}
-        
-        {/* Only show invoice history modal for admin, not for shop */}
-        {isHistoryModalOpen && baseUrl === '/admin' && (
-          <InvoiceHistory
-           closeModal={() => setIsHistoryModalOpen(false)}
-          />
-        )}
-      </div>
-    );
-  }
-  
-  export default ViewProducts;
+        </div>
+      )}
+
+      {/* Product History Modal */}
+      {isProductHistoryModalOpen && baseUrl === '/admin' && (
+        <ProductHistory
+          closeModal={() => setIsProductHistoryModalOpen(false)}
+          productId={selectedProductId}
+        />
+      )}
+
+      {/* Only show invoice modal for admin, not for shop */}
+      {isInvoiceModalOpen && baseUrl === '/admin' && (
+        <CreateInvoice
+          closeModal={() => setIsInvoiceModalOpen(false)}
+          adminProducts={products}
+          refreshProducts={fetchProducts}
+        />
+      )}
+
+      {/* Only show invoice history modal for admin, not for shop */}
+      {isHistoryModalOpen && baseUrl === '/admin' && (
+        <InvoiceHistory
+          closeModal={() => setIsHistoryModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default ViewProducts;

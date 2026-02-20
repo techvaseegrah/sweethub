@@ -19,7 +19,7 @@ module.exports = function override(config, env) {
   if (!config.resolve) {
     config.resolve = {};
   }
-  
+
   if (!config.resolve.fallback) {
     config.resolve.fallback = {};
   }
@@ -67,6 +67,9 @@ module.exports = function override(config, env) {
       'process.browser': JSON.stringify(true)
     })
   );
+
+  // Suppress "Failed to parse source map" warnings
+  config.ignoreWarnings = [/Failed to parse source map/];
 
   return config;
 };

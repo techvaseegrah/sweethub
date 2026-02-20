@@ -38,7 +38,7 @@ function ViewAdminProducts() {
       setCategories([]);
     }
   };
-  
+
   useEffect(() => {
     fetchProducts();
     fetchCategories();
@@ -51,7 +51,7 @@ function ViewAdminProducts() {
       tempProducts = tempProducts.filter(
         (product) => {
           // Check if product.category is an object with _id or just an ID string
-          const categoryId = typeof product.category === 'object' ? product.category._id : product.category;
+          const categoryId = (product.category && typeof product.category === 'object') ? product.category._id : product.category;
           return categoryId === selectedCategory;
         }
       );
@@ -78,9 +78,9 @@ function ViewAdminProducts() {
       <div className="p-6 flex flex-col items-center justify-center">
         <div className="relative flex justify-center items-center mb-4">
           <div className="w-16 h-16 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
+          <img
+            src="/sweethub-logo.png"
+            alt="Sweet Hub Logo"
             className="absolute w-10 h-10"
           />
         </div>
@@ -96,10 +96,10 @@ function ViewAdminProducts() {
   // Show each product only once (no flattening by unit)
   const uniqueProducts = filteredProducts;
 
-    return (
-      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
+  return (
+    <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl sm:text-2xl font-semibold text-gray-800">Admin Products</h3>
+        <h3 className="text-xl sm:text-2xl font-semibold text-gray-800">Admin Products</h3>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-4">
@@ -122,19 +122,19 @@ function ViewAdminProducts() {
             </option>
           ))}
         </select>
+      </div>
+
+      {uniqueProducts.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-gray-400 text-lg mb-2">📦</div>
+          <p className="text-gray-600 font-medium">No admin products found.</p>
+          <p className="text-gray-500 text-sm mt-1">
+            Admin products will appear here when available.
+          </p>
         </div>
-        
-        {uniqueProducts.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-400 text-lg mb-2">📦</div>
-            <p className="text-gray-600 font-medium">No admin products found.</p>
-            <p className="text-gray-500 text-sm mt-1">
-              Admin products will appear here when available.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -160,17 +160,17 @@ function ViewAdminProducts() {
                     </span>
                   </td>
                   <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {(product.category ? (typeof product.category === 'object' ? product.category.name : 
+                    {(product.category ? (typeof product.category === 'object' ? product.category.name :
                       Array.isArray(categories) ? categories.find(cat => cat._id === product.category)?.name : 'N/A') : 'N/A')}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          </div>
-        )}
-      </div>
-    );
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default ViewAdminProducts;
