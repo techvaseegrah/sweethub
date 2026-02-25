@@ -46,6 +46,9 @@ function AdminViewBills({ baseUrl = '/admin' }) {
   const [excelFromDate, setExcelFromDate] = useState('');
   const [excelToDate, setExcelToDate] = useState('');
 
+  // Load More state — show 2 days at a time
+  const [visibleDays, setVisibleDays] = useState(2);
+
   const navigate = useNavigate();
 
   const fetchBills = async () => {
@@ -215,7 +218,31 @@ function AdminViewBills({ baseUrl = '/admin' }) {
     setFilteredBills(tempBills);
   }, [bills, searchTerm, paymentMethodFilter, fromDate, toDate, timeFilterType, selectedHour]);
 
-  // Calculate total sales for current filtered bills
+  // Reset visibleDays whenever filters change
+  useEffect(() => {
+    setVisibleDays(2);
+  }, [searchTerm, paymentMethodFilter, fromDate, toDate, timeFilterType, selectedHour, selectedShop, selectedCategory]);
+
+  // Group filteredBills by date and compute visible bills
+  const getUniqueDates = () => {
+    const dateMap = {};
+    filteredBills.forEach(bill => {
+      const d = bill.billDate ? new Date(bill.billDate) : new Date(bill.createdAt);
+      const dateKey = d.toDateString();
+      if (!dateMap[dateKey]) {
+        dateMap[dateKey] = { dateKey, dateObj: new Date(d.getFullYear(), d.getMonth(), d.getDate()), bills: [] };
+      }
+      dateMap[dateKey].bills.push(bill);
+    });
+    return Object.values(dateMap).sort((a, b) => b.dateObj - a.dateObj);
+  };
+
+  const groupedByDate = getUniqueDates();
+  const visibleGroups = groupedByDate.slice(0, visibleDays);
+  const hasMoreDays = visibleDays < groupedByDate.length;
+  const visibleBills = visibleGroups.flatMap(g => g.bills);
+
+  // Calculate total sales for current filtered bills (all filtered, not just visible)
   const totalSalesAmount = calculateTotalSales(filteredBills);
 
   const generateInvoice = (bill) => {
@@ -533,124 +560,165 @@ function AdminViewBills({ baseUrl = '/admin' }) {
         filteredBills.length === 0 ? (
           <p>No bills found.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill ID</td>
-                  <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</td>
-                  <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Worker</td>
-                  <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</td>
-                  <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
-                  <td className="hidden md:table-cell px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</td>
-                  <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</td>
-                  <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</td>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredBills.map((bill) => ( // Use filteredBills here
-                  <tr key={bill._id} className={bill.isDeleted ? 'bg-red-50' : ''}>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {bill.isDeleted && <span className="text-red-600 mr-1">[DELETED]</span>}
-                      <div>{bill.billId || bill._id.slice(-8)}</div>
-                      <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block mt-1 ${bill.billType === 'REFERENCE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
-                        {bill.billType || 'ORDINARY'}
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                      <div>{bill.customerName}</div>
-                      <div>{bill.customerMobileNumber}</div>
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {bill.worker ? bill.worker.name : 'N/A'}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {bill.items.map(item => (
-                        <div key={item._id}>
-                          {item.productName || (item.product ? item.product.name : '[Deleted Product]')} ({item.quantity} {item.unit || (item.product ? item.product.unit : 'unit')})
-                        </div>
+          <>
+            {visibleGroups.map((group) => (
+              <div key={group.dateKey} className="mb-6">
+                {/* Date Header */}
+                <div className="bg-gray-100 px-4 py-2 rounded-t-lg border border-gray-200">
+                  <h4 className="text-sm font-bold text-gray-700">
+                    {(() => {
+                      const today = new Date();
+                      const yesterday = new Date();
+                      yesterday.setDate(yesterday.getDate() - 1);
+                      if (group.dateObj.toDateString() === today.toDateString()) return `📅 Today — ${formatDateToDDMMYYYY(group.dateObj)}`;
+                      if (group.dateObj.toDateString() === yesterday.toDateString()) return `📅 Yesterday — ${formatDateToDDMMYYYY(group.dateObj)}`;
+                      return `📅 ${formatDateToDDMMYYYY(group.dateObj)}`;
+                    })()}
+                    <span className="ml-2 text-xs font-normal text-gray-500">({group.bills.length} bill{group.bills.length !== 1 ? 's' : ''})</span>
+                  </h4>
+                </div>
+                <div className="overflow-x-auto border border-t-0 border-gray-200 rounded-b-lg">
+                  <table className="w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill ID</td>
+                        <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</td>
+                        <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Worker</td>
+                        <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</td>
+                        <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
+                        <td className="hidden md:table-cell px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</td>
+                        <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</td>
+                        <td className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</td>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {group.bills.map((bill) => (
+                        <tr key={bill._id} className={bill.isDeleted ? 'bg-red-50' : ''}>
+                          <td className="px-2 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {bill.isDeleted && <span className="text-red-600 mr-1">[DELETED]</span>}
+                            <div>{bill.billId || bill._id.slice(-8)}</div>
+                            <div className={`text-xs font-bold px-2 py-1 rounded-full inline-block mt-1 ${bill.billType === 'REFERENCE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                              {bill.billType || 'ORDINARY'}
+                            </div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <div>{bill.customerName}</div>
+                            <div>{bill.customerMobileNumber}</div>
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                            {bill.worker ? bill.worker.name : 'N/A'}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                            {bill.items.map(item => (
+                              <div key={item._id}>
+                                {item.productName || (item.product ? item.product.name : '[Deleted Product]')} ({item.quantity} {item.unit || (item.product ? item.product.unit : 'unit')})
+                              </div>
+                            ))}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <div>₹{bill.totalAmount.toFixed(2)}</div>
+                            <div className="text-xs text-gray-400">({bill.paymentMethod})</div>
+                          </td>
+                          <td className="hidden md:table-cell px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                            {bill.billDate ? (
+                              <>
+                                <div>{formatDateTime(bill.billDate).date}</div>
+                                <div className="text-xs text-gray-500">{formatDateTime(bill.billDate).time}</div>
+                              </>
+                            ) : bill.createdAt ? (
+                              <>
+                                <div>{formatDateTime(bill.createdAt).date}</div>
+                                <div className="text-xs text-gray-500">{formatDateTime(bill.createdAt).time}</div>
+                              </>
+                            ) : (
+                              'N/A'
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
+                            {bill.isDeleted ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                Deleted
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Active
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-3 whitespace-nowrap text-sm font-medium space-x-2">
+                            <button
+                              onClick={() => viewBillDetails(bill)}
+                              className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 p-2 rounded-md transition-colors duration-200"
+                              title="View"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                            {!bill.isDeleted && (
+                              <>
+                                <button
+                                  onClick={() => handleEditPaymentMethod(bill)}
+                                  className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 p-2 rounded-md transition-colors duration-200"
+                                  title="Edit Payment Method"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadPDF(bill)}
+                                  className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 p-2 rounded-md transition-colors duration-200"
+                                  title="Download PDF"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                </button>
+                              </>
+                            )}
+                            {!bill.isDeleted && (
+                              <button
+                                onClick={() => handleDeleteClick(bill)}
+                                className="text-red-600 hover:text-red-900 bg-red-100 hover:bg-red-200 p-2 rounded-md transition-colors duration-200"
+                                title="Delete"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
                       ))}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                      <div>₹{bill.totalAmount.toFixed(2)}</div>
-                      <div className="text-xs text-gray-400">({bill.paymentMethod})</div>
-                    </td>
-                    <td className="hidden md:table-cell px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {bill.billDate ? (
-                        <>
-                          <div>{formatDateTime(bill.billDate).date}</div>
-                          <div className="text-xs text-gray-500">{formatDateTime(bill.billDate).time}</div>
-                        </>
-                      ) : bill.createdAt ? (
-                        <>
-                          <div>{formatDateTime(bill.createdAt).date}</div>
-                          <div className="text-xs text-gray-500">{formatDateTime(bill.createdAt).time}</div>
-                        </>
-                      ) : (
-                        'N/A'
-                      )}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm text-gray-500">
-                      {bill.isDeleted ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          Deleted
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm font-medium space-x-2">
-                      <button
-                        onClick={() => viewBillDetails(bill)}
-                        className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 p-2 rounded-md transition-colors duration-200"
-                        title="View"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </button>
-                      {!bill.isDeleted && (
-                        <>
-                          <button
-                            onClick={() => handleEditPaymentMethod(bill)}
-                            className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 p-2 rounded-md transition-colors duration-200"
-                            title="Edit Payment Method"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDownloadPDF(bill)}
-                            className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 p-2 rounded-md transition-colors duration-200"
-                            title="Download PDF"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                          </button>
-                        </>
-                      )}
-                      {!bill.isDeleted && (
-                        <button
-                          onClick={() => handleDeleteClick(bill)}
-                          className="text-red-600 hover:text-red-900 bg-red-100 hover:bg-red-200 p-2 rounded-md transition-colors duration-200"
-                          title="Delete"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+
+            {/* Load More Button */}
+            {hasMoreDays && (
+              <div className="flex justify-center mt-4 mb-2">
+                <button
+                  onClick={() => setVisibleDays(prev => prev + 2)}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  Load More ({groupedByDate.length - visibleDays} more day{groupedByDate.length - visibleDays !== 1 ? 's' : ''})
+                </button>
+              </div>
+            )}
+
+            {!hasMoreDays && groupedByDate.length > 0 && (
+              <div className="text-center text-sm text-gray-400 mt-4 mb-2">
+                All {groupedByDate.length} day{groupedByDate.length !== 1 ? 's' : ''} loaded
+              </div>
+            )}
+          </>
         )
       }
 

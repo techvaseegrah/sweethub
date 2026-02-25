@@ -438,41 +438,40 @@ function CreateBill({ baseUrl = '/shop' }) {
       } else if (value === "") {
         setCurrentItem(prev => ({ ...prev, quantity: '', rawInput: '', isDecimalAsGram: false }));
       } else if (!isNaN(numValue) && numValue >= 0) {
-        // Gram conversion logic
-        if (currentItem.product?.prices?.[0]?.unit === 'kg' && numValue < 1 && value.includes('.') && numValue > 0) {
-          const gramValue = numValue * 1000;
-          const priceInfo = currentItem.product?.prices?.find(p => p.unit === 'gram');
-          setCurrentItem(prev => ({
-            ...prev,
-            quantity: gramValue,
-            rawInput: value,
-            unit: 'gram',
-            isDecimalAsGram: true,
-            price: priceInfo ? priceInfo.sellingPrice : prev.price
-          }));
-        } else {
-          setCurrentItem(prev => ({ ...prev, quantity: numValue, rawInput: value, isDecimalAsGram: false }));
-        }
+        // Check if this would be a decimal-as-gram scenario (kg product with gram price)
+        // but DON'T convert yet — just flag it. Conversion happens in handleAddItem.
+        const wouldBeDecimalAsGram =
+          currentItem.product?.prices?.[0]?.unit === 'kg' &&
+          numValue < 1 &&
+          value.includes('.') &&
+          numValue > 0 &&
+          currentItem.product?.prices?.some(p => p.unit === 'gram');
+
+        setCurrentItem(prev => ({
+          ...prev,
+          quantity: numValue,
+          rawInput: value,
+          isDecimalAsGram: wouldBeDecimalAsGram
+        }));
       }
     }
   };
 
   const handleAddItem = () => {
     let finalQuantity;
+    let finalUnit = currentItem.unit;
+    let finalPrice = currentItem.price;
     let isValid = false;
 
-    if (currentItem.isDecimalAsGram && typeof currentItem.quantity === 'number') {
-      finalQuantity = parseFloat(currentItem.quantity);
+    const rawNum = parseFloat(currentItem.rawInput);
+    const hasRaw = currentItem.rawInput !== '' && !isNaN(rawNum) && isFinite(rawNum);
+
+    if (hasRaw && rawNum > 0) {
+      finalQuantity = rawNum;
       isValid = true;
-    } else if (currentItem.rawInput) {
-      const parsedRaw = parseFloat(currentItem.rawInput);
-      if (!isNaN(parsedRaw) && isFinite(parsedRaw) && parsedRaw >= 0) {
-        finalQuantity = parsedRaw;
-        isValid = true;
-      }
     } else if (currentItem.quantity !== '') {
       const parsedQuantity = parseFloat(currentItem.quantity);
-      if (!isNaN(parsedQuantity) && isFinite(parsedQuantity) && parsedQuantity >= 0) {
+      if (!isNaN(parsedQuantity) && isFinite(parsedQuantity) && parsedQuantity > 0) {
         finalQuantity = parsedQuantity;
         isValid = true;
       }
@@ -483,13 +482,20 @@ function CreateBill({ baseUrl = '/shop' }) {
       return;
     }
 
-    // Price conversion logic
-    let pricePerUnit = currentItem.price;
-    if (currentItem.product.prices?.length > 0) {
-      const baseUnit = currentItem.product.prices[0].unit;
-      if (currentItem.unit !== baseUnit && areRelatedUnits(currentItem.unit, baseUnit)) {
-        const conversionFactor = convertUnit(1, currentItem.unit, baseUnit);
-        pricePerUnit = currentItem.price * conversionFactor;
+    // If decimal-as-gram: convert kg decimal → gram quantity, switch unit & price
+    if (currentItem.isDecimalAsGram) {
+      const gramPriceInfo = currentItem.product.prices.find(p => p.unit === 'gram');
+      finalQuantity = finalQuantity * 1000; // e.g. 0.25 → 250 grams
+      finalUnit = 'gram';
+      finalPrice = gramPriceInfo ? gramPriceInfo.sellingPrice : currentItem.price;
+    } else {
+      // Price conversion logic for other unit relationships
+      if (currentItem.product.prices?.length > 0) {
+        const baseUnit = currentItem.product.prices[0].unit;
+        if (finalUnit !== baseUnit && areRelatedUnits(finalUnit, baseUnit)) {
+          const conversionFactor = convertUnit(1, finalUnit, baseUnit);
+          finalPrice = currentItem.price * conversionFactor;
+        }
       }
     }
 
@@ -497,13 +503,11 @@ function CreateBill({ baseUrl = '/shop' }) {
       product: currentItem.product._id,
       productName: currentItem.productName,
       sku: currentItem.sku,
-      unit: currentItem.unit,
+      unit: finalUnit,
       quantity: finalQuantity,
-      price: pricePerUnit,
+      price: finalPrice,
       baseUnitPrice: currentItem.price,
       baseUnit: currentItem.product.prices[0].unit,
-
-
       discountPercent: currentItem.discountPercent || 0,
       discountAmount: currentItem.discountAmount || 0,
     };

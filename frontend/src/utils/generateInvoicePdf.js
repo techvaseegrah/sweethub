@@ -17,13 +17,13 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
   const shopGstNumber = invoiceData?.shop?.gstNumber || invoiceData?.shopGstNumber || null;
   const shopFssaiNumber = invoiceData?.shop?.fssaiNumber || invoiceData?.shopFssaiNumber || null;
   const adminName = invoiceData?.admin?.name || 'Admin';
-  
+
   // Extract invoice details
   const invoiceNumber = invoiceData?.invoiceNumber || invoiceData?._id?.slice(-8) || 'N/A';
-  const issueDate = invoiceData?.issueDate ? formatDateToDDMMYYYY(invoiceData.issueDate) : 
-                   invoiceData?.billDate ? formatDateToDDMMYYYY(invoiceData.billDate) : formatDateToDDMMYYYY(new Date().toISOString());
+  const issueDate = invoiceData?.issueDate ? formatDateToDDMMYYYY(invoiceData.issueDate) :
+    invoiceData?.billDate ? formatDateToDDMMYYYY(invoiceData.billDate) : formatDateToDDMMYYYY(new Date().toISOString());
   const status = invoiceData?.status || 'Active';
-  
+
   // Check for GST information first, then fall back to old tax system
   const gstPercentage = invoiceData?.gstPercentage || 0;
   const gstAmount = invoiceData?.gstAmount || 0;
@@ -31,7 +31,7 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
   const tax = invoiceData?.tax || 0;
   const grandTotal = invoiceData?.grandTotal || invoiceData?.totalAmount || 0;
   const subtotal = invoiceData?.subtotal || baseAmount || 0;
-  
+
   // Discount information
   const discountType = invoiceData?.discountType || 'none';
   const discountValue = invoiceData?.discountValue || 0;
@@ -261,7 +261,7 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
               <td colspan="3" style="text-align: right; padding: 3px 4px;">
                 Discount ${discountType === 'percentage' ? `(${discountValue}%)` : ''}:
               </td>
-              <td style="text-align: right; padding: 3px 4px;">-₹${discountAmount.toFixed(2)}</td>
+              <td style="text-align: right; padding: 3px 4px;">₹${discountAmount.toFixed(2)}</td>
             </tr>
             ` : ''}
             <tr class="summary-row">
@@ -289,13 +289,13 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
         <div style="margin-top: 8px; font-size: 9px;">
           <div><strong>Tax Details:</strong></div>
           ${(() => {
-            // Calculate CGST and SGST amounts (half of total GST amount each)
-            const cgstRate = gstPercentage / 2;
-            const sgstRate = gstPercentage / 2;
-            const cgstAmount = gstAmount / 2;
-            const sgstAmount = gstAmount / 2;
-            
-            return `
+        // Calculate CGST and SGST amounts (half of total GST amount each)
+        const cgstRate = gstPercentage / 2;
+        const sgstRate = gstPercentage / 2;
+        const cgstAmount = gstAmount / 2;
+        const sgstAmount = gstAmount / 2;
+
+        return `
             <div style="display: flex; justify-content: space-between; margin-top: 2px;">
               <div>CGST@${cgstRate.toFixed(3)}% on ₹${(baseAmount).toFixed(2)}</div>
               <div style="text-align: right;">₹${cgstAmount.toFixed(2)}</div>
@@ -305,7 +305,7 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
               <div style="text-align: right;">₹${sgstAmount.toFixed(2)}</div>
             </div>
             `;
-          })()}
+      })()}
         </div>
         ` : ''}
         
@@ -338,11 +338,11 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
     iframe.style.zIndex = '-1';
     iframe.srcdoc = invoiceHtml;
     document.body.appendChild(iframe);
-    
+
     iframe.onload = () => {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
-      
+
       // Remove the iframe after printing
       setTimeout(() => {
         document.body.removeChild(iframe);
