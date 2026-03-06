@@ -9,7 +9,10 @@ const {
   getUnviewedOrderCount,
   markOrdersAsViewed
 } = require('../../controllers/admin/orderController');
-const { checkProductAvailability } = require('../../controllers/admin/orderAvailabilityController');
+const {
+  checkProductAvailability,
+  checkMultipleProductsAvailability
+} = require('../../controllers/admin/orderAvailabilityController');
 const { adminAuth } = require('../../middleware/auth');
 
 // --- Order Routes for Admin ---
@@ -43,6 +46,11 @@ router.get('/shop/:shopId', adminAuth, getOrdersForShop);
 // @desc    Check product availability across all stages for an order
 // @access  Private (Admin only)
 router.get('/:orderId/availability', adminAuth, checkProductAvailability);
+
+// @route   POST api/admin/orders/check-availability
+// @desc    Check availability for multiple products/items
+// @access  Private (Admin only)
+router.post('/check-availability', adminAuth, checkMultipleProductsAvailability);
 
 // @route   GET api/admin/orders/:id
 // @desc    Get a specific order by ID

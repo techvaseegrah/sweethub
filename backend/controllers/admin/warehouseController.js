@@ -35,7 +35,7 @@ const addRawMaterial = async (req, res) => {
             if (price) item.price = price; // Update price if provided
             if (unit) item.unit = unit; // Update unit if provided
             // Only update vendor if provided (keep existing vendor if not provided)
-            if (vendor) item.vendor = vendor; 
+            if (vendor) item.vendor = vendor;
             // Update address if provided
             if (address) item.address = address;
             // Update expiry and used by dates if provided
@@ -56,11 +56,11 @@ const addRawMaterial = async (req, res) => {
 const addReturnProduct = async (req, res) => {
     try {
         const { productName, quantityReturned, reasonForReturn, source, batchNumber, remarks } = req.body;
-        
+
         // Generate a unique return ID
         const count = await ReturnProduct.countDocuments();
         const returnId = `RTN-${(count + 1).toString().padStart(5, '0')}`;
-        
+
         const newReturn = new ReturnProduct({
             returnId,
             productName,
@@ -73,7 +73,7 @@ const addReturnProduct = async (req, res) => {
             isApproved: false,
             status: 'Pending'
         });
-        
+
         await newReturn.save();
         res.status(201).json({ message: 'Return product registered successfully', return: newReturn });
     } catch (error) {
@@ -95,27 +95,27 @@ const approveReturn = async (req, res) => {
     try {
         const { id } = req.params;
         const { approvedBy } = req.body;
-        
+
         const returnProduct = await ReturnProduct.findById(id);
         if (!returnProduct) {
             return res.status(404).json({ message: 'Return not found' });
         }
-        
+
         // Update store room stock
-        const storeItem = await StoreRoomItem.findOne({ 
-            name: { $regex: new RegExp(`^${returnProduct.productName.trim()}$`, 'i') } 
+        const storeItem = await StoreRoomItem.findOne({
+            name: { $regex: new RegExp(`^${returnProduct.productName.trim()}$`, 'i') }
         });
-        
+
         if (storeItem) {
             storeItem.quantity += returnProduct.quantityReturned;
             await storeItem.save();
         }
-        
+
         // Approve the return
         returnProduct.isApproved = true;
         returnProduct.approvedBy = approvedBy;
         await returnProduct.save();
-        
+
         res.json({ message: 'Return approved and stock updated successfully', return: returnProduct });
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -134,26 +134,26 @@ const getOutgoingPackingMaterials = async (req, res) => {
 const createOutgoingPackingMaterial = async (req, res) => {
     try {
         const { materialName, quantityUsed, notes } = req.body;
-        
+
         // Find the packing material
-        const packingMaterial = await PackingMaterial.findOne({ 
-            name: { $regex: new RegExp(`^${materialName.trim()}$`, 'i') } 
+        const packingMaterial = await PackingMaterial.findOne({
+            name: { $regex: new RegExp(`^${materialName.trim()}$`, 'i') }
         });
-        
+
         if (!packingMaterial) {
             return res.status(404).json({ message: 'Packing material not found' });
         }
-        
+
         if (packingMaterial.quantity < quantityUsed) {
-            return res.status(400).json({ 
-                message: `Insufficient stock. Available: ${packingMaterial.quantity}, Required: ${quantityUsed}` 
+            return res.status(400).json({
+                message: `Insufficient stock. Available: ${packingMaterial.quantity}, Required: ${quantityUsed}`
             });
         }
-        
+
         // Deduct from packing materials
         packingMaterial.quantity -= quantityUsed;
         await packingMaterial.save();
-        
+
         // Create outgoing record
         const outgoingRecord = new OutgoingPackingMaterial({
             materialName,
@@ -162,11 +162,11 @@ const createOutgoingPackingMaterial = async (req, res) => {
             usedDate: new Date(),
             notes
         });
-        
+
         await outgoingRecord.save();
-        res.status(201).json({ 
+        res.status(201).json({
             message: 'Outgoing packing material recorded successfully',
-            outgoingRecord 
+            outgoingRecord
         });
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -186,31 +186,31 @@ const getExpiredMaterials = async (req, res) => {
     try {
         // Find ALL store room items
         const items = await StoreRoomItem.find();
-        
+
         // Sort items: first expired/near expiry items (by expiry date), then items without expiry dates
         const sortedItems = items.sort((a, b) => {
             const today = new Date();
-            
+
             // Items without expiry dates go last
             if (!a.expiryDate && !b.expiryDate) return 0;
             if (!a.expiryDate) return 1;  // a goes last
             if (!b.expiryDate) return -1; // b goes last
-            
+
             // Both have expiry dates - sort by expiry date (earliest first)
             const aExpiry = new Date(a.expiryDate);
             const bExpiry = new Date(b.expiryDate);
-            
+
             // Calculate days remaining
             const aDiffTime = aExpiry - today;
             const aDiffDays = Math.ceil(aDiffTime / (1000 * 60 * 60 * 24));
-            
+
             const bDiffTime = bExpiry - today;
             const bDiffDays = Math.ceil(bDiffTime / (1000 * 60 * 60 * 24));
-            
+
             // Items expiring soonest come first
             return aDiffDays - bDiffDays;
         });
-        
+
         res.json(sortedItems);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -228,7 +228,7 @@ const updateStoreRoomItem = async (req, res) => {
         if (updateData.usedByDate) {
             updateData.usedByDate = new Date(updateData.usedByDate);
         }
-        
+
         const updatedItem = await StoreRoomItem.findByIdAndUpdate(id, updateData, { new: true });
         if (!updatedItem) {
             return res.status(404).json({ message: 'Item not found' });
@@ -256,7 +256,7 @@ const deleteStoreRoomItem = async (req, res) => {
 const addPackingMaterial = async (req, res) => {
     try {
         const { name, quantity, price, stockAlertThreshold, vendor } = req.body;
-        
+
         // Find item case-insensitively and trim whitespace
         let item = await PackingMaterial.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } });
 
@@ -303,7 +303,7 @@ const updatePackingMaterial = async (req, res) => {
     try {
         const { id } = req.params;
         const updatedMaterial = await PackingMaterial.findByIdAndUpdate(id, req.body, { new: true });
-        
+
         // If vendor is updated, save to vendor history
         if (req.body.vendor) {
             const material = await PackingMaterial.findById(id);
@@ -317,7 +317,7 @@ const updatePackingMaterial = async (req, res) => {
                 await vendorHistory.save();
             }
         }
-        
+
         res.json(updatedMaterial);
     } catch (error) {
         res.status(500).json({ message: 'Server Error' });
@@ -351,8 +351,8 @@ const getPackingMaterialAlerts = async (req, res) => {
 const getVendorHistory = async (req, res) => {
     try {
         const { materialName } = req.params;
-        const vendorHistory = await VendorHistory.find({ 
-            materialName: { $regex: new RegExp(`^${materialName.trim()}$`, 'i') } 
+        const vendorHistory = await VendorHistory.find({
+            materialName: { $regex: new RegExp(`^${materialName.trim()}$`, 'i') }
         }).sort({ receivedDate: -1 });
         res.json(vendorHistory);
     } catch (error) {
@@ -374,30 +374,33 @@ const getAllVendorHistory = async (req, res) => {
 const addManufacturingProcess = async (req, res) => {
     try {
         // Now expecting ingredients to be an array of objects
-        const { sweetName, ingredients, quantity, price, unit, createdByWorker, expiryDays, usedByDays } = req.body;
-        
+        const { productName, category, ingredients, quantity, price, unit, createdByWorker, expiryDate, usedByDate } = req.body;
+
         // Validate required fields for manufacturing, including checking if ingredients is a non-empty array
-        if (!sweetName || !quantity || !price || !unit || !Array.isArray(ingredients) || ingredients.length === 0) {
-            return res.status(400).json({ message: 'Please provide sweet name, quantity, price, unit, and at least one ingredient with its details.' });
+        if (!productName || !quantity || !price || !unit || !Array.isArray(ingredients) || ingredients.length === 0) {
+            return res.status(400).json({ message: 'Please provide product name, quantity, price, unit, and at least one ingredient with its details.' });
         }
-        
+
         // Validate each ingredient object
         for (const ingredient of ingredients) {
             if (!ingredient.name || !ingredient.quantity || !ingredient.unit || !ingredient.price) {
                 return res.status(400).json({ message: 'Each ingredient must have a name, quantity, unit, and price.' });
             }
         }
-        
+
         // Check if the product exists in the products collection
-        let product = await Product.findOne({ 
-            name: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } 
+        let product = await Product.findOne({
+            name: { $regex: new RegExp(`^${productName.trim()}$`, 'i') }
         });
-        
-        // If product doesn't exist, create it with minimal information
+
+        // If product doesn't exist, create it with category info
         if (!product) {
+            if (!category) {
+                return res.status(400).json({ message: 'Category is required to create a new product.' });
+            }
             product = new Product({
-                name: sweetName,
-                category: null, // No category initially
+                name: productName,
+                category: category,
                 sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Generate a unique SKU
                 stockLevel: 0, // Manufacturing doesn't add to stock initially
                 prices: [{
@@ -405,40 +408,40 @@ const addManufacturingProcess = async (req, res) => {
                     netPrice: price,
                     sellingPrice: price * 1.2 // Assuming 20% profit margin
                 }],
-                admin: req.user._id // Assuming req.user exists from auth middleware
+                admin: req.user.id // Use req.user.id (decoded from token)
             });
             await product.save();
         }
-        
-        let process = await Manufacturing.findOne({ sweetName: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } });
-        
+
+        let process = await Manufacturing.findOne({ productName: { $regex: new RegExp(`^${productName.trim()}$`, 'i') } });
+
         if (process) {
             // If it exists, update all fields, including the ingredients array
             process.ingredients = ingredients;
             process.quantity = quantity;
             process.price = price;
             process.unit = unit;
-            process.expiryDays = expiryDays ? parseInt(expiryDays) : undefined;
-            process.usedByDays = usedByDays ? parseInt(usedByDays) : undefined;
+            process.expiryDate = expiryDate ? new Date(expiryDate) : undefined;
+            process.usedByDate = usedByDate ? new Date(usedByDate) : undefined;
             process.createdByWorker = createdByWorker || process.createdByWorker; // Update worker if provided, otherwise keep existing
         } else {
             // If it doesn't exist, create a new one with all fields
-            process = new Manufacturing({ 
-                sweetName, 
-                ingredients, 
-                quantity, 
-                price, 
-                unit, 
-                expiryDays: expiryDays ? parseInt(expiryDays) : undefined,
-                usedByDays: usedByDays ? parseInt(usedByDays) : undefined,
-                createdByWorker 
+            process = new Manufacturing({
+                productName,
+                ingredients,
+                quantity,
+                price,
+                unit,
+                expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+                usedByDate: usedByDate ? new Date(usedByDate) : undefined,
+                createdByWorker
             });
         }
-        
+
         await process.save();
         res.status(201).json(process);
     } catch (error) {
-        console.error('Error adding manufacturing process:', error); 
+        console.error('Error adding manufacturing process:', error);
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
@@ -448,21 +451,21 @@ const getAllManufacturingProcesses = async (req, res) => {
         const processes = await Manufacturing.find({}).populate('createdByWorker', 'name'); // This will now fetch structured ingredients and worker info
         res.json(processes);
     } catch (error) {
-        console.error('Error fetching manufacturing processes:', error); 
+        console.error('Error fetching manufacturing processes:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };
 
 const getManufacturingProcessByName = async (req, res) => {
     try {
-        const { sweetName } = req.params;
-        const process = await Manufacturing.findOne({ sweetName }).populate('createdByWorker', 'name'); 
+        const { productName } = req.params;
+        const process = await Manufacturing.findOne({ productName }).populate('createdByWorker', 'name');
         if (!process) {
             return res.status(404).json({ message: 'Process not found' });
         }
         res.json(process);
     } catch (error) {
-        console.error('Error getting manufacturing process by name:', error); 
+        console.error('Error getting manufacturing process by name:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -472,30 +475,33 @@ const updateManufacturingProcess = async (req, res) => {
     try {
         const { id } = req.params;
         // Now expecting ingredients to be an array of objects
-        const { sweetName, ingredients, quantity, price, unit, createdByWorker, expiryDays, usedByDays } = req.body;
-        
+        const { productName, category, ingredients, quantity, price, unit, createdByWorker, expiryDate, usedByDate } = req.body;
+
         // Validate required fields for manufacturing update
-        if (!sweetName || !quantity || !price || !unit || !Array.isArray(ingredients) || ingredients.length === 0) {
-            return res.status(400).json({ message: 'Please provide sweet name, quantity, price, unit, and at least one ingredient with its details for update.' });
+        if (!productName || !quantity || !price || !unit || !Array.isArray(ingredients) || ingredients.length === 0) {
+            return res.status(400).json({ message: 'Please provide product name, quantity, price, unit, and at least one ingredient with its details for update.' });
         }
-        
+
         // Validate each ingredient object
         for (const ingredient of ingredients) {
             if (!ingredient.name || !ingredient.quantity || !ingredient.unit || !ingredient.price) {
                 return res.status(400).json({ message: 'Each ingredient must have a name, quantity, unit, and price for update.' });
             }
         }
-        
+
         // Check if the product exists in the products collection
-        let product = await Product.findOne({ 
-            name: { $regex: new RegExp(`^${sweetName.trim()}$`, 'i') } 
+        let product = await Product.findOne({
+            name: { $regex: new RegExp(`^${productName.trim()}$`, 'i') }
         });
-        
-        // If product doesn't exist, create it with minimal information
+
+        // If product doesn't exist, create it with category info
         if (!product) {
+            if (!category) {
+                return res.status(400).json({ message: 'Category is required to create a new product.' });
+            }
             product = new Product({
-                name: sweetName,
-                category: null, // No category initially
+                name: productName,
+                category: category,
                 sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // Generate a unique SKU
                 stockLevel: 0, // Manufacturing doesn't add to stock initially
                 prices: [{
@@ -503,7 +509,7 @@ const updateManufacturingProcess = async (req, res) => {
                     netPrice: price,
                     sellingPrice: price * 1.2 // Assuming 20% profit margin
                 }],
-                admin: req.user._id // Assuming req.user exists from auth middleware
+                admin: req.user.id // Use req.user.id (decoded from token)
             });
             await product.save();
         } else {
@@ -525,15 +531,15 @@ const updateManufacturingProcess = async (req, res) => {
             }
             await product.save();
         }
-        
-        const updateFields = { 
-            sweetName, 
-            ingredients, 
-            quantity, 
-            price, 
+
+        const updateFields = {
+            productName,
+            ingredients,
+            quantity,
+            price,
             unit,
-            expiryDays: expiryDays !== undefined ? parseInt(expiryDays) : undefined,
-            usedByDays: usedByDays !== undefined ? parseInt(usedByDays) : undefined
+            expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+            usedByDate: usedByDate ? new Date(usedByDate) : undefined
         };
         // Only include createdByWorker in update if it was provided in the request
         if (createdByWorker !== undefined) {
@@ -541,7 +547,7 @@ const updateManufacturingProcess = async (req, res) => {
         }
 
         const updatedProcess = await Manufacturing.findByIdAndUpdate(
-            id, 
+            id,
             updateFields, // Include all fields in update
             { new: true, runValidators: true }
         );
@@ -550,7 +556,7 @@ const updateManufacturingProcess = async (req, res) => {
         }
         res.json(updatedProcess);
     } catch (error) {
-        console.error('Error updating manufacturing process:', error); 
+        console.error('Error updating manufacturing process:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };
@@ -587,27 +593,27 @@ const updateOutgoingMaterial = async (req, res) => {
 
 const bulkUpdateOutgoingMaterials = async (req, res) => {
     try {
-        const { items } = req.body; 
+        const { items } = req.body;
 
         if (!Array.isArray(items) || items.length === 0) {
             return res.status(400).json({ message: 'Invalid items array provided.' });
         }
 
         const updatedItems = [];
-        
+
         for (const item of items) {
             const updatedItem = await StoreRoomItem.findByIdAndUpdate(
                 item.id,
                 { $inc: { quantity: -item.quantity } },
                 { new: true }
             );
-            
+
             if (updatedItem) {
                 updatedItems.push(updatedItem);
             }
         }
 
-        res.json({ 
+        res.json({
             message: 'Stock updated successfully for all items.',
             updatedItems: updatedItems
         });
@@ -632,29 +638,29 @@ const getOutgoingMaterials = async (req, res) => {
         // Populate outgoing materials with related schedule information
         const outgoingMaterials = await OutgoingMaterial.find()
             .sort({ usedDate: -1 });
-        
+
         // Get all unique schedule IDs from outgoing materials
         const scheduleIds = [...new Set(outgoingMaterials.map(item => item.scheduleId))];
-        
+
         // Filter valid ObjectIds to avoid errors
         const validScheduleIds = scheduleIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-        
+
         // Get related daily schedules
         const dailySchedules = await DailySchedule.find({ _id: { $in: validScheduleIds } });
-        
+
         // Create a map of scheduleId to schedule details
         const scheduleMap = {};
         dailySchedules.forEach(schedule => {
             scheduleMap[schedule._id] = schedule;
         });
-        
+
         // Enhance outgoing materials with additional information
         const enhancedOutgoingMaterials = outgoingMaterials.map(item => {
             const schedule = scheduleMap[item.scheduleId];
-            
+
             // Calculate total cost
             const totalCost = item.quantityUsed * item.pricePerUnit;
-            
+
             // Create readable schedule reference
             let readableScheduleRef = item.scheduleId;
             if (mongoose.Types.ObjectId.isValid(item.scheduleId)) {
@@ -663,7 +669,7 @@ const getOutgoingMaterials = async (req, res) => {
                 // Convert old format to readable format
                 readableScheduleRef = `SCH-${item.scheduleId.substring(9, 17)}`;
             }
-            
+
             return {
                 ...item.toObject(),
                 manufacturedProductName: schedule ? schedule.sweetName : item.scheduleReference,
@@ -675,7 +681,7 @@ const getOutgoingMaterials = async (req, res) => {
                 unit: item.unit
             };
         });
-        
+
         res.json(enhancedOutgoingMaterials);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -685,35 +691,35 @@ const getOutgoingMaterials = async (req, res) => {
 const createOutgoingMaterial = async (req, res) => {
     try {
         const { scheduleId, date, sweetName, ingredients } = req.body;
-        
+
         if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ message: 'Invalid ingredients data provided.' });
         }
-        
+
         // Check if outgoing materials for this schedule already exist to prevent duplicates
         const existingOutgoingMaterials = await OutgoingMaterial.find({ scheduleId });
         if (existingOutgoingMaterials.length > 0) {
             return res.status(400).json({ message: 'Outgoing materials already exist for this schedule. Cannot process duplicate entries.' });
         }
-        
+
         const outgoingRecords = [];
         const deductedItems = [];
-        
+
         for (const ingredient of ingredients) {
             // Find the store room item by name (case-insensitive)
-            const storeItem = await StoreRoomItem.findOne({ 
-                name: { $regex: new RegExp(`^${ingredient.materialName.trim()}$`, 'i') } 
+            const storeItem = await StoreRoomItem.findOne({
+                name: { $regex: new RegExp(`^${ingredient.materialName.trim()}$`, 'i') }
             });
-            
+
             if (storeItem) {
                 if (storeItem.quantity >= ingredient.quantityUsed) {
                     // Store original quantity for tracking
                     const originalQuantity = storeItem.quantity;
-                    
+
                     // Deduct from store room
                     storeItem.quantity -= ingredient.quantityUsed;
                     await storeItem.save();
-                    
+
                     // Track deducted item details
                     deductedItems.push({
                         name: storeItem.name,
@@ -722,7 +728,7 @@ const createOutgoingMaterial = async (req, res) => {
                         remainingQuantity: storeItem.quantity,
                         unit: storeItem.unit
                     });
-                    
+
                     // Create outgoing material record
                     const outgoingRecord = new OutgoingMaterial({
                         scheduleId,
@@ -733,7 +739,7 @@ const createOutgoingMaterial = async (req, res) => {
                         usedDate: new Date(date),
                         scheduleReference: sweetName
                     });
-                    
+
                     await outgoingRecord.save();
                     outgoingRecords.push(outgoingRecord);
                 } else {
@@ -745,14 +751,14 @@ const createOutgoingMaterial = async (req, res) => {
                             await itemToRevert.save();
                         }
                     }
-                    
+
                     // Delete all created outgoing records
                     for (const record of outgoingRecords) {
                         await OutgoingMaterial.findByIdAndDelete(record._id);
                     }
-                    
-                    return res.status(400).json({ 
-                        message: `Insufficient stock for ${ingredient.materialName}. Available: ${storeItem.quantity}, Required: ${ingredient.quantityUsed}` 
+
+                    return res.status(400).json({
+                        message: `Insufficient stock for ${ingredient.materialName}. Available: ${storeItem.quantity}, Required: ${ingredient.quantityUsed}`
                     });
                 }
             } else {
@@ -764,19 +770,19 @@ const createOutgoingMaterial = async (req, res) => {
                         await itemToRevert.save();
                     }
                 }
-                
+
                 // Delete all created outgoing records
                 for (const record of outgoingRecords) {
                     await OutgoingMaterial.findByIdAndDelete(record._id);
                 }
-                
-                return res.status(404).json({ 
-                    message: `Material ${ingredient.materialName} not found in store room.` 
+
+                return res.status(404).json({
+                    message: `Material ${ingredient.materialName} not found in store room.`
                 });
             }
         }
-        
-        res.status(201).json({ 
+
+        res.status(201).json({
             message: 'Daily schedule processed successfully! Ingredients deducted from store room.',
             outgoingRecords: outgoingRecords,
             deductedItems: deductedItems
@@ -801,16 +807,16 @@ const getDailySchedules = async (req, res) => {
 const createDailySchedule = async (req, res) => {
     try {
         const { sweetName, quantity, ingredients, price, unit, date, description } = req.body;
-        
+
         if (!sweetName || !quantity || !ingredients || !price || !unit || !date) {
             return res.status(400).json({ message: 'All fields are required: sweetName, quantity, ingredients, price, unit, date' });
         }
-        
+
         // Validate ingredients array
         if (!Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ message: 'Ingredients must be a non-empty array' });
         }
-        
+
         const schedule = new DailySchedule({
             sweetName,
             quantity: Number(quantity),
@@ -820,7 +826,7 @@ const createDailySchedule = async (req, res) => {
             date: new Date(date),
             description: description || ''
         });
-        
+
         await schedule.save();
         res.status(201).json(schedule);
     } catch (error) {
@@ -834,11 +840,11 @@ const getDailyScheduleById = async (req, res) => {
     try {
         const { id } = req.params;
         const schedule = await DailySchedule.findById(id);
-        
+
         if (!schedule) {
             return res.status(404).json({ message: 'Daily schedule not found' });
         }
-        
+
         res.json(schedule);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -849,35 +855,35 @@ const updateDailyScheduleStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
-        
+
         if (!status || !['Pending', 'Completed'].includes(status)) {
             return res.status(400).json({ message: 'Status must be either "Pending" or "Completed"' });
         }
-        
+
         // Find the schedule
         const schedule = await DailySchedule.findById(id);
         if (!schedule) {
             return res.status(404).json({ message: 'Schedule not found' });
         }
-        
+
         // Prevent changing status from Completed back to Pending
         if (schedule.status === 'Completed' && status === 'Pending') {
             return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
         }
-        
+
         // NOTE: Product stock is NOT updated here anymore
         // Product will be added to stock only when moved from After Packing to View Products
-        
+
         // Update the schedule status
         const updatedSchedule = await DailySchedule.findByIdAndUpdate(
             id,
-            { 
+            {
                 status,
                 completedAt: status === 'Completed' ? new Date() : null
             },
             { new: true }
         );
-        
+
         res.json({
             message: `Schedule status updated to ${status}`,
             schedule: updatedSchedule
@@ -901,23 +907,24 @@ const getBeforePackingItems = async (req, res) => {
 const addToBeforePacking = async (req, res) => {
     try {
         const { scheduleId, sweetName, quantity, unit, price, date, description } = req.body;
-        
+
         // Check if item already exists for this schedule
         const existingItem = await BeforePacking.findOne({ scheduleId });
         if (existingItem) {
             return res.status(400).json({ message: 'Item already exists in Before Packing' });
         }
-        
+
         const newItem = new BeforePacking({
             scheduleId,
             sweetName,
             quantity: Number(quantity),
+            totalQuantity: Number(quantity),
             unit,
             price: Number(price),
             date: new Date(date),
             description: description || ''
         });
-        
+
         await newItem.save();
         res.status(201).json({ message: 'Item added to Before Packing successfully', item: newItem });
     } catch (error) {
@@ -929,51 +936,76 @@ const addToBeforePacking = async (req, res) => {
 const updateBeforePackingStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status } = req.body;
-        
-        if (!status || !['Pending', 'Completed'].includes(status)) {
-            return res.status(400).json({ message: 'Status must be either "Pending" or "Completed"' });
+        const { status, completedQty } = req.body;
+
+        if (!status || !['Pending', 'Partial', 'Completed'].includes(status)) {
+            return res.status(400).json({ message: 'Status must be Pending, Partial, or Completed' });
         }
-        
+
         const item = await BeforePacking.findById(id);
         if (!item) {
             return res.status(404).json({ message: 'Before Packing item not found' });
         }
-        
+
         // Prevent changing status from Completed back to Pending
-        if (item.status === 'Completed' && status === 'Pending') {
-            return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
+        if (item.status === 'Completed' && (status === 'Pending' || status === 'Partial')) {
+            return res.status(400).json({ message: 'Cannot change status from Completed back' });
         }
-        
-        // If changing to Completed, move to After Packing
-        if (status === 'Completed' && item.status !== 'Completed') {
+
+        let actualCompletedQty = 0;
+        let newStatus = status;
+
+        if (status === 'Completed' || status === 'Partial') {
+            // Determine how much is being completed now
+            if (completedQty && Number(completedQty) > 0) {
+                actualCompletedQty = Number(completedQty);
+                if (actualCompletedQty > item.quantity) {
+                    return res.status(400).json({ message: `Cannot complete more than remaining quantity (${item.quantity} ${item.unit})` });
+                }
+            } else if (status === 'Completed') {
+                // If status is 'Completed' but no qty provided, complete the remaining
+                actualCompletedQty = item.quantity;
+            } else {
+                return res.status(400).json({ message: 'Completed quantity is required for Partial status' });
+            }
+
+            // Check if this completion makes it fully completed
+            if (actualCompletedQty === item.quantity) {
+                newStatus = 'Completed';
+            } else {
+                newStatus = 'Partial';
+            }
+
             // Add to After Packing
             const afterPackingItem = new AfterPacking({
                 scheduleId: item.scheduleId,
                 sweetName: item.sweetName,
-                quantity: item.quantity,
+                quantity: actualCompletedQty,
                 unit: item.unit,
                 price: item.price,
                 date: new Date(),
-                description: `Moved from Before Packing - ${item.description || ''}`
+                description: `Moved from Before Packing (${newStatus}) - ${item.description || ''}`
             });
-            
+
             await afterPackingItem.save();
+
+            // Update Before Packing item fields
+            item.completedQuantity = (item.completedQuantity || 0) + actualCompletedQty;
+            item.quantity -= actualCompletedQty;
+            item.status = newStatus;
+            if (newStatus === 'Completed') {
+                item.completedAt = new Date();
+            }
+        } else {
+            // Just updating status back to Pending (if allowed)
+            item.status = status;
         }
-        
-        // Update the Before Packing item status
-        const updatedItem = await BeforePacking.findByIdAndUpdate(
-            id,
-            { 
-                status,
-                completedAt: status === 'Completed' ? new Date() : null
-            },
-            { new: true }
-        );
-        
+
+        await item.save();
+
         res.json({
-            message: `Before Packing status updated to ${status}`,
-            item: updatedItem
+            message: `Before Packing status updated to ${newStatus}`,
+            item: item
         });
     } catch (error) {
         console.error('Error updating Before Packing status:', error);
@@ -995,34 +1027,34 @@ const updateAfterPackingStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
-        
+
         if (!status || !['Pending', 'Completed'].includes(status)) {
             return res.status(400).json({ message: 'Status must be either "Pending" or "Completed"' });
         }
-        
+
         const item = await AfterPacking.findById(id);
         if (!item) {
             return res.status(404).json({ message: 'After Packing item not found' });
         }
-        
+
         // Prevent changing status from Completed back to Pending
         if (item.status === 'Completed' && status === 'Pending') {
             return res.status(400).json({ message: 'Cannot change status from Completed back to Pending' });
         }
-        
+
         // NOTE: Product stock is NOT updated here anymore
         // Product will be added to stock only when "Add to Stock" button is clicked
-        
+
         // Update the After Packing item status
         const updatedItem = await AfterPacking.findByIdAndUpdate(
             id,
-            { 
+            {
                 status,
                 completedAt: status === 'Completed' ? new Date() : null
             },
             { new: true }
         );
-        
+
         res.json({
             message: `After Packing status updated to ${status}`,
             item: updatedItem
@@ -1036,42 +1068,42 @@ const updateAfterPackingStatus = async (req, res) => {
 const addToStockFromAfterPacking = async (req, res) => {
     try {
         const { id } = req.params;
-        
+
         const item = await AfterPacking.findById(id);
         if (!item) {
             return res.status(404).json({ message: 'After Packing item not found' });
         }
-        
+
         // Find the manufacturing process to get expiry and use-by days
-        const manufacturingProcess = await Manufacturing.findOne({ 
-            sweetName: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
+        const manufacturingProcess = await Manufacturing.findOne({
+            sweetName: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') }
         });
-        
+
         // Calculate expiry and use-by dates based on manufacturing process
         let expiryDate = null;
         let usedByDate = null;
-        
+
         if (manufacturingProcess) {
             if (manufacturingProcess.expiryDays) {
                 expiryDate = new Date();
                 expiryDate.setDate(expiryDate.getDate() + parseInt(manufacturingProcess.expiryDays));
             }
-            
+
             if (manufacturingProcess.usedByDays) {
                 usedByDate = new Date();
                 usedByDate.setDate(usedByDate.getDate() + parseInt(manufacturingProcess.usedByDays));
             }
         }
-        
+
         // Find the product by name (case-insensitive)
-        const product = await Product.findOne({ 
-            name: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') } 
+        const product = await Product.findOne({
+            name: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') }
         });
-        
+
         if (product) {
             // Find if there's already a price entry with the same unit
             let priceObj = product.prices.find(p => p.unit.toLowerCase() === item.unit.toLowerCase());
-            
+
             if (!priceObj) {
                 // If unit doesn't exist, create a new price entry
                 priceObj = {
@@ -1087,10 +1119,10 @@ const addToStockFromAfterPacking = async (req, res) => {
                     priceObj.sellingPrice = item.price * 1.2;
                 }
             }
-            
+
             // Update the stock level by adding the packed quantity
             product.stockLevel = (product.stockLevel || 0) + Number(item.quantity);
-            
+
             // Update expiry and use-by dates if available from manufacturing process
             if (expiryDate) {
                 product.expiryDate = expiryDate;
@@ -1098,7 +1130,7 @@ const addToStockFromAfterPacking = async (req, res) => {
             if (usedByDate) {
                 product.usedByDate = usedByDate;
             }
-            
+
             await product.save();
         } else {
             // If product doesn't exist in the products collection, create a new one
@@ -1117,20 +1149,20 @@ const addToStockFromAfterPacking = async (req, res) => {
                 ...(usedByDate && { usedByDate }),
                 admin: req.user._id
             });
-            
+
             await newProduct.save();
         }
-        
+
         // Update the After Packing item status to Completed
         const updatedItem = await AfterPacking.findByIdAndUpdate(
             id,
-            { 
+            {
                 status: 'Completed',
                 completedAt: new Date()
             },
             { new: true }
         );
-        
+
         res.json({
             message: 'Item added to stock successfully',
             item: updatedItem
@@ -1159,11 +1191,11 @@ module.exports = {
     updateOutgoingMaterial,
     bulkUpdateOutgoingMaterials,
     getMaterialStockAlerts,
-    getOutgoingMaterials,       
+    getOutgoingMaterials,
     createOutgoingMaterial,
     getOutgoingPackingMaterials,
     createOutgoingPackingMaterial,
-    addReturnProduct,        
+    addReturnProduct,
     getReturnProducts,
     getVendorHistory,
     getAllVendorHistory,

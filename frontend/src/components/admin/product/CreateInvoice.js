@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../../../api/axios';
-import { LuX } from 'react-icons/lu';
+import { LuX, LuPackage } from 'react-icons/lu';
+// Re-save to trigger compilation fix
 
 function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: propShopId, orderItems: propOrderItems, selectedOrder }) {
   const SHOPS_URL = '/admin/shops';
@@ -11,6 +12,7 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
   const [invoiceItems, setInvoiceItems] = useState([]);
   const [taxRate, setTaxRate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -22,15 +24,16 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     setInvoiceItems([]);
     setTaxRate('');
     setSearchTerm('');
+    setSelectedCategory('');
     // Don't clear message here - let it display for the full 3 seconds
     setError('');
   };
 
   // --- FIX 2: Define the handleItemChange function ---
-  const handleItemChange = (productId, unit, field, value) => {
+  const handleItemChange = (index, field, value) => {
     setInvoiceItems(prevItems =>
-      prevItems.map(item => {
-        if (item.product._id === productId && item.unit === unit) {
+      prevItems.map((item, idx) => {
+        if (idx === index) {
           // Handle partial decimal inputs - if the value ends with a dot but is not just a dot
           if (value.endsWith('.') && value !== '.') {
             // Store the partial input as a string to allow continued typing
@@ -42,6 +45,25 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
             // For complete numbers, parse as float
             const numericValue = parseFloat(value);
             return { ...item, [field]: isNaN(numericValue) || numericValue < 0 ? '' : numericValue };
+          }
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleUnitChange = (index, newUnit) => {
+    setInvoiceItems(prevItems =>
+      prevItems.map((item, idx) => {
+        if (idx === index) {
+          // Find the price info for the new unit from the product's prices array
+          const priceInfo = item.product.prices.find(p => p.unit === newUnit);
+          if (priceInfo) {
+            return {
+              ...item,
+              unit: newUnit,
+              unitPrice: priceInfo.sellingPrice
+            };
           }
         }
         return item;
@@ -158,8 +180,49 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     }
   }, [propOrderItems, adminProducts]);
 
+  const [availabilityMap, setAvailabilityMap] = useState({});
+
+  // Fetch availability for all current invoice items
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (invoiceItems.length === 0) {
+        setAvailabilityMap({});
+        return;
+      }
+
+      try {
+        const itemsToCheck = invoiceItems.map(item => ({
+          productId: item.product._id,
+          productName: item.productName || item.product.name,
+          quantity: parseFloat(item.quantity) || 0,
+          unit: item.unit
+        }));
+
+        const response = await axios.post('/admin/orders/check-availability', { items: itemsToCheck });
+
+        if (response.data && response.data.items) {
+          const newMap = {};
+          response.data.items.forEach(info => {
+            const key = `${info.productId}-${info.unit}`;
+            newMap[key] = info;
+          });
+          setAvailabilityMap(newMap);
+        }
+      } catch (err) {
+        console.error('Error fetching availability:', err);
+      }
+    };
+
+    // Debounce availability check to avoid too many requests
+    const timeoutId = setTimeout(() => {
+      fetchAvailability();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [invoiceItems]);
+
   const handleProductSelection = (product, price) => {
-    const existingItem = invoiceItems.find(item => item.product._id === product._id && item.unitPrice === price.sellingPrice);
+    const existingItem = invoiceItems.find(item => item.product._id === product._id && item.unit === price.unit);
 
     if (existingItem) {
       // Prevent removing shop order products
@@ -181,14 +244,28 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
     }
   };
 
+  const categories = useMemo(() => {
+    if (!adminProducts) return [];
+    const allCategories = adminProducts
+      .map(p => p.category?.name || (typeof p.category === 'string' ? p.category : ''))
+      .filter(Boolean);
+    return [...new Set(allCategories)].sort();
+  }, [adminProducts]);
+
   const filteredProducts = useMemo(() => {
-    if (!searchTerm) return adminProducts.filter(p => p.stockLevel > 0);
-    return adminProducts.filter(p =>
-      p.stockLevel > 0 &&
-      (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [searchTerm, adminProducts]);
+    return adminProducts.filter(p => {
+      if (p.stockLevel <= 0) return false;
+
+      const searchMatch = !searchTerm ||
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const catName = p.category?.name || (typeof p.category === 'string' ? p.category : '');
+      const categoryMatch = !selectedCategory || catName === selectedCategory;
+
+      return searchMatch && categoryMatch;
+    });
+  }, [searchTerm, selectedCategory, adminProducts]);
 
   const handleSubmitInvoice = async () => {
     if (!selectedShop) {
@@ -307,15 +384,54 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
 
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           <div className="w-full md:w-1/2 p-4 border-r overflow-y-auto">
+            {/* Shop Order Requirements Section */}
+            {propOrderItems && propOrderItems.length > 0 && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="text-md font-bold mb-3 flex items-center text-blue-800">
+                  <LuPackage className="mr-2" /> Shop Order Requirements
+                </h4>
+                <div className="overflow-x-auto rounded-lg border border-blue-100 bg-white">
+                  <table className="min-w-full divide-y divide-gray-200 text-xs">
+                    <thead className="bg-blue-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-blue-700">Product</th>
+                        <th className="px-3 py-2 text-center font-semibold text-blue-700">Ordered Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {propOrderItems.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-3 py-2 font-medium text-gray-800">{item.productName}</td>
+                          <td className="px-3 py-2 text-center font-bold text-blue-600">{item.quantity} {item.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             <div className="mb-4">
               <label className="label-style">Search Products</label>
-              <input
-                type="text"
-                placeholder="Search by name or SKU..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input-style mt-1"
-              />
+              <div className="flex gap-2 mt-1">
+                <input
+                  type="text"
+                  placeholder="Search by name or SKU..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input-style flex-1"
+                />
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="input-style flex-1"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="space-y-3">
               {filteredProducts.map(product => (
@@ -361,71 +477,116 @@ function CreateInvoice({ closeModal, adminProducts, refreshProducts, shopId: pro
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="th-style">Product</th>
-                    <th className="th-style">Unit</th>
-                    <th className="th-style">Qty</th>
-                    <th className="th-style">Max Qty</th>
-                    <th className="th-style">Total</th>
+                    <th className="th-style text-center">Price</th>
+                    <th className="th-style text-center">Ordered</th>
+                    <th className="th-style text-center text-blue-700">Qty to Send</th>
+                    <th className="th-style text-center">Stock Status</th>
+                    <th className="th-style text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoiceItems.length === 0 ? (
-                    <tr><td colSpan="5" className="text-center py-10 text-gray-500">Select products from the list.</td></tr>
+                    <tr><td colSpan="6" className="text-center py-10 text-gray-500">Select products from the list.</td></tr>
                   ) : (
-                    invoiceItems.map(item => (
-                      <tr key={`${item.product._id}-${item.unit}`} className={`border-b ${item.isFromOrder ? 'bg-blue-50' : ''}`}>
-                        <td className="td-style">
-                          <div className="flex items-center justify-between">
-                            <div>
+                    invoiceItems.map((item, index) => {
+                      // Find the ordered quantity if this item came from the order
+                      const orderedItem = propOrderItems?.find(oi =>
+                        String(oi.product?._id || oi.product) === String(item.product._id) && oi.unit === item.unit
+                      );
+
+                      // Get availability info
+                      const availability = availabilityMap[`${item.product._id}-${item.unit}`];
+
+                      const getBadgeColor = (status) => {
+                        switch (status) {
+                          case 'View Products': return 'bg-green-100 text-green-800';
+                          case 'After Packing': return 'bg-blue-100 text-blue-800';
+                          case 'Before Packing': return 'bg-yellow-100 text-yellow-800';
+                          case 'Production Schedules': return 'bg-purple-100 text-purple-800';
+                          default: return 'bg-red-100 text-red-800';
+                        }
+                      };
+
+                      return (
+                        <tr key={`${item.product._id}-${item.unit}`} className={`border-b ${item.isFromOrder ? 'bg-blue-50' : ''}`}>
+                          <td className="td-style">
+                            <div className="flex flex-col">
                               <p className="font-medium">{item.product.name}</p>
-                              <p className="text-xs text-gray-500">SKU: {item.product.sku}</p>
+                              <p className="text-[10px] text-gray-400">SKU: {item.product.sku}</p>
+                              {item.isFromOrder && (
+                                <span className="mt-1 w-fit px-1.5 py-0.5 bg-blue-600 text-white text-[10px] rounded-full uppercase font-bold">
+                                  Order Item
+                                </span>
+                              )}
                             </div>
-                            {item.isFromOrder && (
-                              <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full whitespace-nowrap">
-                                Order Item
-                              </span>
+                          </td>
+                          <td className="td-style text-center">
+                            <p className="font-bold text-gray-800 text-xs">₹{item.unitPrice.toFixed(2)}</p>
+                            <span className="text-[10px] text-gray-400 uppercase">{item.unit}</span>
+                          </td>
+                          <td className="td-style text-center">
+                            {orderedItem ? (
+                              <span className="font-bold text-blue-600">{orderedItem.quantity}</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
                             )}
-                          </div>
-                        </td>
-                        <td className="td-style">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {item.unit}
-                          </span>
-                          <p className="text-xs text-gray-500 mt-1">@ ₹{item.unitPrice.toFixed(2)}</p>
-                        </td>
-                        <td className="td-style">
-                          <input
-                            type="text"
-                            value={item.quantity}
-                            placeholder="0"
-                            onChange={(e) => handleItemChange(item.product._id, item.unit, 'quantity', e.target.value)}
-                            className="w-20 sm:w-24 input-style no-spinner"
-                          />
-                        </td>
-                        <td className="td-style">
-                          <span className="text-sm">{item.maxQuantity !== undefined ? item.maxQuantity : 'N/A'}</span>
-                        </td>
-                        <td className="td-style font-semibold">₹{(item.unitPrice * (typeof item.quantity === 'string' && (item.quantity === '0.' || item.quantity === '.') ? 0 : parseFloat(item.quantity) || 0)).toFixed(2)}</td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="td-style text-center min-w-[140px]">
+                            <div className="flex items-center justify-center gap-1.5 p-1">
+                              <input
+                                type="text"
+                                value={item.quantity}
+                                placeholder="0"
+                                onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                                className="w-16 px-2 py-1.5 border-2 border-blue-400 rounded-md text-center font-bold text-blue-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 bg-blue-50/30"
+                              />
+                              <select
+                                value={item.unit}
+                                onChange={(e) => handleUnitChange(index, e.target.value)}
+                                disabled={item.isFromOrder}
+                                className={`text-[10px] font-bold border rounded px-1 py-1.5 ${item.isFromOrder ? 'bg-gray-100 cursor-not-allowed text-gray-500 border-gray-200' : 'bg-white border-blue-300 text-blue-800 cursor-pointer shadow-sm hover:border-blue-500'}`}
+                              >
+                                {item.product.prices.map(price => (
+                                  <option key={price.unit} value={price.unit}>{price.unit}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+                          <td className="td-style text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {availability ? (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${getBadgeColor(availability.availableIn)} uppercase whitespace-nowrap`}>
+                                  {availability.availableIn === 'Not Available' ? 'Out of Stock' : availability.availableIn}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-gray-400 italic">Checking...</span>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <span className={`text-xs font-bold ${(item.maxQuantity || 0) < (parseFloat(item.quantity) || 0) ? 'text-red-600' : 'text-gray-700'}`}>
+                                  {item.maxQuantity !== undefined ? item.maxQuantity : 'N/A'}
+                                </span>
+                                <span className="text-[9px] text-gray-400 uppercase font-medium">{item.unit}</span>
+                              </div>
+                              {availability && availability.availableIn !== 'View Products' && (
+                                <p className="text-[8px] text-blue-600 font-medium italic">({availability.availableQuantity} in {availability.availableIn})</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="td-style text-right font-bold text-gray-800">
+                            ₹{(item.unitPrice * (typeof item.quantity === 'string' && (item.quantity === '0.' || item.quantity === '.') ? 0 : parseFloat(item.quantity) || 0)).toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
 
-            <div className="mt-auto pt-6">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center"><span className="text-gray-600">Subtotal:</span><span className="font-semibold text-gray-800">₹{subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between items-center gap-4"><label className="text-gray-600">Tax (%):</label>
-                  <input
-                    type="text"
-                    value={taxRate}
-                    placeholder="0"
-                    onChange={(e) => setTaxRate(e.target.value)}
-                    className="w-24 input-style text-right no-spinner"
-                  />
-                </div>
-                <div className="flex justify-between"><span className="text-gray-600">Tax Amount:</span><span className="font-semibold text-gray-800">₹{taxAmount.toFixed(2)}</span></div>
-                <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2"><span>Grand Total:</span><span>₹{grandTotal.toFixed(2)}</span></div>
+            <div className="mt-auto pt-6 border-t mt-6">
+              <div className="flex justify-between items-center font-bold text-xl text-gray-900 px-2">
+                <span>Grand Total:</span>
+                <span className="text-blue-700">₹{grandTotal.toFixed(2)}</span>
               </div>
             </div>
           </main>

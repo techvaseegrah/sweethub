@@ -16,7 +16,7 @@ const BeforePackingPendingItems = () => {
         try {
             // Fetch all before packing items and filter for pending ones
             const response = await axios.get('/admin/warehouse/before-packing');
-            const pendingItems = response.data.filter(item => item.status === 'Pending');
+            const pendingItems = response.data.filter(item => item.status === 'Pending' || item.status === 'Partial');
             setItems(pendingItems);
             setError('');
         } catch (err) {
@@ -40,8 +40,8 @@ const BeforePackingPendingItems = () => {
         <div className="p-4 flex flex-col items-center justify-center">
             <div className="relative flex justify-center items-center mb-4">
                 <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-                <img 
-                    src="/sweethub-logo.png" 
+                <img
+                    src="/sweethub-logo.png"
                     className="absolute w-8 h-8"
                 />
             </div>
@@ -55,7 +55,7 @@ const BeforePackingPendingItems = () => {
                 <h1 className="text-2xl font-bold">Before Packing - Pending Items</h1>
             </div>
             <p className="text-gray-600 mb-6">View all pending items in the Before Packing stage.</p>
-            
+
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
 
@@ -71,28 +71,37 @@ const BeforePackingPendingItems = () => {
 
             <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
-                <thead className="bg-light-gray">
-                    <tr>
-                        <th className="py-2 px-4 text-left">Product Name</th>
-                        <th className="py-2 px-4 text-left">Quantity</th>
-                        <th className="py-2 px-4 text-left">Unit</th>
-                        <th className="py-2 px-4 text-left">Price</th>
-                        <th className="py-2 px-4 text-left">Date</th>
-                        <th className="py-2 px-4 text-left">Status</th>
-                    </tr>
-                </thead>
+                    <thead className="bg-light-gray">
+                        <tr>
+                            <th className="py-2 px-4 text-left">Product Name</th>
+                            <th className="py-2 px-4 text-left">Quantity / Total</th>
+                            <th className="py-2 px-4 text-left">Unit</th>
+                            <th className="py-2 px-4 text-left">Price (Unit)</th>
+                            <th className="py-2 px-4 text-left">Total Value</th>
+                            <th className="py-2 px-4 text-left">Date</th>
+                            <th className="py-2 px-4 text-left">Status</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
-                                <td className="border px-4 py-2">{item.sweetName}</td>
-                                <td className="border px-4 py-2">{item.quantity}</td>
+                                <td className="border px-4 py-2 font-medium">{item.sweetName}</td>
+                                <td className="border px-4 py-2">
+                                    {item.quantity} / {item.totalQuantity || item.quantity}
+                                </td>
                                 <td className="border px-4 py-2">{item.unit}</td>
                                 <td className="border px-4 py-2">₹{item.price}</td>
+                                <td className="border px-4 py-2 text-blue-600 font-semibold">
+                                    ₹{(item.quantity * item.price).toFixed(2)}
+                                </td>
                                 <td className="border px-4 py-2">
                                     {formatDateWithTime(item.date)}
                                 </td>
                                 <td className="border px-4 py-2">
-                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === 'Pending'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-orange-100 text-orange-800'
+                                        }`}>
                                         {item.status}
                                     </span>
                                 </td>

@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
-import { LuPlus, LuPencil, LuTrash2 } from 'react-icons/lu';
+import { LuPlus, LuPencil, LuTrash2, LuCalendar } from 'react-icons/lu';
 import MessageAlert from '../../MessageAlert'; // Assuming you have this component for messages
-import { UnitSelector, AddUnitForm } from '../../common'; // Import the shared unit components
 
 const Manufacturing = () => {
     const [processes, setProcesses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [message, setMessage] = useState(''); // Fixed: Properly initialize with useState
-    
+
     // Helper function to safely convert date
     const formatDate = (dateString) => {
         if (!dateString) return '-';
@@ -24,11 +23,13 @@ const Manufacturing = () => {
 
     const [storeRoomItems, setStoreRoomItems] = useState([]);
     const [ingredientAlerts, setIngredientAlerts] = useState({});
-    
+
     // Add state for search and filter functionality
     const [searchTerm, setSearchTerm] = useState('');
     const [allProducts, setAllProducts] = useState([]); // Store all products from View Products
-    
+    const [categories, setCategories] = useState([]); // Store all categories
+    const [selectedCategory, setSelectedCategory] = useState(''); // Category for filtering products
+
     // Worker-related state variables
     const [workers, setWorkers] = useState([]);
     const [showWorkerSelection, setShowWorkerSelection] = useState(false);
@@ -40,13 +41,13 @@ const Manufacturing = () => {
     const [isEditing, setIsEditing] = useState(false);
     const [currentProcess, setCurrentProcess] = useState({
         _id: null,
-        sweetName: '',
+        productName: '',
         // Initialize ingredients as an array of objects
         ingredients: [{ name: '', quantity: '', unit: '', price: '' }],
         quantity: '', // For the output sweet product
         price: '',    // For the output sweet product
         unit: '',     // For the output sweet product
-        expireDate: '', // New field
+        expiryDate: '', // Changed from expireDate
         usedByDate: '', // New field
         createdByWorker: null,
     });
@@ -95,6 +96,19 @@ const Manufacturing = () => {
         fetchAllProducts();
     }, []);
 
+    // Fetch all categories
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const response = await axios.get('/admin/categories');
+                setCategories(response.data);
+            } catch (error) {
+                console.error('Error fetching categories:', error);
+            }
+        };
+        fetchCategories();
+    }, []);
+
     // Fetch all workers
     useEffect(() => {
         const fetchWorkers = async () => {
@@ -109,8 +123,8 @@ const Manufacturing = () => {
     }, []);
 
     // Filter processes based on search term
-    const filteredProcesses = processes.filter(process => 
-        process.sweetName.toLowerCase().includes(searchTerm.toLowerCase())
+    const filteredProcesses = processes.filter(process =>
+        (process.productName || process.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     // Function to add a new ingredient row
@@ -156,34 +170,37 @@ const Manufacturing = () => {
     const openModal = () => {
         setCurrentProcess({
             _id: null,
-            sweetName: '',
+            productName: '',
             ingredients: [{ name: '', quantity: '', unit: '', price: '' }],
             quantity: '',
             price: '',
             unit: '',
-            expireDate: '',
+            expiryDate: '',
             usedByDate: '',
             createdByWorker: null,
         });
+        setSelectedCategory('');
         setIsEditing(false);
         setIsModalOpen(true);
     };
 
     // Function to open the modal for editing an existing process
     const editProcess = (process) => {
+        const product = allProducts.find(p => p.name === (process.productName || process.sweetName));
         setCurrentProcess({
             _id: process._id,
-            sweetName: process.sweetName,
-            ingredients: process.ingredients && process.ingredients.length > 0 
-                ? [...process.ingredients] 
+            productName: process.productName || process.sweetName,
+            ingredients: process.ingredients && process.ingredients.length > 0
+                ? [...process.ingredients]
                 : [{ name: '', quantity: '', unit: '', price: '' }],
             quantity: process.quantity?.toString() || '',
             price: process.price?.toString() || '',
             unit: process.unit || '',
-            expireDate: process.expiryDays || '',
-            usedByDate: process.usedByDays || '',
+            expiryDate: process.expiryDate ? new Date(process.expiryDate).toISOString().split('T')[0] : '',
+            usedByDate: process.usedByDate ? new Date(process.usedByDate).toISOString().split('T')[0] : '',
             createdByWorker: process.createdByWorker?._id || null,
         });
+        setSelectedCategory(product?.category?._id || product?.category || '');
         setIsEditing(true);
         setIsModalOpen(true);
     };
@@ -191,18 +208,17 @@ const Manufacturing = () => {
     // State for delete confirmation modal
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [processToDelete, setProcessToDelete] = useState(null);
-    
-    // Function to delete a process
+
     const deleteProcess = async (id) => {
         const process = processes.find(p => p._id === id);
         setProcessToDelete(process);
         setShowDeleteModal(true);
     };
-    
+
     // Function to confirm deletion
     const confirmDelete = async () => {
         if (!processToDelete) return;
-        
+
         try {
             await axios.delete(`/admin/warehouse/manufacturing/${processToDelete._id}`);
             setMessage('Process deleted successfully');
@@ -216,7 +232,7 @@ const Manufacturing = () => {
             setProcessToDelete(null);
         }
     };
-    
+
     // Function to cancel deletion
     const cancelDelete = () => {
         setShowDeleteModal(false);
@@ -232,10 +248,10 @@ const Manufacturing = () => {
 
         try {
             // Validate ingredients
-            const hasEmptyIngredients = currentProcess.ingredients.some(ingredient => 
+            const hasEmptyIngredients = currentProcess.ingredients.some(ingredient =>
                 !ingredient.name || !ingredient.quantity || !ingredient.unit || !ingredient.price
             );
-            
+
             if (hasEmptyIngredients) {
                 setError('Please fill in all ingredient fields (name, quantity, unit, price).');
                 setFormSubmitting(false);
@@ -244,7 +260,7 @@ const Manufacturing = () => {
 
             // Prepare the data
             const data = {
-                sweetName: currentProcess.sweetName,
+                productName: currentProcess.productName,
                 ingredients: currentProcess.ingredients.map(ing => ({
                     name: ing.name,
                     quantity: parseFloat(ing.quantity),
@@ -254,17 +270,17 @@ const Manufacturing = () => {
                 quantity: parseFloat(currentProcess.quantity),
                 price: parseFloat(currentProcess.price),
                 unit: currentProcess.unit,
-                expiryDays: currentProcess.expireDate ? parseInt(currentProcess.expireDate) : undefined,
-                usedByDays: currentProcess.usedByDate ? parseInt(currentProcess.usedByDate) : undefined,
+                category: selectedCategory, // Send the selected category
+                expiryDate: currentProcess.expiryDate || undefined,
+                usedByDate: currentProcess.usedByDate || undefined,
                 createdByWorker: currentProcess.createdByWorker
             };
 
-            let response;
             if (isEditing) {
-                response = await axios.put(`/admin/warehouse/manufacturing/${currentProcess._id}`, data);
+                await axios.put(`/admin/warehouse/manufacturing/${currentProcess._id}`, data);
                 setMessage('Manufacturing process updated successfully');
             } else {
-                response = await axios.post('/admin/warehouse/manufacturing', data);
+                await axios.post('/admin/warehouse/manufacturing', data);
                 setMessage('Manufacturing process added successfully');
             }
 
@@ -272,33 +288,34 @@ const Manufacturing = () => {
             fetchProcesses();
             setCurrentProcess({
                 _id: null,
-                sweetName: '',
+                productName: '',
                 ingredients: [{ name: '', quantity: '', unit: '', price: '' }],
                 quantity: '',
                 price: '',
                 unit: '',
-                expireDate: '',
+                expiryDate: '',
                 usedByDate: '',
                 createdByWorker: null,
             });
         } catch (err) {
             console.error('Error saving the process:', err);
-            setError(err.response?.data?.message || 'Failed to save the manufacturing process.');
+            const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Failed to save the manufacturing process.';
+            setError(errorMessage);
         } finally {
             setFormSubmitting(false);
         }
     };
 
-    const checkIngredientAvailability = (ingredientName, quantity, index) => {
-        const storeItem = storeRoomItems.find(item => 
+    const checkIngredientAvailability = useCallback((ingredientName, quantity, index) => {
+        const storeItem = storeRoomItems.find(item =>
             item.name.toLowerCase() === ingredientName.toLowerCase()
         );
-        
+
         if (storeItem) {
             const available = storeItem.quantity;
             const required = parseFloat(quantity) || 0;
             const isLow = available < required;
-            
+
             setIngredientAlerts(prev => ({
                 ...prev,
                 [index]: {
@@ -317,7 +334,7 @@ const Manufacturing = () => {
                 }
             }));
         }
-    };
+    }, [storeRoomItems]);
 
     // Update ingredient availability check when ingredients change
     useEffect(() => {
@@ -326,28 +343,28 @@ const Manufacturing = () => {
                 checkIngredientAvailability(ingredient.name, ingredient.quantity, index);
             }
         });
-    }, [currentProcess.ingredients]);
+    }, [currentProcess.ingredients, checkIngredientAvailability]);
 
     if (loading) return (
-      <div className="text-center p-5 flex flex-col items-center justify-center">
-        <div className="relative flex justify-center items-center mb-4">
-          <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
-            className="absolute w-8 h-8"
-          />
+        <div className="text-center p-5 flex flex-col items-center justify-center">
+            <div className="relative flex justify-center items-center mb-4">
+                <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                <img
+                    src="/sweethub-logo.png"
+                    alt="Sweet Hub Logo"
+                    className="absolute w-8 h-8"
+                />
+            </div>
+            <div className="text-red-500 font-medium">Loading manufacturing processes...</div>
         </div>
-        <div className="text-red-500 font-medium">Loading manufacturing processes...</div>
-      </div>
     );
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-md">
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold">Manufacturing Processes</h1>
-                <button 
-                    onClick={() => openModal()} 
+                <button
+                    onClick={() => openModal()}
                     className="bg-primary text-white py-2 px-4 rounded-md flex items-center hover:bg-primary-dark transition duration-200"
                 >
                     <LuPlus className="mr-2" /> Add New Process
@@ -375,13 +392,13 @@ const Manufacturing = () => {
                     <table className="min-w-full bg-white border border-gray-200 rounded-lg">
                         <thead className="bg-light-gray">
                             <tr>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Sweet Name</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Product Name</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Ingredients</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Quantity</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Price</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Unit</th>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Expiry Days</th>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Use-by Days</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Expiry Date</th>
+                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Use-by Date</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Created By</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Actions</th>
                             </tr>
@@ -389,7 +406,7 @@ const Manufacturing = () => {
                         <tbody>
                             {Array.isArray(filteredProcesses) && filteredProcesses.map((process) => (
                                 <tr key={process._id} className="border-b border-gray-100 hover:bg-gray-50">
-                                    <td className="py-3 px-4 text-sm font-medium text-gray-900">{process.sweetName}</td>
+                                    <td className="py-3 px-4 text-sm font-medium text-gray-900">{process.productName || process.sweetName}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">
                                         {process.ingredients && process.ingredients.length > 0 ? (
                                             <ul className="list-disc list-inside">
@@ -404,8 +421,8 @@ const Manufacturing = () => {
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.quantity} {process.unit}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">₹{process.price}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.unit}</td>
-                                    <td className="py-3 px-4 text-sm text-gray-700">{process.expiryDays || '-'}</td>
-                                    <td className="py-3 px-4 text-sm text-gray-700">{process.usedByDays || '-'}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.expiryDate || process.expiryDays)}</td>
+                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.usedByDate || process.usedByDays)}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.createdByWorker?.name || '-'}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">
                                         <button
@@ -436,24 +453,44 @@ const Manufacturing = () => {
                     <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
                         <h2 className="text-2xl font-bold mb-6 text-gray-800">{isEditing ? 'Edit Manufacturing Process' : 'Add New Manufacturing Process'}</h2>
                         <form onSubmit={handleSubmit}>
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Sweet Name</label>
-                                <input
-                                    type="text"
-                                    name="sweetName"
-                                    value={currentProcess.sweetName}
-                                    onChange={handleInputChange}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
-                                    required
-                                    list="productSuggestions"
-                                    placeholder="Start typing to search existing products..."
-                                />
-                                {/* Datalist for product suggestions */}
-                                <datalist id="productSuggestions">
-                                    {allProducts.map((product, index) => (
-                                        <option key={index} value={product.name} />
-                                    ))}
-                                </datalist>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
+                                    >
+                                        <option value="">All Categories</option>
+                                        {categories.map((cat) => (
+                                            <option key={cat._id} value={cat._id}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                                    <input
+                                        type="text"
+                                        name="productName"
+                                        value={currentProcess.productName}
+                                        onChange={handleInputChange}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
+                                        required
+                                        list="productSuggestions"
+                                        placeholder="Type or select product..."
+                                    />
+                                    {/* Datalist for product suggestions */}
+                                    <datalist id="productSuggestions">
+                                        {allProducts
+                                            .filter(product => !selectedCategory || (product.category?._id || product.category) === selectedCategory)
+                                            .map((product, index) => (
+                                                <option key={index} value={product.name} />
+                                            ))}
+                                    </datalist>
+                                    {selectedCategory && allProducts.filter(product => (product.category?._id || product.category) === selectedCategory).length === 0 && (
+                                        <p className="text-xs text-red-500 mt-1">This category does not have any products.</p>
+                                    )}
+                                </div>
                             </div>
 
                             <h3 className="text-lg font-semibold mb-3 mt-6 text-gray-800">Overall Product Details</h3>
@@ -498,34 +535,34 @@ const Manufacturing = () => {
                                 </div>
                             </div>
 
-                            {/* New Date Fields - Expiry Days and Use-by Days */}
+                            {/* New Date Fields - Expiry Date and Use-by Date */}
                             <h3 className="text-lg font-semibold mb-3 mt-6 text-gray-800">Date Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Days</label>
+                                    <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
+                                        <LuCalendar className="mr-1 text-primary" /> Expiry Date
+                                    </label>
                                     <input
-                                        type="number"
-                                        name="expireDate"
-                                        value={currentProcess.expireDate}
+                                        type="date"
+                                        name="expiryDate"
+                                        value={currentProcess.expiryDate}
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
-                                        min="0"
-                                        placeholder="e.g., 30"
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">Number of days until expiry</p>
+                                    <p className="text-xs text-gray-500 mt-1">Select expiry date</p>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Use-by Days</label>
+                                    <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
+                                        <LuCalendar className="mr-1 text-primary" /> Use-by Date
+                                    </label>
                                     <input
-                                        type="number"
+                                        type="date"
                                         name="usedByDate"
                                         value={currentProcess.usedByDate}
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
-                                        min="0"
-                                        placeholder="e.g., 15"
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">Number of days until use-by date</p>
+                                    <p className="text-xs text-gray-500 mt-1">Select use-by date</p>
                                 </div>
                             </div>
 
@@ -555,7 +592,7 @@ const Manufacturing = () => {
                                         <span className="ml-2 text-sm text-gray-600">Yes</span>
                                     </div>
                                 </div>
-                                
+
                                 {showWorkerSelection && (
                                     <div className="mt-2 relative">
                                         <input
@@ -586,7 +623,7 @@ const Manufacturing = () => {
                                         {showWorkerDropdown && (
                                             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                                                 {workers
-                                                    .filter(worker => 
+                                                    .filter(worker =>
                                                         worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
                                                     )
                                                     .map(worker => (
@@ -644,11 +681,10 @@ const Manufacturing = () => {
                                             step="0.01"
                                         />
                                         {ingredientAlerts[index] && (
-                                            <div className={`text-xs mt-1 ${
-                                                ingredientAlerts[index].isLow ? 'text-red-600' : 'text-green-600'
-                                            }`}>
-                                                {ingredientAlerts[index].isLow 
-                                                    ? `Available: ${ingredientAlerts[index].available}` 
+                                            <div className={`text-xs mt-1 ${ingredientAlerts[index].isLow ? 'text-red-600' : 'text-green-600'
+                                                }`}>
+                                                {ingredientAlerts[index].isLow
+                                                    ? `Available: ${ingredientAlerts[index].available}`
                                                     : `Available: ${ingredientAlerts[index].available}`
                                                 }
                                             </div>
@@ -717,17 +753,17 @@ const Manufacturing = () => {
                     </div>
                 </div>
             )}
-            
+
             {/* Delete Confirmation Modal */}
             {showDeleteModal && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
                         <h3 className="text-lg font-semibold text-gray-800 mb-4">Confirm Deletion</h3>
                         <p className="text-gray-600 mb-2">
-                            Are you sure you want to delete the manufacturing process "<strong>{processToDelete?.sweetName}</strong>"?
+                            Are you sure you want to delete the manufacturing process "<strong>{processToDelete?.productName || processToDelete?.sweetName}</strong>"?
                         </p>
                         <p className="text-gray-600 mb-6">This action cannot be undone.</p>
-                        
+
                         <div className="flex justify-end space-x-3">
                             <button
                                 type="button"

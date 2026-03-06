@@ -9,6 +9,8 @@ function AddCategory({ baseUrl = '/admin' }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
 
   const fetchCategories = async () => {
     try {
@@ -60,9 +62,15 @@ function AddCategory({ baseUrl = '/admin' }) {
     }
   };
 
-  const handleDelete = async (id) => {
+  const confirmDelete = (id) => {
+    setCategoryToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (!categoryToDelete) return;
     try {
-      await axios.delete(`${CATEGORY_URL}/${id}`, {
+      await axios.delete(`${CATEGORY_URL}/${categoryToDelete}`, {
         withCredentials: true,
       });
       setMessage('Category deleted successfully!');
@@ -70,7 +78,15 @@ function AddCategory({ baseUrl = '/admin' }) {
     } catch (err) {
       setError('Failed to delete category.');
       console.error(err);
+    } finally {
+      setShowDeleteModal(false);
+      setCategoryToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setCategoryToDelete(null);
   };
 
   if (loading) {
@@ -78,9 +94,9 @@ function AddCategory({ baseUrl = '/admin' }) {
       <div className="p-6 flex flex-col items-center justify-center">
         <div className="relative flex justify-center items-center mb-4">
           <div className="w-16 h-16 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
+          <img
+            src="/sweethub-logo.png"
+            alt="Sweet Hub Logo"
             className="absolute w-10 h-10"
           />
         </div>
@@ -91,7 +107,7 @@ function AddCategory({ baseUrl = '/admin' }) {
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
-     <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800"></h3>
+      <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800"></h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="categoryName">
@@ -108,7 +124,7 @@ function AddCategory({ baseUrl = '/admin' }) {
         </div>
         <button
           type="submit"
-         className="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          className="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
         >
           Create Category
         </button>
@@ -117,7 +133,7 @@ function AddCategory({ baseUrl = '/admin' }) {
       {error && <p className="mt-4 text-red-500">{error}</p>}
 
       <div className="mt-8">
-      <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800"></h3>
+        <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800"></h3>
         {categories.length === 0 ? (
           <p>No categories found.</p>
         ) : (
@@ -128,18 +144,49 @@ function AddCategory({ baseUrl = '/admin' }) {
                   {category.name} <span className="text-sm text-gray-500">({category.products.length} products)</span>
                 </p>
                 <div className="w-full flex justify-end sm:w-auto">
-  <button
-    onClick={() => handleDelete(category._id)}
-    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
-  >
-    Delete
-  </button>
-</div>
+                  <button
+                    onClick={() => confirmDelete(category._id)}
+                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6 text-center transform transition-all">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 mb-4">
+              <svg className="h-10 w-10 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Category</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to delete this category? This action cannot be undone.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <button
+                onClick={cancelDelete}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-md transition-colors duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+              >
+                Yes, Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

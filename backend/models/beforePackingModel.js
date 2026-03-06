@@ -9,9 +9,19 @@ const beforePackingSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    quantity: {
+    quantity: { // This will represent the REMAINING quantity
         type: Number,
         required: true,
+        min: 0
+    },
+    totalQuantity: { // This will represent the INITIAL quantity
+        type: Number,
+        required: true,
+        min: 0
+    },
+    completedQuantity: { // This will represent the TOTAL completed quantity so far
+        type: Number,
+        default: 0,
         min: 0
     },
     unit: {
@@ -29,7 +39,7 @@ const beforePackingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending', 'Completed'],
+        enum: ['Pending', 'Partial', 'Completed'],
         default: 'Pending'
     },
     completedAt: {

@@ -5,7 +5,6 @@ import InvoiceTemplate from './invoice/InvoiceTemplate';
 
 function ViewOrderDetails({ order, onClose, onInvoiceCreated, adminProducts = [] }) {
   const [availabilityInfo, setAvailabilityInfo] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [manualQuantities, setManualQuantities] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
@@ -38,8 +37,6 @@ function ViewOrderDetails({ order, onClose, onInvoiceCreated, adminProducts = []
   // Function to check product availability and prepare invoice items
   const checkAvailability = useCallback(async () => {
     if (!currentOrder) return;
-
-    setLoading(true);
     setError('');
 
     try {
@@ -117,7 +114,6 @@ function ViewOrderDetails({ order, onClose, onInvoiceCreated, adminProducts = []
       }));
 
       setAvailabilityInfo(fallbackResults);
-
       // Initialize manual quantities for fallback results
       const fallbackQuantities = {};
       fallbackResults.forEach((info, index) => {
@@ -125,7 +121,7 @@ function ViewOrderDetails({ order, onClose, onInvoiceCreated, adminProducts = []
       });
       setManualQuantities(fallbackQuantities);
     } finally {
-      setLoading(false);
+      // Done
     }
   }, [currentOrder]);
 
@@ -142,7 +138,6 @@ function ViewOrderDetails({ order, onClose, onInvoiceCreated, adminProducts = []
       if (!currentOrder) return;
 
       if (currentOrder.status === 'Invoiced' && currentOrder.invoiceId) {
-        setLoading(true);
         try {
           // Handle both populated object and string ID
           const invoiceId = typeof currentOrder.invoiceId === 'object'
@@ -219,7 +214,7 @@ function ViewOrderDetails({ order, onClose, onInvoiceCreated, adminProducts = []
           // Fallback to availability check
           checkAvailability();
         } finally {
-          setLoading(false);
+          // Done
         }
       } else {
         setInvoiceData(null);
@@ -368,83 +363,116 @@ function ViewOrderDetails({ order, onClose, onInvoiceCreated, adminProducts = []
               </div>
             )}
 
-            {/* Availability Information */}
+            {/* Shop Order Items Summary */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <h4 className="text-lg font-semibold mb-3 flex items-center text-gray-800">
+                <LuPackage className="mr-2 text-blue-600" /> Shop Order Items (What was ordered)
+              </h4>
+              <div className="overflow-x-auto rounded-lg border bg-white">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Unit</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Ordered Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {order.items?.map((item, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-2 text-sm text-gray-900 font-medium">
+                          {item.productName}
+                          <p className="text-xs text-gray-400">SKU: {item.sku}</p>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-500 text-center">
+                          <span className="px-2 py-0.5 bg-gray-100 rounded-full text-xs">{item.unit}</span>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900 text-center font-bold">{item.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Availability and Send Quantity Section */}
             {availabilityInfo.length > 0 && (
               <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="text-lg font-semibold mb-3 text-blue-800">Product Availability Status</h4>
-                <div className="space-y-2">
-                  {availabilityInfo.map((info, index) => {
-                    const manualQty = manualQuantities[index] || 0;
-                    const exceedsStock = info.isAvailable && manualQty > info.availableQuantity;
-                    const isInvalid = !manualQty || manualQty <= 0 || exceedsStock;
+                <h4 className="text-lg font-semibold mb-3 text-blue-800 flex items-center">
+                  <LuPackage className="mr-2" /> Product Availability & Send Quantities
+                </h4>
+                <div className="overflow-x-auto rounded-lg border border-blue-100 bg-white">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-blue-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-blue-800 uppercase">Product Name</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-blue-800 uppercase">Ordered</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-blue-800 uppercase">Available</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-blue-800 uppercase">Send Quantity</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-blue-800 uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {availabilityInfo.map((info, index) => {
+                        const manualQty = manualQuantities[index] || 0;
+                        const exceedsStock = info.isAvailable && manualQty > info.availableQuantity;
 
-                    return (
-                      <div key={index} className={`p-4 bg-white rounded-lg shadow-sm border-2 ${exceedsStock ? 'border-red-300' : 'border-gray-200'
-                        }`}>
-                        {/* Ordered Quantity Header */}
-                        <div className="mb-3">
-                          <div className="flex items-baseline">
-                            <span className="text-sm font-semibold text-gray-700 mr-2">Ordered Quantity:</span>
-                            <span className="font-medium text-gray-900">{info.productName}</span>
-                            <span className="text-sm text-gray-600 ml-2">
-                              (Requested: {info.requestedQuantity} {info.unit})
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Send Quantity and Available Stock Section */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            {/* Manual Quantity Input */}
-                            <div className="flex items-center gap-2">
-                              <label className="text-sm font-medium text-gray-700">Send Quantity:</label>
-                              <input
-                                type="text"
-                                min="0"
-                                step="0.01"
-                                value={manualQuantities[index] || ''}
-                                onChange={(e) => {
-                                  if (currentOrder.status === 'Invoiced') return;
-                                  const value = parseFloat(e.target.value) || 0;
-                                  setManualQuantities(prev => ({
-                                    ...prev,
-                                    [index]: value
-                                  }));
-                                }}
-                                disabled={currentOrder.status === 'Invoiced'}
-                                className={`w-24 px-2 py-1 border rounded text-sm ${exceedsStock ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                                  } ${currentOrder.status === 'Invoiced' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                              />
-                              <span className="text-sm text-gray-600">{info.unit}</span>
-                            </div>
-
-                            {/* Available Stock Display */}
-                            {info.isAvailable && info.availableQuantity > 0 && (
-                              <div className="text-sm text-gray-700">
-                                <span className="font-medium">Available:</span> {info.availableQuantity} {info.unit}
-                                {exceedsStock && (
-                                  <span className="text-red-600 font-medium ml-2">
-                                    ⚠ Exceeds available stock
-                                  </span>
-                                )}
+                        return (
+                          <tr key={index} className={exceedsStock ? 'bg-red-50' : ''}>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{info.productName}</div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-center text-sm font-semibold text-gray-700">
+                              {info.requestedQuantity} {info.unit}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-center text-sm">
+                              {info.isAvailable ? (
+                                <span className={`font-medium ${info.availableQuantity < info.requestedQuantity ? 'text-orange-600' : 'text-green-600'}`}>
+                                  {info.availableQuantity} {info.unit}
+                                </span>
+                              ) : (
+                                <span className="text-red-500 font-medium">N/A</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <input
+                                  type="text"
+                                  min="0"
+                                  step="0.01"
+                                  value={manualQuantities[index] || ''}
+                                  onChange={(e) => {
+                                    if (currentOrder.status === 'Invoiced') return;
+                                    const value = parseFloat(e.target.value) || 0;
+                                    setManualQuantities(prev => ({
+                                      ...prev,
+                                      [index]: value
+                                    }));
+                                  }}
+                                  disabled={currentOrder.status === 'Invoiced'}
+                                  className={`w-24 px-2 py-1 border rounded text-sm text-center font-bold ${exceedsStock ? 'border-red-500 bg-red-50 ring-1 ring-red-500' : 'border-gray-300'
+                                    } ${currentOrder.status === 'Invoiced' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                />
+                                <span className="text-xs text-gray-500 uppercase">{info.unit}</span>
                               </div>
-                            )}
-                          </div>
-
-                          {/* Availability Badge */}
-                          <div>
-                            <span className={`text-sm font-medium px-3 py-1.5 rounded-full whitespace-nowrap ${info.badgeColor || 'bg-gray-100 text-gray-800'
-                              }`}>
-                              {info.availabilityStatus === 'Not Available' ? 'Product is Not Available' :
-                                (info.availabilityStatus === 'Invoiced' ? 'already Invoiced' :
-                                  info.availabilityStatus === 'Not Sent' ? 'Not Sent in Invoice' :
-                                    `available in ${info.availabilityStatus}`)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                              {exceedsStock && (
+                                <p className="text-[10px] text-red-600 mt-1 font-medium italic">Exceeds Stock</p>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-center">
+                              <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${info.badgeColor || 'bg-gray-100 text-gray-800'
+                                } shadow-sm`}>
+                                {info.availabilityStatus === 'Not Available' ? 'Out of Stock' :
+                                  (info.availabilityStatus === 'Invoiced' ? 'Sent' :
+                                    info.availabilityStatus === 'Not Sent' ? 'In Order Only' :
+                                      info.availabilityStatus)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

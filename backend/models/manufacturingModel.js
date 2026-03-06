@@ -24,10 +24,10 @@ const ingredientSchema = new mongoose.Schema({
 }, { _id: false }); // Do not create _id for subdocuments if not explicitly needed
 
 const manufacturingSchema = new mongoose.Schema({
-    sweetName: {
+    productName: {
         type: String,
         required: true,
-        unique: true, // Assuming sweet names are unique for manufacturing processes
+        unique: true, // Assuming product names are unique for manufacturing processes
         trim: true,
     },
     ingredients: {
@@ -48,19 +48,16 @@ const manufacturingSchema = new mongoose.Schema({
         type: String,
         required: true,
         trim: true,
-        enum: ['kg', 'grams', 'liters', 'pieces', 'dozen'], // Example units
     },
     createdAt: {
         type: Date,
         default: Date.now,
     },
-    expiryDays: {
-        type: Number,
-        min: 0,
+    expiryDate: {
+        type: Date,
     },
-    usedByDays: {
-        type: Number,
-        min: 0,
+    usedByDate: {
+        type: Date,
     },
     createdByWorker: {
         type: mongoose.Schema.Types.ObjectId,
