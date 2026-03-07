@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
-import { LuPlus, LuPencil, LuTrash2, LuCalendar } from 'react-icons/lu';
+import { LuPlus, LuPencil, LuTrash2 } from 'react-icons/lu';
 import MessageAlert from '../../MessageAlert'; // Assuming you have this component for messages
 
 const Manufacturing = () => {
@@ -9,17 +9,7 @@ const Manufacturing = () => {
     const [error, setError] = useState('');
     const [message, setMessage] = useState(''); // Fixed: Properly initialize with useState
 
-    // Helper function to safely convert date
-    const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return '-';
-            return date.toLocaleDateString();
-        } catch (e) {
-            return '-';
-        }
-    };
+
 
     const [storeRoomItems, setStoreRoomItems] = useState([]);
     const [ingredientAlerts, setIngredientAlerts] = useState({});
@@ -30,11 +20,7 @@ const Manufacturing = () => {
     const [categories, setCategories] = useState([]); // Store all categories
     const [selectedCategory, setSelectedCategory] = useState(''); // Category for filtering products
 
-    // Worker-related state variables
-    const [workers, setWorkers] = useState([]);
-    const [showWorkerSelection, setShowWorkerSelection] = useState(false);
-    const [workerSearchTerm, setWorkerSearchTerm] = useState('');
-    const [showWorkerDropdown, setShowWorkerDropdown] = useState(false);
+
 
     // State for the modal and form
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,9 +33,6 @@ const Manufacturing = () => {
         quantity: '', // For the output sweet product
         price: '',    // For the output sweet product
         unit: '',     // For the output sweet product
-        expiryDate: '', // Changed from expireDate
-        usedByDate: '', // New field
-        createdByWorker: null,
     });
     const [formSubmitting, setFormSubmitting] = useState(false); // To prevent multiple submissions
 
@@ -109,18 +92,7 @@ const Manufacturing = () => {
         fetchCategories();
     }, []);
 
-    // Fetch all workers
-    useEffect(() => {
-        const fetchWorkers = async () => {
-            try {
-                const response = await axios.get('/admin/workers');
-                setWorkers(response.data);
-            } catch (error) {
-                console.error('Error fetching workers:', error);
-            }
-        };
-        fetchWorkers();
-    }, []);
+
 
     // Filter processes based on search term
     const filteredProcesses = processes.filter(process =>
@@ -150,7 +122,27 @@ const Manufacturing = () => {
     // Function to update ingredient data
     const updateIngredient = (index, field, value) => {
         const newIngredients = [...currentProcess.ingredients];
-        newIngredients[index] = { ...newIngredients[index], [field]: value };
+
+        // If updating the name, try to auto-fill unit and price from storeRoomItems
+        if (field === 'name') {
+            const matchedItem = storeRoomItems.find(item =>
+                item.name.toLowerCase() === value.toLowerCase()
+            );
+
+            if (matchedItem) {
+                newIngredients[index] = {
+                    ...newIngredients[index],
+                    name: matchedItem.name,
+                    unit: matchedItem.unit || '',
+                    price: matchedItem.price || ''
+                };
+            } else {
+                newIngredients[index] = { ...newIngredients[index], [field]: value };
+            }
+        } else {
+            newIngredients[index] = { ...newIngredients[index], [field]: value };
+        }
+
         setCurrentProcess(prev => ({
             ...prev,
             ingredients: newIngredients
@@ -175,9 +167,6 @@ const Manufacturing = () => {
             quantity: '',
             price: '',
             unit: '',
-            expiryDate: '',
-            usedByDate: '',
-            createdByWorker: null,
         });
         setSelectedCategory('');
         setIsEditing(false);
@@ -196,9 +185,6 @@ const Manufacturing = () => {
             quantity: process.quantity?.toString() || '',
             price: process.price?.toString() || '',
             unit: process.unit || '',
-            expiryDate: process.expiryDate ? new Date(process.expiryDate).toISOString().split('T')[0] : '',
-            usedByDate: process.usedByDate ? new Date(process.usedByDate).toISOString().split('T')[0] : '',
-            createdByWorker: process.createdByWorker?._id || null,
         });
         setSelectedCategory(product?.category?._id || product?.category || '');
         setIsEditing(true);
@@ -271,9 +257,6 @@ const Manufacturing = () => {
                 price: parseFloat(currentProcess.price),
                 unit: currentProcess.unit,
                 category: selectedCategory, // Send the selected category
-                expiryDate: currentProcess.expiryDate || undefined,
-                usedByDate: currentProcess.usedByDate || undefined,
-                createdByWorker: currentProcess.createdByWorker
             };
 
             if (isEditing) {
@@ -293,9 +276,6 @@ const Manufacturing = () => {
                 quantity: '',
                 price: '',
                 unit: '',
-                expiryDate: '',
-                usedByDate: '',
-                createdByWorker: null,
             });
         } catch (err) {
             console.error('Error saving the process:', err);
@@ -336,7 +316,6 @@ const Manufacturing = () => {
         }
     }, [storeRoomItems]);
 
-    // Update ingredient availability check when ingredients change
     useEffect(() => {
         currentProcess.ingredients.forEach((ingredient, index) => {
             if (ingredient.name && ingredient.quantity) {
@@ -344,6 +323,24 @@ const Manufacturing = () => {
             }
         });
     }, [currentProcess.ingredients, checkIngredientAvailability]);
+
+    // Auto-calculate the overall price based on ingredients
+    useEffect(() => {
+        const total = currentProcess.ingredients.reduce((sum, ing) => {
+            const q = parseFloat(ing.quantity) || 0;
+            const p = parseFloat(ing.price) || 0;
+            return sum + (q * p);
+        }, 0);
+
+        if (total > 0) {
+            setCurrentProcess(prev => {
+                // Only update if different to avoid unnecessary re-renders
+                const totalStr = total.toFixed(2).toString();
+                if (prev.price === totalStr) return prev;
+                return { ...prev, price: totalStr };
+            });
+        }
+    }, [currentProcess.ingredients]);
 
     if (loading) return (
         <div className="text-center p-5 flex flex-col items-center justify-center">
@@ -397,9 +394,6 @@ const Manufacturing = () => {
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Quantity</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Price</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Output Unit</th>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Expiry Date</th>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Use-by Date</th>
-                                <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Created By</th>
                                 <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Actions</th>
                             </tr>
                         </thead>
@@ -421,9 +415,6 @@ const Manufacturing = () => {
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.quantity} {process.unit}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">₹{process.price}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">{process.unit}</td>
-                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.expiryDate || process.expiryDays)}</td>
-                                    <td className="py-3 px-4 text-sm text-gray-700">{formatDate(process.usedByDate || process.usedByDays)}</td>
-                                    <td className="py-3 px-4 text-sm text-gray-700">{process.createdByWorker?.name || '-'}</td>
                                     <td className="py-3 px-4 text-sm text-gray-700">
                                         <button
                                             onClick={() => editProcess(process)}
@@ -535,119 +526,7 @@ const Manufacturing = () => {
                                 </div>
                             </div>
 
-                            {/* New Date Fields - Expiry Date and Use-by Date */}
-                            <h3 className="text-lg font-semibold mb-3 mt-6 text-gray-800">Date Details</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div>
-                                    <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
-                                        <LuCalendar className="mr-1 text-primary" /> Expiry Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="expiryDate"
-                                        value={currentProcess.expiryDate}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Select expiry date</p>
-                                </div>
-                                <div>
-                                    <label className="flex items-center text-sm font-medium text-gray-700 mb-1">
-                                        <LuCalendar className="mr-1 text-primary" /> Use-by Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="usedByDate"
-                                        value={currentProcess.usedByDate}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Select use-by date</p>
-                                </div>
-                            </div>
 
-                            {/* Worker Selection Section */}
-                            <div className="mb-4">
-                                <div className="flex items-center mb-2">
-                                    <label className="block text-sm font-medium text-gray-700 mr-3">Assign Worker</label>
-                                    <div className="flex items-center">
-                                        <span className="mr-2 text-sm text-gray-600">No</span>
-                                        <label className="inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={showWorkerSelection}
-                                                onChange={(e) => {
-                                                    setShowWorkerSelection(e.target.checked);
-                                                    if (!e.target.checked) {
-                                                        setCurrentProcess(prev => ({
-                                                            ...prev,
-                                                            createdByWorker: null
-                                                        }));
-                                                    }
-                                                }}
-                                                className="sr-only peer"
-                                            />
-                                            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                                        </label>
-                                        <span className="ml-2 text-sm text-gray-600">Yes</span>
-                                    </div>
-                                </div>
-
-                                {showWorkerSelection && (
-                                    <div className="mt-2 relative">
-                                        <input
-                                            type="text"
-                                            placeholder="Select Worker (Optional)"
-                                            className="w-full p-2 border rounded text-sm"
-                                            value={workers.find(w => w._id === currentProcess.createdByWorker)?.name || workerSearchTerm}
-                                            onChange={(e) => {
-                                                setWorkerSearchTerm(e.target.value);
-                                                setShowWorkerDropdown(true);
-                                                if (e.target.value === '') {
-                                                    setCurrentProcess(prev => ({
-                                                        ...prev,
-                                                        createdByWorker: null
-                                                    }));
-                                                }
-                                            }}
-                                            onFocus={() => {
-                                                setWorkerSearchTerm('');
-                                                setShowWorkerDropdown(true);
-                                            }}
-                                            onBlur={() => {
-                                                setTimeout(() => {
-                                                    setShowWorkerDropdown(false);
-                                                }, 200);
-                                            }}
-                                        />
-                                        {showWorkerDropdown && (
-                                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                                                {workers
-                                                    .filter(worker =>
-                                                        worker.name.toLowerCase().includes(workerSearchTerm.toLowerCase())
-                                                    )
-                                                    .map(worker => (
-                                                        <div
-                                                            key={worker._id}
-                                                            className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
-                                                            onClick={() => {
-                                                                setCurrentProcess(prev => ({
-                                                                    ...prev,
-                                                                    createdByWorker: worker._id
-                                                                }));
-                                                                setWorkerSearchTerm('');
-                                                                setShowWorkerDropdown(false);
-                                                            }}
-                                                        >
-                                                            {worker.name}
-                                                        </div>
-                                                    ))
-                                                }
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
 
                             <h3 className="text-lg font-semibold mb-3 mt-6 text-gray-800">Ingredients</h3>
                             {currentProcess.ingredients.map((ingredient, index) => (
@@ -712,6 +591,11 @@ const Manufacturing = () => {
                                             min="0"
                                             step="0.01"
                                         />
+                                        {ingredient.quantity && ingredient.price && (
+                                            <div className="text-xs mt-1 text-primary font-medium">
+                                                Total: ₹{(parseFloat(ingredient.quantity) * parseFloat(ingredient.price)).toFixed(2)}
+                                            </div>
+                                        )}
                                         {currentProcess.ingredients.length > 1 && (
                                             <button
                                                 type="button"

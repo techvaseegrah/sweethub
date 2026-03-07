@@ -64,6 +64,11 @@ const manufacturingSchema = new mongoose.Schema({
         ref: 'Worker',
         required: false,  // Making it optional as requested
     },
+    category: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        required: false,
+    },
 });
 
 module.exports = mongoose.model('Manufacturing', manufacturingSchema);

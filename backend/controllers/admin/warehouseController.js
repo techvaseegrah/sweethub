@@ -424,6 +424,7 @@ const addManufacturingProcess = async (req, res) => {
             process.expiryDate = expiryDate ? new Date(expiryDate) : undefined;
             process.usedByDate = usedByDate ? new Date(usedByDate) : undefined;
             process.createdByWorker = createdByWorker || process.createdByWorker; // Update worker if provided, otherwise keep existing
+            process.category = category || process.category;
         } else {
             // If it doesn't exist, create a new one with all fields
             process = new Manufacturing({
@@ -434,7 +435,8 @@ const addManufacturingProcess = async (req, res) => {
                 unit,
                 expiryDate: expiryDate ? new Date(expiryDate) : undefined,
                 usedByDate: usedByDate ? new Date(usedByDate) : undefined,
-                createdByWorker
+                createdByWorker,
+                category: category || undefined
             });
         }
 
@@ -448,8 +450,27 @@ const addManufacturingProcess = async (req, res) => {
 
 const getAllManufacturingProcesses = async (req, res) => {
     try {
-        const processes = await Manufacturing.find({}).populate('createdByWorker', 'name'); // This will now fetch structured ingredients and worker info
-        res.json(processes);
+        // Fetch all manufacturing processes
+        const processes = await Manufacturing.find({})
+            .populate('createdByWorker', 'name')
+            .populate('category', 'name')
+            .lean(); // Use lean for easier manipulation
+
+        // For each process, if category is missing, try to find it from the Product collection
+        const enrichedProcesses = await Promise.all(processes.map(async (process) => {
+            if (!process.category && process.productName) {
+                const product = await Product.findOne({
+                    name: { $regex: new RegExp(`^${process.productName.trim()}$`, 'i') }
+                }).populate('category', 'name');
+
+                if (product && product.category) {
+                    return { ...process, category: product.category };
+                }
+            }
+            return process;
+        }));
+
+        res.json(enrichedProcesses);
     } catch (error) {
         console.error('Error fetching manufacturing processes:', error);
         res.status(500).json({ message: 'Server Error' });
@@ -539,7 +560,8 @@ const updateManufacturingProcess = async (req, res) => {
             price,
             unit,
             expiryDate: expiryDate ? new Date(expiryDate) : undefined,
-            usedByDate: usedByDate ? new Date(usedByDate) : undefined
+            usedByDate: usedByDate ? new Date(usedByDate) : undefined,
+            category: category || undefined
         };
         // Only include createdByWorker in update if it was provided in the request
         if (createdByWorker !== undefined) {
@@ -806,7 +828,7 @@ const getDailySchedules = async (req, res) => {
 // Create daily schedule
 const createDailySchedule = async (req, res) => {
     try {
-        const { sweetName, quantity, ingredients, price, unit, date, description } = req.body;
+        const { sweetName, quantity, ingredients, price, unit, date, description, category, assignedWorkers } = req.body;
 
         if (!sweetName || !quantity || !ingredients || !price || !unit || !date) {
             return res.status(400).json({ message: 'All fields are required: sweetName, quantity, ingredients, price, unit, date' });
@@ -824,7 +846,9 @@ const createDailySchedule = async (req, res) => {
             price: Number(price),
             unit,
             date: new Date(date),
-            description: description || ''
+            description: description || '',
+            category: category || undefined,
+            assignedWorkers: assignedWorkers || []
         });
 
         await schedule.save();

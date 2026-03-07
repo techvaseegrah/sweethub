@@ -12,7 +12,7 @@ const dailyScheduleSchema = new mongoose.Schema({
         min: 0,
     },
     // Changed ingredients to an array of objects to match manufacturingModel
-    ingredients: [ 
+    ingredients: [
         {
             name: { type: String, required: true },
             quantity: { type: Number, required: true, min: 0 },
@@ -50,7 +50,18 @@ const dailyScheduleSchema = new mongoose.Schema({
     description: {
         type: String,
         default: ''
-    }
+    },
+    category: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        required: false,
+    },
+    assignedWorkers: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Worker'
+        }
+    ]
 });
 
 module.exports = mongoose.model('DailySchedule', dailyScheduleSchema);

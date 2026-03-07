@@ -7,6 +7,9 @@ const DailySchedule = () => {
     const [date, setDate] = useState('');
     const [sweets, setSweets] = useState([{
         sweetName: '',
+        category: '',
+        isAssignWorkerEnabled: false,
+        assignedWorkers: [],
         quantity: '',
         ingredients: [],
         ingredientsDisplay: '',
@@ -14,7 +17,7 @@ const DailySchedule = () => {
         unit: '',
         manufacturingProcess: null,
         description: '',
-        isCollapsed: false, // Add collapsed state
+        isCollapsed: false,
         manuallyModified: {
             quantity: false,
             price: false,
@@ -23,6 +26,10 @@ const DailySchedule = () => {
         }
     }]);
     const [manufacturingProducts, setManufacturingProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [workers, setWorkers] = useState([]);
+    const [filteredSweetsForCategory, setFilteredSweetsForCategory] = useState({}); // To store filtered lists per row index
+
     const [message, setMessage] = useState(null);
     const [messageType, setMessageType] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -53,19 +60,25 @@ const DailySchedule = () => {
     }, []);
 
     useEffect(() => {
-        const fetchManufacturingProducts = async () => {
+        const fetchInitialData = async () => {
             try {
-                const response = await axios.get('/admin/warehouse/manufacturing');
-                setManufacturingProducts(response.data);
+                const [mfgResponse, catResponse, workerResponse] = await Promise.all([
+                    axios.get('/admin/warehouse/manufacturing'),
+                    axios.get('/admin/categories'),
+                    axios.get('/admin/workers')
+                ]);
+                setManufacturingProducts(mfgResponse.data);
+                setCategories(catResponse.data);
+                setWorkers(Array.isArray(workerResponse.data) ? workerResponse.data : []);
             } catch (error) {
-                console.error('Error fetching manufacturing products:', error);
-                setMessage('Failed to load manufacturing products for auto-fill. Please ensure the backend is running and the Manufacturing processes are configured.');
+                console.error('Error fetching initial data:', error);
+                setMessage('Failed to load initial data. Please ensure the backend is running.');
                 setMessageType('error');
             } finally {
                 setLoading(false);
             }
         };
-        fetchManufacturingProducts();
+        fetchInitialData();
     }, []);
 
     const checkIngredientAvailability = async (ingredients) => {
@@ -77,9 +90,9 @@ const DailySchedule = () => {
             const insufficientIngredients = [];
             const availableIngredients = [];
 
-            ingredients.forEach(ingredient => {
+            (ingredients || []).forEach(ingredient => {
                 const storeItem = storeRoomItems.find(item =>
-                    item.name.toLowerCase() === ingredient.name.toLowerCase()
+                    (item?.name || '').toLowerCase() === (ingredient?.name || '').toLowerCase()
                 );
 
                 if (!storeItem) {
@@ -116,7 +129,7 @@ const DailySchedule = () => {
         };
 
         const foundProduct = manufacturingProducts.find(
-            (product) => product.sweetName.toLowerCase() === selectedSweetName.toLowerCase()
+            (product) => (product?.productName || product?.sweetName || '').toLowerCase() === (selectedSweetName || '').toLowerCase()
         );
 
         if (foundProduct) {
@@ -146,7 +159,7 @@ const DailySchedule = () => {
                     setMessage(`Alert: ${alertMessages.join(' | ')} | Proceeding with available ingredients only.`);
                     setMessageType('warning');
                 } else {
-                    setMessage(`All ingredients available for "${foundProduct.sweetName}".`);
+                    setMessage(`All ingredients available for "${foundProduct.productName || foundProduct.sweetName}".`);
                     setMessageType('success');
                 }
 
@@ -199,7 +212,7 @@ const DailySchedule = () => {
                 const ratio = newQty / manufacturingQuantity;
 
                 // Recalculate ingredients based on the ratio
-                const recalculatedIngredients = manufacturingProcess.ingredients.map(ing => {
+                const recalculatedIngredients = (manufacturingProcess.ingredients || []).map(ing => {
                     const originalQty = parseFloat(ing.quantity);
                     const newIngredientQty = originalQty * ratio;
 
@@ -287,7 +300,7 @@ const DailySchedule = () => {
 
             ingredientStrings.forEach(ingredientStr => {
                 // Match pattern: "Name (QuantityUnit)" or "Name (Quantity Unit)"
-                const match = ingredientStr.match(/^([^\(]+)\s*\(\s*([\d\.]+)\s*([^\)]*)\s*\)$/);
+                const match = ingredientStr.match(/^([^ (]+)\s*\(\s*([\d.]+)\s*([^)]*)\s*\)$/);
 
                 if (match) {
                     const [, name, quantity, unit] = match;
@@ -306,6 +319,46 @@ const DailySchedule = () => {
         }
     };
 
+    const handleCategoryChange = (index, categoryId) => {
+        const updatedSweets = [...sweets];
+        updatedSweets[index].category = categoryId;
+        updatedSweets[index].sweetName = ''; // Reset sweet name when category changes
+
+        // Filter manufacturing products for this category
+        const filtered = manufacturingProducts.filter(p =>
+            p.category && (p.category._id === categoryId || p.category === categoryId)
+        );
+
+        setFilteredSweetsForCategory(prev => ({
+            ...prev,
+            [index]: filtered
+        }));
+
+        setSweets(updatedSweets);
+    };
+
+    const handleWorkerToggle = (index) => {
+        const updatedSweets = [...sweets];
+        updatedSweets[index].isAssignWorkerEnabled = !updatedSweets[index].isAssignWorkerEnabled;
+        if (!updatedSweets[index].isAssignWorkerEnabled) {
+            updatedSweets[index].assignedWorkers = [];
+        }
+        setSweets(updatedSweets);
+    };
+
+    const handleWorkerChange = (index, workerId) => {
+        const updatedSweets = [...sweets];
+        const currentWorkers = updatedSweets[index].assignedWorkers || [];
+
+        if (currentWorkers.includes(workerId)) {
+            updatedSweets[index].assignedWorkers = currentWorkers.filter(id => id !== workerId);
+        } else {
+            updatedSweets[index].assignedWorkers = [...currentWorkers, workerId];
+        }
+
+        setSweets(updatedSweets);
+    };
+
     const addSweet = () => {
         // Auto-collapse the previous form if it has data
         if (sweets.length > 0 && sweets[0].sweetName && sweets[0].quantity) {
@@ -313,6 +366,9 @@ const DailySchedule = () => {
             updatedSweets[0].isCollapsed = true;
             setSweets([{
                 sweetName: '',
+                category: '',
+                isAssignWorkerEnabled: false,
+                assignedWorkers: [],
                 quantity: '',
                 ingredients: [],
                 ingredientsDisplay: '',
@@ -331,6 +387,9 @@ const DailySchedule = () => {
         } else {
             setSweets([{
                 sweetName: '',
+                category: '',
+                isAssignWorkerEnabled: false,
+                assignedWorkers: [],
                 quantity: '',
                 ingredients: [],
                 ingredientsDisplay: '',
@@ -376,7 +435,7 @@ const DailySchedule = () => {
         setMessageType(null);
 
         // Check if at least one sweet is selected
-        const hasSelectedSweet = sweets.some(sweet => sweet.sweetName.trim() !== '');
+        const hasSelectedSweet = sweets.some(sweet => (sweet?.sweetName || '').trim() !== '');
         if (!hasSelectedSweet) {
             setMessage('Please select at least one sweet.');
             setMessageType('error');
@@ -386,7 +445,7 @@ const DailySchedule = () => {
 
         // Check if all selected sweets have available ingredients
         const hasIngredients = sweets.every(sweet =>
-            sweet.sweetName.trim() === '' || sweet.ingredients.length > 0
+            (sweet?.sweetName || '').trim() === '' || (sweet?.ingredients || []).length > 0
         );
         if (!hasIngredients) {
             setMessage('Some sweets do not have available ingredients in store room.');
@@ -397,7 +456,7 @@ const DailySchedule = () => {
 
         try {
             // Create schedule for each sweet individually
-            const selectedSweets = sweets.filter(sweet => sweet.sweetName.trim() !== '');
+            const selectedSweets = sweets.filter(sweet => (sweet?.sweetName || '').trim() !== '');
             const responses = [];
 
             for (const sweet of selectedSweets) {
@@ -408,7 +467,9 @@ const DailySchedule = () => {
                     price: sweet.price,
                     unit: sweet.unit,
                     date: date,
-                    description: sweet.description // Include description in the request
+                    description: sweet.description, // Include description in the request
+                    category: sweet.category,
+                    assignedWorkers: sweet.assignedWorkers
                 });
                 responses.push(response.data);
             }
@@ -476,6 +537,9 @@ const DailySchedule = () => {
                         unit: '',
                         manufacturingProcess: null,
                         description: '',
+                        category: '',
+                        isAssignWorkerEnabled: false,
+                        assignedWorkers: [],
                         isCollapsed: false,
                         manuallyModified: {
                             quantity: false,
@@ -542,12 +606,29 @@ const DailySchedule = () => {
                 </div>
                 <div className="space-y-6">
                     <h3 className="text-2xl font-bold text-gray-800">Sweets to Prepare</h3>
-                    {sweets.filter(sweet => sweet.sweetName.trim() !== '').map((sweet, index) => (
+                    {sweets.filter(sweet => (sweet?.sweetName || '').trim() !== '').map((sweet, index) => (
                         <div key={index} className="border-b border-gray-200 pb-4">
                             <div className="space-y-2">
                                 <p className="text-lg text-gray-700"><strong>Sweet Name:</strong> {sweet.sweetName}</p>
+                                {sweet.category && (
+                                    <p className="text-lg text-gray-700">
+                                        <strong>Category:</strong> {
+                                            categories.find(c => c._id === sweet.category)?.name || sweet.category
+                                        }
+                                    </p>
+                                )}
                                 <p className="text-lg text-gray-700"><strong>Quantity:</strong> {sweet.quantity} {sweet.unit}</p>
                                 <p className="text-lg text-gray-700"><strong>Price per Unit:</strong> {sweet.price}</p>
+                                {sweet.assignedWorkers && sweet.assignedWorkers.length > 0 && (
+                                    <p className="text-lg text-gray-700">
+                                        <strong>Assigned workers :</strong> {
+                                            sweet.assignedWorkers.map(id => {
+                                                const worker = workers.find(w => w._id === id);
+                                                return worker ? worker.name : id;
+                                            }).join(', ')
+                                        }
+                                    </p>
+                                )}
                                 {sweet.description && (
                                     <p className="text-lg text-gray-700"><strong>Description:</strong> {sweet.description}</p>
                                 )}
@@ -653,44 +734,61 @@ const DailySchedule = () => {
                             {/* Collapsible Content */}
                             {!sweet.isCollapsed && (
                                 <>
-                                    <div className="mt-4">
-                                        <label className="block text-lg font-semibold text-gray-700 mb-2">
-                                            Sweet Name
-                                        </label>
-                                        <div className="relative" ref={el => {
-                                            if (el) {
-                                                dropdownRefs.current[index] = el;
-                                            }
-                                        }}>
-                                            <div
-                                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 bg-white cursor-pointer flex justify-between items-center"
-                                                onClick={() => setOpenDropdownIndex(openDropdownIndex === index ? null : index)}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label className="block text-lg font-semibold text-gray-700 mb-2">
+                                                Category
+                                            </label>
+                                            <select
+                                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 bg-white"
+                                                value={sweet.category}
+                                                onChange={(e) => handleCategoryChange(index, e.target.value)}
                                             >
-                                                <span>{sweet.sweetName || 'Select a sweet name'}</span>
-                                                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                                                </svg>
-                                            </div>
-
-                                            {openDropdownIndex === index && (
-                                                <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200 max-h-60 overflow-auto">
-                                                    {Array.isArray(manufacturingProducts) && manufacturingProducts.length > 0 ? (
-                                                        manufacturingProducts.map((product) => (
-                                                            <div
-                                                                key={product._id}
-                                                                className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                                                                onClick={() => handleSelectSweetName(index, product.sweetName)}
-                                                            >
-                                                                {product.sweetName}
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <div className="px-4 py-2 text-gray-500">
-                                                            No manufacturing products found
-                                                        </div>
-                                                    )}
+                                                <option value="">Select a Category</option>
+                                                {categories.map(cat => (
+                                                    <option key={cat._id} value={cat._id}>{cat.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-lg font-semibold text-gray-700 mb-2">
+                                                Sweet Name
+                                            </label>
+                                            <div className="relative" ref={el => {
+                                                if (el) {
+                                                    dropdownRefs.current[index] = el;
+                                                }
+                                            }}>
+                                                <div
+                                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 bg-white cursor-pointer flex justify-between items-center"
+                                                    onClick={() => setOpenDropdownIndex(openDropdownIndex === index ? null : index)}
+                                                >
+                                                    <span>{sweet.sweetName || 'Select a sweet name'}</span>
+                                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                                                    </svg>
                                                 </div>
-                                            )}
+
+                                                {openDropdownIndex === index && (
+                                                    <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200 max-h-60 overflow-auto">
+                                                        {(filteredSweetsForCategory[index] || manufacturingProducts).length > 0 ? (
+                                                            (filteredSweetsForCategory[index] || manufacturingProducts).map((product) => (
+                                                                <div
+                                                                    key={product._id}
+                                                                    className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                                                                    onClick={() => handleSelectSweetName(index, product.productName || product.sweetName)}
+                                                                >
+                                                                    {product.productName || product.sweetName}
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div className="px-4 py-2 text-gray-500">
+                                                                No matching products found
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
@@ -757,6 +855,47 @@ const DailySchedule = () => {
                                                 rows="3"
                                             />
                                         </div>
+                                    </div>
+
+                                    <div className="mt-4 border-t border-gray-100 pt-4">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <label className="text-lg font-semibold text-gray-700">
+                                                Assign Workers for this Schedule
+                                            </label>
+                                            <div
+                                                className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-300 ${sweet.isAssignWorkerEnabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                                                onClick={() => handleWorkerToggle(index)}
+                                            >
+                                                <div
+                                                    className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ${sweet.isAssignWorkerEnabled ? 'translate-x-7' : 'translate-x-0'}`}
+                                                ></div>
+                                            </div>
+                                        </div>
+
+                                        {sweet.isAssignWorkerEnabled && (
+                                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 grid grid-cols-2 md:grid-cols-3 gap-3">
+                                                {workers.length > 0 ? (
+                                                    workers.map(worker => (
+                                                        <div
+                                                            key={worker._id}
+                                                            className={`flex items-center p-2 rounded-lg border cursor-pointer transition-all ${sweet.assignedWorkers?.includes(worker._id) ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-200'}`}
+                                                            onClick={() => handleWorkerChange(index, worker._id)}
+                                                        >
+                                                            <div className={`w-4 h-4 rounded border mr-2 flex items-center justify-center ${sweet.assignedWorkers?.includes(worker._id) ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300'}`}>
+                                                                {sweet.assignedWorkers?.includes(worker._id) && (
+                                                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+                                                            <span className="text-sm font-medium truncate">{worker.name}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="col-span-full text-center text-gray-500 py-2">No workers found</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="mt-4">
