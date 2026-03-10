@@ -27,7 +27,6 @@ const manufacturingSchema = new mongoose.Schema({
     productName: {
         type: String,
         required: true,
-        unique: true, // Assuming product names are unique for manufacturing processes
         trim: true,
     },
     ingredients: {
@@ -69,6 +68,6 @@ const manufacturingSchema = new mongoose.Schema({
         ref: 'Category',
         required: false,
     },
-});
+}, { autoIndex: false }); // Explicitly disable auto-indexing to prevent the re-creation of ghost indexes
 
 module.exports = mongoose.model('Manufacturing', manufacturingSchema);

@@ -8,16 +8,16 @@ const priceSchema = new mongoose.Schema({
 
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: false },
   sku: { type: String, required: true },
   stockLevel: { type: Number, default: 0 },
   stockAlertThreshold: { type: Number, default: 10 },
   prices: [priceSchema],
-  
+
   // Expiry and Used By Dates
   expiryDate: { type: Date },
   usedByDate: { type: Date },
-  
+
   // --- MODIFIED: Both admin and shop fields are now optional ---
   // A product will be owned by either an admin OR a shop.
   admin: {

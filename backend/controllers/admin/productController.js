@@ -12,29 +12,29 @@ exports.addProduct = async (req, res) => {
   try {
     // Check if a product with the same SKU already exists for this admin
     let existingProduct = await Product.findOne({ sku, admin: adminId });
-    
+
     if (existingProduct) {
       // If product exists, update its stock level by adding the new quantity
       const newStockLevel = (parseFloat(existingProduct.stockLevel) || 0) + (parseFloat(stockLevel) || 0);
-      
+
       // Update the existing product
       existingProduct = await Product.findByIdAndUpdate(
-        existingProduct._id, 
-        { 
+        existingProduct._id,
+        {
           stockLevel: newStockLevel,
           stockAlertThreshold: parseFloat(stockAlertThreshold) || existingProduct.stockAlertThreshold,
           prices: prices // Update prices as well
-        }, 
+        },
         { new: true }
       );
-      
+
       // Record product history for the update with added quantity and current stock
       try {
         await createProductHistory(existingProduct, 'Updated', adminId, parseFloat(stockLevel), existingProduct.stockLevel);
       } catch (historyError) {
         console.error('Failed to create product history:', historyError);
       }
-      
+
       return res.status(200).json({ message: `Product '${existingProduct.name}' updated successfully! Added ${stockLevel} units to existing stock.`, product: existingProduct });
     }
 
@@ -95,8 +95,7 @@ exports.getProducts = async (req, res) => {
     // Fetch products that belong to the currently logged-in admin
     const products = await Product.find({ admin: req.user.id }).populate('category', 'name').sort({ createdAt: -1 });
     res.json(products);
-  } catch (error)
- {
+  } catch (error) {
     console.error("Error fetching products:", error);
     res.status(500).json({ message: 'Server Error' });
   }
@@ -106,6 +105,17 @@ exports.getProducts = async (req, res) => {
 exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
+    const {
+      name,
+      category,
+      sku,
+      stockLevel,
+      stockAlertThreshold,
+      prices,
+      expiryDate,
+      usedByDate
+    } = req.body;
+
     const product = await Product.findById(id);
 
     // Check if the product exists
@@ -118,31 +128,67 @@ exports.updateProduct = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to update this product.' });
     }
 
-    // Proceed with the update
-    // Handle decimal values for stockLevel and stockAlertThreshold if they exist in the request
-    const updateData = { ...req.body };
-    if (req.body.stockLevel !== undefined) {
-      updateData.stockLevel = parseFloat(req.body.stockLevel);
+    // Prepare update data
+    const updateData = {};
+
+    // Validate category if provided
+    if (category !== undefined) {
+      if (category && category !== '') {
+        const existingCategory = await Category.findById(category);
+        if (!existingCategory) {
+          return res.status(404).json({ message: 'Selected category not found.' });
+        }
+
+        // If category is changing, move product in category models
+        const oldCategoryId = product.category ? product.category.toString() : null;
+        if (oldCategoryId !== category.toString()) {
+          // Remove from old category if it existed
+          if (oldCategoryId) {
+            await Category.findByIdAndUpdate(product.category, { $pull: { products: product._id } });
+          }
+          // Add to new category
+          await Category.findByIdAndUpdate(category, { $push: { products: product._id } });
+        }
+        updateData.category = category;
+      } else if (category === '' || category === null) {
+        // If explicitly set to empty/null, remove from old category if it existed
+        if (product.category) {
+          await Category.findByIdAndUpdate(product.category, { $pull: { products: product._id } });
+        }
+        updateData.category = null;
+      }
     }
-    if (req.body.stockAlertThreshold !== undefined) {
-      updateData.stockAlertThreshold = parseFloat(req.body.stockAlertThreshold);
+
+    // Track original stock for history
+    const originalStock = product.stockLevel;
+
+
+    if (name !== undefined) updateData.name = name;
+
+    if (sku !== undefined) updateData.sku = sku;
+    if (stockLevel !== undefined) {
+      const parsedStock = parseFloat(stockLevel);
+      updateData.stockLevel = isNaN(parsedStock) ? 0 : parsedStock;
     }
-    if (req.body.expiryDate !== undefined) {
-      updateData.expiryDate = req.body.expiryDate ? new Date(req.body.expiryDate) : null;
+    if (stockAlertThreshold !== undefined) {
+      const parsedThreshold = parseFloat(stockAlertThreshold);
+      updateData.stockAlertThreshold = isNaN(parsedThreshold) ? 10 : parsedThreshold;
     }
-    if (req.body.usedByDate !== undefined) {
-      updateData.usedByDate = req.body.usedByDate ? new Date(req.body.usedByDate) : null;
-    }
-    
-    const updatedProduct = await Product.findByIdAndUpdate(id, updateData, { new: true });
-    
-    // Record product history with current stock
+    if (prices !== undefined) updateData.prices = prices;
+    if (expiryDate !== undefined) updateData.expiryDate = expiryDate ? new Date(expiryDate) : null;
+    if (usedByDate !== undefined) updateData.usedByDate = usedByDate ? new Date(usedByDate) : null;
+
+    const updatedProduct = await Product.findByIdAndUpdate(id, updateData, { new: true }).populate('category', 'name');
+
+    // Record product history
     try {
-      await createProductHistory(updatedProduct, 'Updated', req.user.id, null, updatedProduct.stockLevel);
+      // Calculate change if stockLevel was updated
+      const stockChange = stockLevel !== undefined ? (parseFloat(stockLevel) - originalStock) : null;
+      await createProductHistory(updatedProduct, 'Updated', req.user.id, stockChange, updatedProduct.stockLevel);
     } catch (historyError) {
       console.error('Failed to create product history:', historyError);
     }
-    
+
     res.json(updatedProduct);
   } catch (error) {
     console.error('Error updating product:', error);
@@ -176,7 +222,7 @@ exports.deleteProduct = async (req, res) => {
         { $pull: { products: deletedProduct._id } }
       );
     }
-    
+
     res.status(200).json({ message: 'Product deleted' });
   } catch (error) {
     console.error('Error deleting product:', error);
@@ -192,34 +238,23 @@ exports.deleteProduct = async (req, res) => {
 
 exports.getUnits = async (req, res) => {
   try {
-    console.log('Fetching units for admin ID:', req.user.id);
-    
-    // First, find all products for this admin to check for data issues
-    const products = await Product.find({ admin: req.user.id });
-    console.log('Found', products.length, 'products for admin');
-    
+    // First, find all products for this admin
+    const products = await Product.find({ admin: req.user.id }).select('prices.unit');
+
     // Extract units from products, filtering out any invalid data
     const unitSet = new Set();
-    
-    products.forEach((product, index) => {
-      console.log('Processing product', index, ':', product.name);
+
+    products.forEach((product) => {
       if (product.prices && Array.isArray(product.prices)) {
-        product.prices.forEach((price, priceIndex) => {
-          console.log('Processing price', priceIndex, ':', price);
+        product.prices.forEach((price) => {
           if (price && price.unit && typeof price.unit === 'string') {
             unitSet.add(price.unit);
-            console.log('Added unit:', price.unit);
-          } else {
-            console.log('Skipping invalid price entry:', price);
           }
         });
-      } else {
-        console.log('Product has no valid prices array:', product.prices);
       }
     });
-    
+
     const unitsArray = Array.from(unitSet);
-    console.log('Final units array:', unitsArray);
     res.json(unitsArray);
   } catch (error) {
     console.error('Error fetching units:', error);
@@ -228,14 +263,14 @@ exports.getUnits = async (req, res) => {
 };
 
 exports.isUnitInUse = async (req, res) => {
-    try {
-      const { unitName } = req.params;
-      const count = await Product.countDocuments({ admin: req.user.id, 'prices.unit': unitName });
-      res.json({ inUse: count > 0 });
-    } catch (error) {
-      console.error("Error checking if unit is in use:", error);
-      res.status(500).json({ message: 'Server Error' });
-    }
+  try {
+    const { unitName } = req.params;
+    const count = await Product.countDocuments({ admin: req.user.id, 'prices.unit': unitName });
+    res.json({ inUse: count > 0 });
+  } catch (error) {
+    console.error("Error checking if unit is in use:", error);
+    res.status(500).json({ message: 'Server Error' });
+  }
 };
 
 // --- MODIFIED: This function now groups by admin instead of shop ---
@@ -264,7 +299,7 @@ exports.getProductCountByAdmin = async (req, res) => {
           count: '$count',
         },
       },
-       { $sort: { adminName: 1 } }
+      { $sort: { adminName: 1 } }
     ]);
     res.json(counts);
   } catch (error) {
@@ -278,11 +313,11 @@ exports.getProductById = async (req, res) => {
   try {
     const { id } = req.params;
     const product = await Product.findOne({ _id: id, admin: req.user.id }).populate('category', 'name');
-    
+
     if (!product) {
       return res.status(404).json({ message: 'Product not found or unauthorized' });
     }
-    
+
     res.json(product);
   } catch (error) {
     console.error('Error fetching product:', error);
@@ -306,41 +341,41 @@ exports.getTotalStockAlertCount = async (req, res) => {
 
 // Get expired products for the logged-in admin
 exports.getExpiredProducts = async (req, res) => {
-    try {
-        // Find ALL products for the logged-in admin (both with and without expiry dates)
-        const products = await Product.find({ 
-            admin: req.user.id
-        }).populate('category', 'name');
-        
-        // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
-        const sortedProducts = products.sort((a, b) => {
-            const today = new Date();
-            
-            // Items without expiry dates go last
-            if (!a.expiryDate && !b.expiryDate) return 0;
-            if (!a.expiryDate) return 1;  // a goes last
-            if (!b.expiryDate) return -1; // b goes last
-            
-            // Both have expiry dates - sort by expiry date (earliest first)
-            const aExpiry = new Date(a.expiryDate);
-            const bExpiry = new Date(b.expiryDate);
-            
-            // Calculate days remaining
-            const aDiffTime = aExpiry - today;
-            const aDiffDays = Math.ceil(aDiffTime / (1000 * 60 * 60 * 24));
-            
-            const bDiffTime = bExpiry - today;
-            const bDiffDays = Math.ceil(bDiffTime / (1000 * 60 * 60 * 24));
-            
-            // Items expiring soonest come first
-            return aDiffDays - bDiffDays;
-        });
-        
-        res.json(sortedProducts);
-    } catch (error) {
-        console.error('Error in getExpiredProducts:', error);
-        res.status(500).json({ message: 'Server Error', error: error.message });
-    }
+  try {
+    // Find ALL products for the logged-in admin (both with and without expiry dates)
+    const products = await Product.find({
+      admin: req.user.id
+    }).populate('category', 'name');
+
+    // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
+    const sortedProducts = products.sort((a, b) => {
+      const today = new Date();
+
+      // Items without expiry dates go last
+      if (!a.expiryDate && !b.expiryDate) return 0;
+      if (!a.expiryDate) return 1;  // a goes last
+      if (!b.expiryDate) return -1; // b goes last
+
+      // Both have expiry dates - sort by expiry date (earliest first)
+      const aExpiry = new Date(a.expiryDate);
+      const bExpiry = new Date(b.expiryDate);
+
+      // Calculate days remaining
+      const aDiffTime = aExpiry - today;
+      const aDiffDays = Math.ceil(aDiffTime / (1000 * 60 * 60 * 24));
+
+      const bDiffTime = bExpiry - today;
+      const bDiffDays = Math.ceil(bDiffTime / (1000 * 60 * 60 * 24));
+
+      // Items expiring soonest come first
+      return aDiffDays - bDiffDays;
+    });
+
+    res.json(sortedProducts);
+  } catch (error) {
+    console.error('Error in getExpiredProducts:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
 };
 
 // Get all admin products for shop users to view (read-only)
@@ -350,7 +385,7 @@ exports.getAllAdminProducts = async (req, res) => {
     const products = await Product.find({})
       .populate('category', 'name')
       .sort({ name: 1 });
-    
+
     // Format the response to include only essential information (no admin details like stock)
     const formattedProducts = products.map(product => ({
       _id: product._id,
@@ -360,7 +395,7 @@ exports.getAllAdminProducts = async (req, res) => {
       price: product.prices && product.prices.length > 0 ? product.prices[0].sellingPrice : 0,
       unit: product.prices && product.prices.length > 0 ? product.prices[0].unit : 'N/A'
     }));
-    
+
     res.json(formattedProducts);
   } catch (error) {
     console.error('Error fetching admin products:', error);

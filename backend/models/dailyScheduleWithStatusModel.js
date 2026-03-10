@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const dailyScheduleSchema = new mongoose.Schema({
-    sweetName: {
+    productName: {
         type: String,
         required: true,
         trim: true,
@@ -12,7 +12,7 @@ const dailyScheduleSchema = new mongoose.Schema({
         min: 0,
     },
     // Changed ingredients to an array of objects to match manufacturingModel
-    ingredients: [ 
+    ingredients: [
         {
             name: { type: String, required: true },
             quantity: { type: Number, required: true, min: 0 },

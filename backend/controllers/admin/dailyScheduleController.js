@@ -1,24 +1,24 @@
 const DailySchedule = require('../../models/dailyScheduleModel'); // This path is correct if dailyScheduleModel.js is in backend/models
-const Manufacturing = require('../../models/manufacturingModel'); 
+const Manufacturing = require('../../models/manufacturingModel');
 
 // @desc    Create a new daily schedule
 // @route   POST /api/admin/daily-schedule
 // @access  Private/Admin
 const createDailySchedule = async (req, res) => {
-    const { sweetName, quantity, ingredients, price, unit, date } = req.body;
+    const { productName, quantity, ingredients, price, unit, date } = req.body;
 
     // Basic validation
     // ingredients should now be an array, not a single string
-    if (!sweetName || !quantity || !date || !price || !unit || !ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+    if (!productName || !quantity || !date || !price || !unit || !ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
         return res.status(400).json({ message: 'All fields are required, and ingredients must be a non-empty array.' });
     }
 
     try {
         const newDailySchedule = new DailySchedule({
-            sweetName,
+            productName,
             quantity,
             // ingredients will now be directly passed as an array of objects
-            ingredients, 
+            ingredients,
             price,
             unit,
             date,

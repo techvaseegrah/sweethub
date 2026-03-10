@@ -15,12 +15,12 @@ exports.adminAuth = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        // Allow access to admin endpoints for admin users, raw-materials-only users, and packing users
-        if (decoded.role !== 'admin' && decoded.role !== 'raw-materials-only' && decoded.role !== 'before-packing-only' && decoded.role !== 'after-packing-only') {
-            console.log('User is not admin, raw-materials-only, or packing user, role:', decoded.role);
+        const allowedRoles = ['admin', 'raw-materials-only', 'before-packing-only', 'after-packing-only', 'warehouse-only', 'raw-materials'];
+        if (!allowedRoles.includes(decoded.role)) {
+            console.log('User role not authorized for admin access:', decoded.role);
             return res.status(403).json({ message: 'Forbidden: Admin access required.' });
         }
-        req.user = decoded; 
+        req.user = decoded;
         next();
     } catch (error) {
         console.log('Token verification failed:', error.message);
@@ -39,10 +39,10 @@ exports.shopAuth = (req, res, next) => {
     if (token.startsWith('Bearer ')) {
         token = token.slice(7, token.length).trimStart();
     }
-    
+
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+
         // Allow access if user is admin OR a shop user with a valid shopId
         if (decoded.role === 'admin' || (decoded.role === 'shop' && decoded.shopId)) {
             req.user = decoded;
@@ -73,12 +73,12 @@ exports.shopAttendanceAuth = (req, res, next) => {
     if (token.startsWith('Bearer ')) {
         token = token.slice(7, token.length).trimStart();
     }
-    
+
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+
         // Allow access if user is admin OR a shop user OR an attendance-only user with shop association
-        if (decoded.role === 'admin' || 
+        if (decoded.role === 'admin' ||
             (decoded.role === 'shop' && decoded.shopId) ||
             (decoded.role === 'attendance-only' && decoded.shopId)) {
             req.user = decoded;
@@ -113,12 +113,12 @@ exports.adminAttendanceAuth = (req, res, next) => {
     if (token.startsWith('Bearer ')) {
         token = token.slice(7, token.length).trimStart();
     }
-    
+
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+
         // Allow access if user is admin OR an attendance-only user without shop association
-        if (decoded.role === 'admin' || 
+        if (decoded.role === 'admin' ||
             (decoded.role === 'attendance-only' && !decoded.shopId)) {
             req.user = decoded;
             next();
@@ -148,10 +148,10 @@ exports.attendanceOnlyAuth = (req, res, next) => {
         // Remove Bearer from string
         token = token.slice(7, token.length).trimStart();
     }
-    
+
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+
         // Allow access if user has attendance-only role
         if (decoded.role === 'attendance-only') {
             req.user = decoded;

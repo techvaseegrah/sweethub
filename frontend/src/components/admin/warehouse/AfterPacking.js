@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
-import { LuCheck, LuClock, LuPackage } from 'react-icons/lu';
+import { LuCheck, LuPackage } from 'react-icons/lu';
 import CreateAfterPackingAccountModal from './CreateAfterPackingAccountModal';
 import CustomModal from '../../CustomModal';
 import { AuthContext } from '../../../context/AuthContext';
@@ -18,6 +18,8 @@ const AfterPacking = () => {
     const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
     const [showManageMode, setShowManageMode] = useState(false);
+    const [expiryDate, setExpiryDate] = useState('');
+    const [usedByDate, setUsedByDate] = useState('');
 
     const fetchItems = useCallback(async () => {
         setLoading(true);
@@ -38,26 +40,21 @@ const AfterPacking = () => {
 
     const filteredItems = items
         .filter(item =>
-            item.sweetName && item.sweetName.toLowerCase().includes(searchTerm.toLowerCase())
+            (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase())
         )
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    const handleStatusChange = async (itemId, newStatus) => {
-        try {
-            const response = await axios.put(`/admin/warehouse/after-packing/${itemId}/status`, {
-                status: newStatus
-            });
-            setMessage(response.data.message);
-            fetchItems(); // Refresh the list
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update item status.');
-        }
-    };
+    /* UNUSED: handleStatusChange */
 
     const handleAddToStock = async (itemId) => {
         try {
-            const response = await axios.put(`/admin/warehouse/after-packing/${itemId}/add-to-stock`);
+            const response = await axios.put(`/admin/warehouse/after-packing/${itemId}/add-to-stock`, {
+                expiryDate,
+                usedByDate
+            });
             setMessage(response.data.message);
+            setExpiryDate('');
+            setUsedByDate('');
             fetchItems(); // Refresh the list
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to add item to stock.');
@@ -80,19 +77,22 @@ const AfterPacking = () => {
     const handleCancelConfirm = () => {
         setShowConfirmation(false);
         setItemToComplete(null);
+        setExpiryDate('');
+        setUsedByDate('');
     };
 
     if (loading) return (
-      <div className="p-4 flex flex-col items-center justify-center">
-        <div className="relative flex justify-center items-center mb-4">
-          <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            className="absolute w-8 h-8"
-          />
+        <div className="p-4 flex flex-col items-center justify-center">
+            <div className="relative flex justify-center items-center mb-4">
+                <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                <img
+                    src="/sweethub-logo.png"
+                    alt="Sweet Hub Logo"
+                    className="absolute w-8 h-8"
+                />
+            </div>
+            <div className="text-red-500 font-medium">Loading After Packing items...</div>
         </div>
-        <div className="text-red-500 font-medium">Loading After Packing items...</div>
-      </div>
     );
 
     return (
@@ -101,7 +101,7 @@ const AfterPacking = () => {
                 <h1 className="text-2xl font-bold">After Packing</h1>
                 {/* Show Create Account button only for admin users (not for after-packing-only users) */}
                 {authState?.isAuthenticated && authState?.role === 'admin' && (
-                    <button 
+                    <button
                         onClick={() => {
                             setEditingAccount(null);  // Ensure we're in create mode
                             setShowManageMode(false);  // Set to open modal in create mode
@@ -117,7 +117,7 @@ const AfterPacking = () => {
                 )}
             </div>
             <p className="text-gray-600 mb-6">Manage products ready for final packaging and stock addition.</p>
-            
+
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
 
@@ -133,21 +133,21 @@ const AfterPacking = () => {
 
             <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
-                <thead className="bg-light-gray">
-                    <tr>
-                        <th className="py-2 px-4 text-left">Product Name</th>
-                        <th className="py-2 px-4 text-left">Quantity</th>
-                        <th className="py-2 px-4 text-left">Unit</th>
-                        <th className="py-2 px-4 text-left">Price</th>
-                        <th className="py-2 px-4 text-left">Date</th>
-                        <th className="py-2 px-4 text-left">Status</th>
-                        <th className="py-2 px-4 text-left">Actions</th>
-                    </tr>
-                </thead>
+                    <thead className="bg-light-gray">
+                        <tr>
+                            <th className="py-2 px-4 text-left">Product Name</th>
+                            <th className="py-2 px-4 text-left">Quantity</th>
+                            <th className="py-2 px-4 text-left">Unit</th>
+                            <th className="py-2 px-4 text-left">Price</th>
+                            <th className="py-2 px-4 text-left">Date</th>
+                            <th className="py-2 px-4 text-left">Status</th>
+                            <th className="py-2 px-4 text-left">Actions</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
-                                <td className="border px-4 py-2">{item.sweetName}</td>
+                                <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
                                 <td className="border px-4 py-2">₹{item.price}</td>
@@ -155,11 +155,10 @@ const AfterPacking = () => {
                                     {formatDateWithTime(item.date)}
                                 </td>
                                 <td className="border px-4 py-2">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                        item.status === 'Pending' 
-                                            ? 'bg-yellow-100 text-yellow-800' 
-                                            : 'bg-green-100 text-green-800'
-                                    }`}>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === 'Pending'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-green-100 text-green-800'
+                                        }`}>
                                         {item.status}
                                     </span>
                                 </td>
@@ -195,13 +194,38 @@ const AfterPacking = () => {
                     <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
                         <h3 className="text-lg font-bold mb-4">Confirm Stock Addition</h3>
                         <p className="mb-4">
-                            Are you sure you want to add this product to stock? 
+                            Are you sure you want to add this product to stock?
                             The quantity will be added to the View Products inventory.
                         </p>
-                        <p className="mb-4 font-semibold">
-                            Product: {itemToComplete?.sweetName} | 
+                        <p className="mb-4 font-semibold text-gray-700">
+                            Product: {itemToComplete?.productName || itemToComplete?.sweetName} |
                             Quantity: {itemToComplete?.quantity} {itemToComplete?.unit}
                         </p>
+
+                        <div className="space-y-4 mb-6">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Expiry Date (dd-mm-yyyy)
+                                </label>
+                                <input
+                                    type="date"
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                    value={expiryDate}
+                                    onChange={(e) => setExpiryDate(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Used By Date (dd-mm-yyyy)
+                                </label>
+                                <input
+                                    type="date"
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                    value={usedByDate}
+                                    onChange={(e) => setUsedByDate(e.target.value)}
+                                />
+                            </div>
+                        </div>
                         <div className="flex justify-end space-x-3">
                             <button
                                 onClick={handleCancelConfirm}
@@ -230,7 +254,7 @@ const AfterPacking = () => {
                     }}
                     title={editingAccount ? "Edit After Packing Account" : "Create After Packing Account"}
                 >
-                    <CreateAfterPackingAccountModal 
+                    <CreateAfterPackingAccountModal
                         onClose={() => {
                             setShowCreateAccountModal(false);
                             setEditingAccount(null);  // Reset editing state when modal is closed

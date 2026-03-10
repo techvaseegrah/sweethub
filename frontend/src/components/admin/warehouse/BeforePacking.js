@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
-import { LuCheck, LuClock, LuRefreshCw } from 'react-icons/lu';
+import { LuCheck } from 'react-icons/lu';
 import CreateBeforePackingAccountModal from './CreateBeforePackingAccountModal';
 import CustomModal from '../../CustomModal';
 import { AuthContext } from '../../../context/AuthContext';
@@ -40,7 +40,7 @@ const BeforePacking = () => {
 
     const filteredItems = items
         .filter(item =>
-            item.sweetName && item.sweetName.toLowerCase().includes(searchTerm.toLowerCase())
+            (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase())
         )
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -167,7 +167,7 @@ const BeforePacking = () => {
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
-                                <td className="border px-4 py-2 font-medium">{item.sweetName}</td>
+                                <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">
                                     {item.quantity} / {item.totalQuantity || item.quantity}
                                 </td>
@@ -221,7 +221,7 @@ const BeforePacking = () => {
                     <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
                         <h3 className="text-lg font-bold mb-4">Complete Packing</h3>
                         <div className="mb-4 text-sm text-gray-600">
-                            <p className="font-semibold text-gray-800">Product: {itemToComplete?.sweetName}</p>
+                            <p className="font-semibold text-gray-800">Product: {itemToComplete?.productName || itemToComplete?.sweetName}</p>
                             <p>Total Original: {itemToComplete?.totalQuantity || itemToComplete?.quantity} {itemToComplete?.unit}</p>
                             <p>Current Remaining: {itemToComplete?.quantity} {itemToComplete?.unit}</p>
                             <p>Unit Price: ₹{itemToComplete?.price} / {itemToComplete?.unit}</p>
@@ -233,7 +233,7 @@ const BeforePacking = () => {
                                     Quantity
                                 </label>
                                 <input
-                                    type="number"
+                                    type="text"
                                     className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
                                     value={completedQty}
                                     onChange={(e) => setCompletedQty(e.target.value)}

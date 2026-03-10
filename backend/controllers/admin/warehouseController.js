@@ -84,7 +84,7 @@ const addReturnProduct = async (req, res) => {
 
 const getReturnProducts = async (req, res) => {
     try {
-        const returns = await ReturnProduct.find().sort({ dateOfReturn: -1 });
+        const returns = await ReturnProduct.find().sort({ dateOfReturn: -1, createdAt: -1 });
         res.json(returns);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -124,7 +124,7 @@ const approveReturn = async (req, res) => {
 
 const getOutgoingPackingMaterials = async (req, res) => {
     try {
-        const outgoingMaterials = await OutgoingPackingMaterial.find().sort({ usedDate: -1 });
+        const outgoingMaterials = await OutgoingPackingMaterial.find().sort({ usedDate: -1, createdAt: -1 });
         res.json(outgoingMaterials);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -353,7 +353,7 @@ const getVendorHistory = async (req, res) => {
         const { materialName } = req.params;
         const vendorHistory = await VendorHistory.find({
             materialName: { $regex: new RegExp(`^${materialName.trim()}$`, 'i') }
-        }).sort({ receivedDate: -1 });
+        }).sort({ receivedDate: -1, createdAt: -1 });
         res.json(vendorHistory);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -363,7 +363,7 @@ const getVendorHistory = async (req, res) => {
 // Get all vendor history
 const getAllVendorHistory = async (req, res) => {
     try {
-        const vendorHistory = await VendorHistory.find().sort({ receivedDate: -1 });
+        const vendorHistory = await VendorHistory.find().sort({ receivedDate: -1, createdAt: -1 });
         res.json(vendorHistory);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -413,35 +413,21 @@ const addManufacturingProcess = async (req, res) => {
             await product.save();
         }
 
-        let process = await Manufacturing.findOne({ productName: { $regex: new RegExp(`^${productName.trim()}$`, 'i') } });
+        // Always create a new manufacturing process record
+        const newProcessRecord = new Manufacturing({
+            productName,
+            ingredients,
+            quantity,
+            price,
+            unit,
+            expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+            usedByDate: usedByDate ? new Date(usedByDate) : undefined,
+            createdByWorker,
+            category: category || undefined
+        });
 
-        if (process) {
-            // If it exists, update all fields, including the ingredients array
-            process.ingredients = ingredients;
-            process.quantity = quantity;
-            process.price = price;
-            process.unit = unit;
-            process.expiryDate = expiryDate ? new Date(expiryDate) : undefined;
-            process.usedByDate = usedByDate ? new Date(usedByDate) : undefined;
-            process.createdByWorker = createdByWorker || process.createdByWorker; // Update worker if provided, otherwise keep existing
-            process.category = category || process.category;
-        } else {
-            // If it doesn't exist, create a new one with all fields
-            process = new Manufacturing({
-                productName,
-                ingredients,
-                quantity,
-                price,
-                unit,
-                expiryDate: expiryDate ? new Date(expiryDate) : undefined,
-                usedByDate: usedByDate ? new Date(usedByDate) : undefined,
-                createdByWorker,
-                category: category || undefined
-            });
-        }
-
-        await process.save();
-        res.status(201).json(process);
+        await newProcessRecord.save();
+        res.status(201).json(newProcessRecord);
     } catch (error) {
         console.error('Error adding manufacturing process:', error);
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -457,17 +443,17 @@ const getAllManufacturingProcesses = async (req, res) => {
             .lean(); // Use lean for easier manipulation
 
         // For each process, if category is missing, try to find it from the Product collection
-        const enrichedProcesses = await Promise.all(processes.map(async (process) => {
-            if (!process.category && process.productName) {
+        const enrichedProcesses = await Promise.all(processes.map(async (mProcess) => {
+            if (!mProcess.category && mProcess.productName) {
                 const product = await Product.findOne({
-                    name: { $regex: new RegExp(`^${process.productName.trim()}$`, 'i') }
+                    name: { $regex: new RegExp(`^${mProcess.productName.trim()}$`, 'i') }
                 }).populate('category', 'name');
 
                 if (product && product.category) {
-                    return { ...process, category: product.category };
+                    return { ...mProcess, category: product.category };
                 }
             }
-            return process;
+            return mProcess;
         }));
 
         res.json(enrichedProcesses);
@@ -480,11 +466,11 @@ const getAllManufacturingProcesses = async (req, res) => {
 const getManufacturingProcessByName = async (req, res) => {
     try {
         const { productName } = req.params;
-        const process = await Manufacturing.findOne({ productName }).populate('createdByWorker', 'name');
-        if (!process) {
+        const mProcess = await Manufacturing.findOne({ productName }).populate('createdByWorker', 'name');
+        if (!mProcess) {
             return res.status(404).json({ message: 'Process not found' });
         }
-        res.json(process);
+        res.json(mProcess);
     } catch (error) {
         console.error('Error getting manufacturing process by name:', error);
         res.status(500).json({ message: 'Server Error' });
@@ -659,7 +645,7 @@ const getOutgoingMaterials = async (req, res) => {
     try {
         // Populate outgoing materials with related schedule information
         const outgoingMaterials = await OutgoingMaterial.find()
-            .sort({ usedDate: -1 });
+            .sort({ usedDate: -1, createdAt: -1 });
 
         // Get all unique schedule IDs from outgoing materials
         const scheduleIds = [...new Set(outgoingMaterials.map(item => item.scheduleId))];
@@ -694,7 +680,7 @@ const getOutgoingMaterials = async (req, res) => {
 
             return {
                 ...item.toObject(),
-                manufacturedProductName: schedule ? schedule.sweetName : item.scheduleReference,
+                manufacturedProductName: schedule ? (schedule.productName || schedule.sweetName) : item.scheduleReference,
                 dateUsed: item.usedDate,
                 manufacturingProcessReference: readableScheduleRef,
                 dailyScheduleReference: readableScheduleRef,
@@ -712,7 +698,7 @@ const getOutgoingMaterials = async (req, res) => {
 
 const createOutgoingMaterial = async (req, res) => {
     try {
-        const { scheduleId, date, sweetName, ingredients } = req.body;
+        const { scheduleId, date, productName, ingredients } = req.body;
 
         if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ message: 'Invalid ingredients data provided.' });
@@ -758,8 +744,8 @@ const createOutgoingMaterial = async (req, res) => {
                         quantityUsed: ingredient.quantityUsed,
                         unit: ingredient.unit,
                         pricePerUnit: ingredient.pricePerUnit,
-                        usedDate: new Date(date),
-                        scheduleReference: sweetName
+                        usedDate: new Date(), // Use current time for "Date Used" rather than just the schedule's date
+                        scheduleReference: productName
                     });
 
                     await outgoingRecord.save();
@@ -828,10 +814,10 @@ const getDailySchedules = async (req, res) => {
 // Create daily schedule
 const createDailySchedule = async (req, res) => {
     try {
-        const { sweetName, quantity, ingredients, price, unit, date, description, category, assignedWorkers } = req.body;
+        const { productName, quantity, ingredients, price, unit, date, description, category, assignedWorkers } = req.body;
 
-        if (!sweetName || !quantity || !ingredients || !price || !unit || !date) {
-            return res.status(400).json({ message: 'All fields are required: sweetName, quantity, ingredients, price, unit, date' });
+        if (!productName || !quantity || !ingredients || !price || !unit || !date) {
+            return res.status(400).json({ message: 'All fields are required: productName, quantity, ingredients, price, unit, date' });
         }
 
         // Validate ingredients array
@@ -840,12 +826,20 @@ const createDailySchedule = async (req, res) => {
         }
 
         const schedule = new DailySchedule({
-            sweetName,
+            productName,
             quantity: Number(quantity),
             ingredients,
             price: Number(price),
             unit,
-            date: new Date(date),
+            date: (() => {
+                const scheduledDate = new Date(date);
+                const now = new Date();
+                // If the scheduled date is today, use the current time to ensure correct sorting and time display
+                if (scheduledDate.toDateString() === now.toDateString()) {
+                    return now;
+                }
+                return scheduledDate;
+            })(),
             description: description || '',
             category: category || undefined,
             assignedWorkers: assignedWorkers || []
@@ -930,7 +924,7 @@ const getBeforePackingItems = async (req, res) => {
 
 const addToBeforePacking = async (req, res) => {
     try {
-        const { scheduleId, sweetName, quantity, unit, price, date, description } = req.body;
+        const { scheduleId, productName, quantity, unit, price, date, description } = req.body;
 
         // Check if item already exists for this schedule
         const existingItem = await BeforePacking.findOne({ scheduleId });
@@ -940,7 +934,7 @@ const addToBeforePacking = async (req, res) => {
 
         const newItem = new BeforePacking({
             scheduleId,
-            sweetName,
+            productName,
             quantity: Number(quantity),
             totalQuantity: Number(quantity),
             unit,
@@ -1003,7 +997,7 @@ const updateBeforePackingStatus = async (req, res) => {
             // Add to After Packing
             const afterPackingItem = new AfterPacking({
                 scheduleId: item.scheduleId,
-                sweetName: item.sweetName,
+                productName: item.productName || item.sweetName,
                 quantity: actualCompletedQty,
                 unit: item.unit,
                 price: item.price,
@@ -1092,36 +1086,39 @@ const updateAfterPackingStatus = async (req, res) => {
 const addToStockFromAfterPacking = async (req, res) => {
     try {
         const { id } = req.params;
+        const { expiryDate: manualExpiryDate, usedByDate: manualUsedByDate } = req.body;
 
         const item = await AfterPacking.findById(id);
         if (!item) {
             return res.status(404).json({ message: 'After Packing item not found' });
         }
 
-        // Find the manufacturing process to get expiry and use-by days
-        const manufacturingProcess = await Manufacturing.findOne({
-            sweetName: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') }
-        });
+        // Calculate expiry and use-by dates
+        let expiryDate = manualExpiryDate ? new Date(manualExpiryDate) : null;
+        let usedByDate = manualUsedByDate ? new Date(manualUsedByDate) : null;
 
-        // Calculate expiry and use-by dates based on manufacturing process
-        let expiryDate = null;
-        let usedByDate = null;
+        // If manual dates are not provided, try to calculate from manufacturing process
+        if (!expiryDate || !usedByDate) {
+            const manufacturingProcess = await Manufacturing.findOne({
+                productName: { $regex: new RegExp(`^${(item.productName || item.sweetName || '').trim()}$`, 'i') }
+            });
 
-        if (manufacturingProcess) {
-            if (manufacturingProcess.expiryDays) {
-                expiryDate = new Date();
-                expiryDate.setDate(expiryDate.getDate() + parseInt(manufacturingProcess.expiryDays));
-            }
+            if (manufacturingProcess) {
+                if (!expiryDate && manufacturingProcess.expiryDays) {
+                    expiryDate = new Date();
+                    expiryDate.setDate(expiryDate.getDate() + parseInt(manufacturingProcess.expiryDays));
+                }
 
-            if (manufacturingProcess.usedByDays) {
-                usedByDate = new Date();
-                usedByDate.setDate(usedByDate.getDate() + parseInt(manufacturingProcess.usedByDays));
+                if (!usedByDate && manufacturingProcess.usedByDays) {
+                    usedByDate = new Date();
+                    usedByDate.setDate(usedByDate.getDate() + parseInt(manufacturingProcess.usedByDays));
+                }
             }
         }
 
         // Find the product by name (case-insensitive)
         const product = await Product.findOne({
-            name: { $regex: new RegExp(`^${item.sweetName.trim()}$`, 'i') }
+            name: { $regex: new RegExp(`^${(item.productName || item.sweetName || '').trim()}$`, 'i') }
         });
 
         if (product) {
@@ -1159,7 +1156,7 @@ const addToStockFromAfterPacking = async (req, res) => {
         } else {
             // If product doesn't exist in the products collection, create a new one
             const newProduct = new Product({
-                name: item.sweetName,
+                name: item.productName || item.sweetName,
                 category: null,
                 sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                 stockLevel: Number(item.quantity),

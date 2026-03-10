@@ -1,5 +1,5 @@
 // frontend/src/components/admin/Sidebar.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
     LuLayoutDashboard,
@@ -287,7 +287,7 @@ const Sidebar = () => {
 
             <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
                 {/* Dashboard - Hide for packing-only and raw-materials-only users */}
-                {authState?.role !== 'attendance-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'warehouse-only' && authState?.role !== 'raw-materials' && (
                     <NavLink
                         to="/admin/dashboard"
                         className={({ isActive }) =>
@@ -741,10 +741,10 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'warehouse-only' && authState?.role !== 'raw-materials' && (
                     <>
                         {/* Warehouse Management - Hide for packing-only users (they see their specific modules below) */}
-                        {(authState?.role === 'admin' || authState?.role === 'raw-materials-only') && (
+                        {(authState?.role === 'admin' || authState?.role === 'raw-materials-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
                             <details className="group" open={isWarehouseMenuOpen} onToggle={toggleWarehouseMenu}>
                                 <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                     <div className="flex items-center">
@@ -998,7 +998,7 @@ const Sidebar = () => {
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                     <>
                         {/* Before Packing Toggle - Only show for before-packing-only users and admin */}
-                        {(authState?.role === 'admin' || authState?.role === 'before-packing-only') && (
+                        {(authState?.role === 'admin' || authState?.role === 'before-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
                             <details className="group">
                                 <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                     <div className="flex items-center">
@@ -1059,7 +1059,7 @@ const Sidebar = () => {
                         )}
 
                         {/* After Packing Toggle - Only show for after-packing-only users and admin */}
-                        {(authState?.role === 'admin' || authState?.role === 'after-packing-only') && (
+                        {(authState?.role === 'admin' || authState?.role === 'after-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
                             <details className="group">
                                 <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                     <div className="flex items-center">

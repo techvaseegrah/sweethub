@@ -5,7 +5,7 @@ const afterPackingSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    sweetName: {
+    productName: {
         type: String,
         required: true
     },

@@ -14,26 +14,26 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
   if (authState?.role === 'attendance-only') {
     // Check if we're trying to access a route that's NOT the attendance module
     const currentPath = window.location.pathname;
-    
+
     // Check if the current path is for attendance
     const isAdminAttendancePath = currentPath.startsWith('/admin/workers/attendance');
     const isShopAttendancePath = currentPath.startsWith('/shop/workers/attendance');
-    
+
     // If user is shop attendance-only but trying to access admin routes, redirect to shop attendance
     if (authState.userType === 'shop' && currentPath.startsWith('/admin') && !isAdminAttendancePath) {
       return <Navigate to="/shop/workers/attendance" replace />;
     }
-    
+
     // If user is admin attendance-only but trying to access shop routes, redirect to admin attendance
     if (authState.userType !== 'shop' && currentPath.startsWith('/shop') && !isShopAttendancePath) {
       return <Navigate to="/admin/workers/attendance" replace />;
     }
-    
+
     // If user is shop attendance-only and accessing shop section but not attendance
     if (authState.userType === 'shop' && currentPath.startsWith('/shop/') && !isShopAttendancePath) {
       return <Navigate to="/shop/workers/attendance" replace />;
     }
-    
+
     // If user is admin attendance-only and accessing admin section but not attendance
     if (authState.userType !== 'shop' && currentPath.startsWith('/admin/') && !isAdminAttendancePath) {
       return <Navigate to="/admin/workers/attendance" replace />;
@@ -43,11 +43,11 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
   // Special handling for before-packing-only users - restrict to before packing modules only
   if (authState?.role === 'before-packing-only') {
     const currentPath = window.location.pathname;
-    
+
     // Define allowed paths for before-packing-only users
     const isBeforePackingPath = currentPath.startsWith('/admin/warehouse/before-packing');
     const isDashboardPath = currentPath === '/admin/dashboard';
-    
+
     // If accessing unauthorized paths, redirect to before packing module
     if (!isBeforePackingPath && !isDashboardPath) {
       return <Navigate to="/admin/warehouse/before-packing" replace />;
@@ -57,14 +57,25 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
   // Special handling for after-packing-only users - restrict to after packing modules only
   if (authState?.role === 'after-packing-only') {
     const currentPath = window.location.pathname;
-    
+
     // Define allowed paths for after-packing-only users
     const isAfterPackingPath = currentPath.startsWith('/admin/warehouse/after-packing');
     const isDashboardPath = currentPath === '/admin/dashboard';
-    
+
     // If accessing unauthorized paths, redirect to after packing module
     if (!isAfterPackingPath && !isDashboardPath) {
       return <Navigate to="/admin/warehouse/after-packing" replace />;
+    }
+  }
+
+  // Special handling for warehouse-only users
+  if (authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') {
+    const currentPath = window.location.pathname;
+    const isWarehousePath = currentPath.startsWith('/admin/warehouse');
+    const isDashboardPath = currentPath === '/admin/dashboard';
+
+    if (!isWarehousePath && !isDashboardPath) {
+      return <Navigate to="/admin/dashboard" replace />;
     }
   }
 

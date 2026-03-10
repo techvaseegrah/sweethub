@@ -8,18 +8,18 @@ const {
     addPackingMaterial,
     getPackingMaterials,
     updatePackingMaterial,
-    deletePackingMaterial, 
+    deletePackingMaterial,
     getPackingMaterialAlerts,
     addManufacturingProcess,
     getManufacturingProcessByName,
     updateOutgoingMaterial,
     getMaterialStockAlerts,
-    getAllManufacturingProcesses, 
+    getAllManufacturingProcesses,
     updateManufacturingProcess,
-    bulkUpdateOutgoingMaterials,    
+    bulkUpdateOutgoingMaterials,
     deleteManufacturingProcess,
-    getOutgoingMaterials,       
-    createOutgoingMaterial, 
+    getOutgoingMaterials,
+    createOutgoingMaterial,
     getOutgoingPackingMaterials,
     createOutgoingPackingMaterial,
     addReturnProduct,
@@ -75,7 +75,7 @@ router.get('/packing-materials/vendor-history/:materialName', getVendorHistory);
 // Manufacturing
 router.post('/manufacturing', addManufacturingProcess);
 router.get('/manufacturing', getAllManufacturingProcesses);
-router.get('/manufacturing/:sweetName', getManufacturingProcessByName);
+router.get('/manufacturing/:productName', getManufacturingProcessByName);
 router.put('/manufacturing/:id', updateManufacturingProcess);
 router.delete('/manufacturing/:id', deleteManufacturingProcess);
 router.put('/outgoing-materials/bulk-update', bulkUpdateOutgoingMaterials);

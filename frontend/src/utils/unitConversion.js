@@ -4,18 +4,46 @@
 
 // Define unit conversion factors relative to the base unit (kg)
 const UNIT_CONVERSION_FACTORS = {
-  kg: 1,        // base unit
-  gram: 0.001,  // 1 gram = 0.001 kg
-  g: 0.001,     // shorthand for gram
-  piece: 1,     // piece is treated as base unit for non-weight items
+  kg: 1,
+  kilogram: 1,
+  gram: 0.001,
+  grams: 0.001,
+  g: 0.001,
+  piece: 1,
+  pieces: 1,
+  pcs: 1,
+  pc: 1,
+  box: 1,
+  boxes: 1,
+  packet: 1,
+  packets: 1,
+  liter: 1,
+  liters: 1,
+  l: 1,
+  ml: 0.001,
+  milliliter: 0.001,
+  milliliters: 0.001,
 };
 
 // Define related units that can be converted between
 const RELATED_UNITS = {
-  kg: ['kg', 'gram', 'g'],
-  gram: ['gram', 'g', 'kg'],
-  g: ['g', 'gram', 'kg'],
-  piece: ['piece'],
+  kg: ['kg', 'gram', 'g', 'grams', 'kilogram'],
+  kilogram: ['kg', 'gram', 'g', 'grams', 'kilogram'],
+  gram: ['gram', 'g', 'kg', 'grams', 'kilogram'],
+  grams: ['gram', 'g', 'kg', 'grams', 'kilogram'],
+  g: ['g', 'gram', 'kg', 'grams', 'kilogram'],
+  piece: ['piece', 'pieces', 'pcs', 'pc'],
+  pieces: ['piece', 'pieces', 'pcs', 'pc'],
+  pcs: ['piece', 'pieces', 'pcs', 'pc'],
+  pc: ['piece', 'pieces', 'pcs', 'pc'],
+  box: ['box', 'boxes'],
+  boxes: ['box', 'boxes'],
+  packet: ['packet', 'packets'],
+  packets: ['packet', 'packets'],
+  liter: ['liter', 'liters', 'l', 'ml'],
+  liters: ['liter', 'liters', 'l', 'ml'],
+  l: ['liter', 'liters', 'l', 'ml'],
+  ml: ['ml', 'liter', 'liters', 'l'],
 };
 
 /**
@@ -26,8 +54,16 @@ const RELATED_UNITS = {
  * @returns {number} - The converted quantity
  */
 export const convertUnit = (quantity, fromUnit, toUnit) => {
-  const fromFactor = UNIT_CONVERSION_FACTORS[fromUnit];
-  const toFactor = UNIT_CONVERSION_FACTORS[toUnit];
+  const normalizedFromUnit = fromUnit ? fromUnit.toString().toLowerCase().trim() : '';
+  const normalizedToUnit = toUnit ? toUnit.toString().toLowerCase().trim() : '';
+
+  // If units are the same (after normalization), return quantity as is
+  if (normalizedFromUnit === normalizedToUnit && normalizedFromUnit !== '') {
+    return quantity;
+  }
+
+  const fromFactor = UNIT_CONVERSION_FACTORS[normalizedFromUnit];
+  const toFactor = UNIT_CONVERSION_FACTORS[normalizedToUnit];
 
   if (fromFactor === undefined || toFactor === undefined) {
     throw new Error(`Unsupported unit conversion: ${fromUnit} to ${toUnit}`);
@@ -47,8 +83,13 @@ export const convertUnit = (quantity, fromUnit, toUnit) => {
  * @returns {boolean} - Whether the units are related
  */
 export const areRelatedUnits = (unit1, unit2) => {
-  const relatedToUnit1 = RELATED_UNITS[unit1] || [unit1];
-  return relatedToUnit1.includes(unit2);
+  const norm1 = unit1 ? unit1.toString().toLowerCase().trim() : '';
+  const norm2 = unit2 ? unit2.toString().toLowerCase().trim() : '';
+
+  if (norm1 === norm2 && norm1 !== '') return true;
+
+  const relatedToUnit1 = RELATED_UNITS[norm1] || [norm1];
+  return relatedToUnit1.includes(norm2);
 };
 
 /**
@@ -57,7 +98,8 @@ export const areRelatedUnits = (unit1, unit2) => {
  * @returns {string[]} - Array of related units
  */
 export const getRelatedUnits = (unit) => {
-  return RELATED_UNITS[unit] || [unit];
+  const norm = unit ? unit.toString().toLowerCase().trim() : '';
+  return RELATED_UNITS[norm] || [unit];
 };
 
 /**
@@ -82,7 +124,7 @@ export const getAvailableUnits = (productPrices) => {
 
   // Get all units defined for the product
   const definedUnits = productPrices.map(price => price.unit);
-  
+
   // For each defined unit, add its related units
   const allUnits = new Set();
   definedUnits.forEach(unit => {
@@ -108,13 +150,13 @@ export function formatDateToDDMMYYYY(dateString) {
 export function formatDateTime(dateString) {
   if (!dateString) return { date: '', time: '' };
   const date = new Date(dateString);
-  
+
   // Format date as dd/mm/yyyy
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
   const year = date.getFullYear();
   const formattedDate = `${day}/${month}/${year}`;
-  
+
   // Format time as HH:MM AM/PM
   let hours = date.getHours();
   const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -122,7 +164,7 @@ export function formatDateTime(dateString) {
   hours = hours % 12;
   hours = hours ? hours : 12; // the hour '0' should be '12'
   const formattedTime = `${hours}:${minutes} ${ampm}`;
-  
+
   return { date: formattedDate, time: formattedTime };
 }
 
@@ -130,19 +172,19 @@ export function formatDateTime(dateString) {
 export function formatDateWithTime(dateString) {
   if (!dateString) return '';
   const date = new Date(dateString);
-  
+
   // Format date as dd/mm/yyyy
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
-  
+
   // Format time as h:mm am/pm (12-hour format)
   let hours = date.getHours();
   const minutes = String(date.getMinutes()).padStart(2, '0');
   const ampm = hours >= 12 ? 'pm' : 'am';
   hours = hours % 12;
   hours = hours ? hours : 12; // Convert 0 to 12
-  
+
   return (
     <>
       <div>{day}/{month}/{year}</div>

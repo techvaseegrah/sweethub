@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const dailyScheduleSchema = new mongoose.Schema({
-    sweetName: {
+    productName: {
         type: String,
         required: true,
         trim: true,

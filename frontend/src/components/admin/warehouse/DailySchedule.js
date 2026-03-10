@@ -6,7 +6,7 @@ import html2pdf from 'html2pdf.js';
 const DailySchedule = () => {
     const [date, setDate] = useState('');
     const [sweets, setSweets] = useState([{
-        sweetName: '',
+        productName: '',
         category: '',
         isAssignWorkerEnabled: false,
         assignedWorkers: [],
@@ -115,9 +115,9 @@ const DailySchedule = () => {
         }
     };
 
-    const handleSelectSweetName = async (index, selectedSweetName) => {
+    const handleSelectSweetName = async (index, selectedProductName) => {
         const updatedSweets = [...sweets];
-        updatedSweets[index].sweetName = selectedSweetName;
+        updatedSweets[index].productName = selectedProductName;
         setOpenDropdownIndex(null);
 
         // Reset manual modification flags when selecting a new product
@@ -129,7 +129,7 @@ const DailySchedule = () => {
         };
 
         const foundProduct = manufacturingProducts.find(
-            (product) => (product?.productName || product?.sweetName || '').toLowerCase() === (selectedSweetName || '').toLowerCase()
+            (product) => (product?.productName || product?.sweetName || '').toLowerCase() === (selectedProductName || '').toLowerCase()
         );
 
         if (foundProduct) {
@@ -185,7 +185,7 @@ const DailySchedule = () => {
             updatedSweets[index].price = '';
             updatedSweets[index].unit = '';
             updatedSweets[index].manufacturingProcess = null;
-            if (selectedSweetName) {
+            if (selectedProductName) {
                 setMessage('No matching manufacturing product found.');
                 setMessageType('warning');
             } else {
@@ -247,7 +247,7 @@ const DailySchedule = () => {
                         setMessage(`Alert: ${alertMessages.join(' | ')} | Proceeding with available ingredients only.`);
                         setMessageType('warning');
                     } else {
-                        setMessage(`All ingredients available for "${updatedSweets[index].sweetName}".`);
+                        setMessage(`All ingredients available for "${updatedSweets[index].productName || updatedSweets[index].sweetName}".`);
                         setMessageType('success');
                     }
 
@@ -322,7 +322,7 @@ const DailySchedule = () => {
     const handleCategoryChange = (index, categoryId) => {
         const updatedSweets = [...sweets];
         updatedSweets[index].category = categoryId;
-        updatedSweets[index].sweetName = ''; // Reset sweet name when category changes
+        updatedSweets[index].productName = ''; // Reset product name when category changes
 
         // Filter manufacturing products for this category
         const filtered = manufacturingProducts.filter(p =>
@@ -361,11 +361,11 @@ const DailySchedule = () => {
 
     const addSweet = () => {
         // Auto-collapse the previous form if it has data
-        if (sweets.length > 0 && sweets[0].sweetName && sweets[0].quantity) {
+        if (sweets.length > 0 && (sweets[0].productName || sweets[0].sweetName) && sweets[0].quantity) {
             const updatedSweets = [...sweets];
             updatedSweets[0].isCollapsed = true;
             setSweets([{
-                sweetName: '',
+                productName: '',
                 category: '',
                 isAssignWorkerEnabled: false,
                 assignedWorkers: [],
@@ -386,7 +386,7 @@ const DailySchedule = () => {
             }, ...updatedSweets]);
         } else {
             setSweets([{
-                sweetName: '',
+                productName: '',
                 category: '',
                 isAssignWorkerEnabled: false,
                 assignedWorkers: [],
@@ -418,11 +418,18 @@ const DailySchedule = () => {
     const generatePDF = () => {
         const element = document.getElementById('daily-schedule-content');
         const opt = {
-            margin: 1,
+            margin: [0.3, 0.3, 0.3, 0.3], // top, left, bottom, right in inches
             filename: `Daily_Schedule_Multiple_Sweets_${date}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            image: { type: 'jpeg', quality: 1 },
+            html2canvas: {
+                scale: 3,
+                useCORS: true,
+                letterRendering: true,
+                logging: false,
+                width: element.offsetWidth
+            },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
         };
 
         html2pdf().from(element).set(opt).save();
@@ -435,9 +442,9 @@ const DailySchedule = () => {
         setMessageType(null);
 
         // Check if at least one sweet is selected
-        const hasSelectedSweet = sweets.some(sweet => (sweet?.sweetName || '').trim() !== '');
-        if (!hasSelectedSweet) {
-            setMessage('Please select at least one sweet.');
+        const hasSelectedProduct = sweets.some(sweet => (sweet?.productName || sweet?.sweetName || '').trim() !== '');
+        if (!hasSelectedProduct) {
+            setMessage('Please select at least one product.');
             setMessageType('error');
             setSubmitting(false);
             return;
@@ -445,7 +452,7 @@ const DailySchedule = () => {
 
         // Check if all selected sweets have available ingredients
         const hasIngredients = sweets.every(sweet =>
-            (sweet?.sweetName || '').trim() === '' || (sweet?.ingredients || []).length > 0
+            (sweet?.productName || sweet?.sweetName || '').trim() === '' || (sweet?.ingredients || []).length > 0
         );
         if (!hasIngredients) {
             setMessage('Some sweets do not have available ingredients in store room.');
@@ -456,17 +463,27 @@ const DailySchedule = () => {
 
         try {
             // Create schedule for each sweet individually
-            const selectedSweets = sweets.filter(sweet => (sweet?.sweetName || '').trim() !== '');
+            const selectedSweets = sweets.filter(sweet => (sweet?.productName || sweet?.sweetName || '').trim() !== '');
             const responses = [];
 
             for (const sweet of selectedSweets) {
                 const response = await axios.post('/admin/warehouse/daily-schedules', {
-                    sweetName: sweet.sweetName,
+                    productName: sweet.productName || sweet.sweetName,
                     quantity: sweet.quantity,
                     ingredients: sweet.ingredients,
                     price: sweet.price,
                     unit: sweet.unit,
-                    date: date,
+                    date: (() => {
+                        const [year, month, day] = date.split('-').map(Number);
+                        const scheduleDate = new Date(year, month - 1, day);
+                        const now = new Date();
+                        // If it's today's date, use current time
+                        if (scheduleDate.toDateString() === now.toDateString()) {
+                            return now;
+                        }
+                        // Otherwise use local midnight
+                        return scheduleDate;
+                    })(),
                     description: sweet.description, // Include description in the request
                     category: sweet.category,
                     assignedWorkers: sweet.assignedWorkers
@@ -479,7 +496,7 @@ const DailySchedule = () => {
             setIsFormSubmitted(true);
 
             // Store the created schedule IDs in component state for later use
-            const scheduleIds = responses.map(response => response._id);
+            const scheduleIds = responses.map(response => response.dailySchedule?._id || response._id);
             window.createdScheduleIds = scheduleIds; // Store in window for access in handleCreatePDF
 
         } catch (error) {
@@ -508,7 +525,7 @@ const DailySchedule = () => {
                 const outgoingMaterialsData = {
                     scheduleId: schedule._id, // Use the actual schedule ID
                     date: schedule.date,
-                    sweetName: schedule.sweetName,
+                    productName: schedule.productName || schedule.sweetName,
                     ingredients: schedule.ingredients.map(ingredient => ({
                         materialName: ingredient.name,
                         quantityUsed: ingredient.quantity,
@@ -529,7 +546,7 @@ const DailySchedule = () => {
                 setTimeout(() => {
                     setDate('');
                     setSweets([{
-                        sweetName: '',
+                        productName: '',
                         quantity: '',
                         ingredients: [],
                         ingredientsDisplay: '',
@@ -599,17 +616,17 @@ const DailySchedule = () => {
             )}
 
             {/* Content to be converted to PDF */}
-            <div id="daily-schedule-content" className="p-8 rounded-2xl shadow-xl max-w-2xl mx-auto space-y-6 bg-white border border-gray-200">
+            <div id="daily-schedule-content" className="p-8 rounded-xl max-w-4xl mx-auto space-y-6 bg-white border border-gray-200 overflow-visible shadow-sm">
                 <h2 className="text-3xl font-bold text-gray-800 mb-4 text-center">Daily Schedule</h2>
                 <div className="space-y-2">
                     <p className="text-lg text-gray-700"><strong>Schedule Date:</strong> {date}</p>
                 </div>
                 <div className="space-y-6">
                     <h3 className="text-2xl font-bold text-gray-800">Sweets to Prepare</h3>
-                    {sweets.filter(sweet => (sweet?.sweetName || '').trim() !== '').map((sweet, index) => (
-                        <div key={index} className="border-b border-gray-200 pb-4">
+                    {sweets.filter(sweet => (sweet?.productName || sweet?.sweetName || '').trim() !== '').map((sweet, index) => (
+                        <div key={index} className="border-b border-gray-200 pb-4" style={{ pageBreakInside: 'avoid' }}>
                             <div className="space-y-2">
-                                <p className="text-lg text-gray-700"><strong>Sweet Name:</strong> {sweet.sweetName}</p>
+                                <p className="text-lg text-gray-700"><strong>Product Name:</strong> {sweet.productName || sweet.sweetName}</p>
                                 {sweet.category && (
                                     <p className="text-lg text-gray-700">
                                         <strong>Category:</strong> {
@@ -635,13 +652,16 @@ const DailySchedule = () => {
                             </div>
                             <div className="space-y-2 mt-3">
                                 <p className="text-lg font-semibold text-gray-700">Ingredients Required:</p>
-                                <ul className="list-disc list-inside ml-4">
+                                <ul className={`mt-2 ml-2 list-none grid ${sweet.ingredients.length > 10 ? 'grid-cols-2 gap-x-8' : 'grid-cols-1'} gap-y-1`}>
                                     {sweet.ingredients.length > 0 ? (
                                         sweet.ingredients.map((ing, ingIndex) => (
-                                            <li key={ingIndex} className="text-gray-600">{ing.name}: {ing.quantity}{ing.unit}</li>
+                                            <li key={ingIndex} className="text-gray-600 flex items-start text-base" style={{ pageBreakInside: 'avoid' }}>
+                                                <span className="inline-block w-1.5 h-1.5 bg-gray-400 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                                                <span className="flex-1">{ing.name}: {ing.quantity}{ing.unit}</span>
+                                            </li>
                                         ))
                                     ) : (
-                                        <li className="text-gray-600">No ingredients specified.</li>
+                                        <li className="text-gray-600 italic">No ingredients specified.</li>
                                     )}
                                 </ul>
                             </div>
@@ -697,9 +717,9 @@ const DailySchedule = () => {
                                 onClick={() => toggleSweetCollapse(index)}
                             >
                                 <div>
-                                    {sweet.sweetName ? (
+                                    {(sweet.productName || sweet.sweetName) ? (
                                         <h4 className="text-lg font-semibold text-gray-800">
-                                            {sweet.sweetName} - {sweet.quantity} {sweet.unit}
+                                            {sweet.productName || sweet.sweetName} - {sweet.quantity} {sweet.unit}
                                         </h4>
                                     ) : (
                                         <h4 className="text-lg font-semibold text-gray-500">
@@ -713,7 +733,7 @@ const DailySchedule = () => {
                                     )}
                                 </div>
                                 <div className="flex items-center">
-                                    {sweet.sweetName && sweet.quantity && (
+                                    {(sweet.productName || sweet.sweetName) && sweet.quantity && (
                                         <span className="mr-2 text-sm text-gray-500">
                                             Click to {sweet.isCollapsed ? 'expand' : 'collapse'}
                                         </span>
@@ -752,7 +772,7 @@ const DailySchedule = () => {
                                         </div>
                                         <div>
                                             <label className="block text-lg font-semibold text-gray-700 mb-2">
-                                                Sweet Name
+                                                Product Name
                                             </label>
                                             <div className="relative" ref={el => {
                                                 if (el) {
@@ -763,7 +783,7 @@ const DailySchedule = () => {
                                                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 bg-white cursor-pointer flex justify-between items-center"
                                                     onClick={() => setOpenDropdownIndex(openDropdownIndex === index ? null : index)}
                                                 >
-                                                    <span>{sweet.sweetName || 'Select a sweet name'}</span>
+                                                    <span>{sweet.productName || sweet.sweetName || 'Select a product name'}</span>
                                                     <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                                         <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
                                                     </svg>
