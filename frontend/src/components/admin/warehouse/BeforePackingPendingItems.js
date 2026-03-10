@@ -32,7 +32,7 @@ const BeforePackingPendingItems = () => {
 
     const filteredItems = items
         .filter(item =>
-            item.sweetName && item.sweetName.toLowerCase().includes(searchTerm.toLowerCase())
+            (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase())
         )
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -85,7 +85,7 @@ const BeforePackingPendingItems = () => {
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
-                                <td className="border px-4 py-2 font-medium">{item.sweetName}</td>
+                                <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">
                                     {item.quantity} / {item.totalQuantity || item.quantity}
                                 </td>

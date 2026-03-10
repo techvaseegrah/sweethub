@@ -10,7 +10,7 @@ router.get('/products', async (req, res) => {
         const products = await Manufacturing.find({});
         const formattedProducts = products.map(item => ({
             _id: item._id,
-            productName: item.sweetName
+            productName: item.productName || item.sweetName
         }));
         res.json(formattedProducts);
     } catch (error) {

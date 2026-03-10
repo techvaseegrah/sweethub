@@ -37,7 +37,7 @@ const createDailySchedule = async (req, res) => {
 // @access  Private/Admin
 const getDailySchedules = async (req, res) => {
     try {
-        const dailySchedules = await DailySchedule.find({}).sort({ date: -1, sweetName: 1 });
+        const dailySchedules = await DailySchedule.find({}).sort({ date: -1, productName: 1 });
         res.status(200).json(dailySchedules);
     } catch (error) {
         console.error('Error fetching daily schedules:', error);

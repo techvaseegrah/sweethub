@@ -74,7 +74,7 @@ const getProductAvailabilityInfo = async (productName, requestedQuantity, unit, 
 
     // 2. Check in After Packing (only pending/non-completed items)
     const afterPackingItem = await AfterPacking.findOne({
-        sweetName: { $regex: new RegExp(`^${escapeRegExp(productName)}$`, 'i') },
+        productName: { $regex: new RegExp(`^${escapeRegExp(productName)}$`, 'i') },
         status: { $ne: 'Completed' } // Only check pending items
     }).sort({ date: -1 }); // Get the most recent
 
@@ -97,7 +97,7 @@ const getProductAvailabilityInfo = async (productName, requestedQuantity, unit, 
 
     // 3. Check in Before Packing (only pending/non-completed items)
     const beforePackingItem = await BeforePacking.findOne({
-        sweetName: { $regex: new RegExp(`^${escapeRegExp(productName)}$`, 'i') },
+        productName: { $regex: new RegExp(`^${escapeRegExp(productName)}$`, 'i') },
         status: { $ne: 'Completed' } // Only check pending items
     }).sort({ date: -1 });
 
@@ -120,7 +120,7 @@ const getProductAvailabilityInfo = async (productName, requestedQuantity, unit, 
 
     // 4. Check in Production Schedules (only pending/non-completed items)
     const productionSchedule = await DailySchedule.findOne({
-        sweetName: { $regex: new RegExp(`^${escapeRegExp(productName)}$`, 'i') },
+        productName: { $regex: new RegExp(`^${escapeRegExp(productName)}$`, 'i') },
         status: { $ne: 'Completed' } // Only check pending items
     }).sort({ date: -1 });
 

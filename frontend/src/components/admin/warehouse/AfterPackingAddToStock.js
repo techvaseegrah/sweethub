@@ -123,7 +123,7 @@ const AfterPackingAddToStock = () => {
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
-                                <td className="border px-4 py-2">{item.sweetName}</td>
+                                <td className="border px-4 py-2">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
                                 <td className="border px-4 py-2">₹{item.price}</td>
@@ -164,7 +164,7 @@ const AfterPackingAddToStock = () => {
                             The quantity will be added to the View Products inventory with calculated expiry and use-by dates.
                         </p>
                         <p className="mb-4 font-semibold text-gray-700">
-                            Product: {itemToAdd?.sweetName} |
+                            Product: {itemToAdd?.productName || itemToAdd?.sweetName} |
                             Quantity: {itemToAdd?.quantity} {itemToAdd?.unit}
                         </p>
 
