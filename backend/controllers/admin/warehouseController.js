@@ -965,6 +965,14 @@ const updateBeforePackingStatus = async (req, res) => {
             return res.status(404).json({ message: 'Before Packing item not found' });
         }
 
+        // Auto-heal legacy items missing fields
+        if (!item.productName && item.sweetName) {
+            item.productName = item.sweetName;
+        }
+        if (item.totalQuantity === undefined) {
+            item.totalQuantity = item.quantity + (item.completedQuantity || 0);
+        }
+
         // Prevent changing status from Completed back to Pending
         if (item.status === 'Completed' && (status === 'Pending' || status === 'Partial')) {
             return res.status(400).json({ message: 'Cannot change status from Completed back' });
@@ -977,8 +985,13 @@ const updateBeforePackingStatus = async (req, res) => {
             // Determine how much is being completed now
             if (completedQty && Number(completedQty) > 0) {
                 actualCompletedQty = Number(completedQty);
-                if (actualCompletedQty > item.quantity) {
+                // Handle JS floating point precision issues
+                if (actualCompletedQty > item.quantity + 0.0001) {
                     return res.status(400).json({ message: `Cannot complete more than remaining quantity (${item.quantity} ${item.unit})` });
+                }
+                // Cap it at actual quantity just in case it's slightly higher due to precision
+                if (actualCompletedQty > item.quantity) {
+                    actualCompletedQty = item.quantity;
                 }
             } else if (status === 'Completed') {
                 // If status is 'Completed' but no qty provided, complete the remaining
@@ -1010,6 +1023,10 @@ const updateBeforePackingStatus = async (req, res) => {
             // Update Before Packing item fields
             item.completedQuantity = (item.completedQuantity || 0) + actualCompletedQty;
             item.quantity -= actualCompletedQty;
+
+            // Prevent negative quantities due to float precision
+            if (item.quantity < 0.0001) item.quantity = 0;
+
             item.status = newStatus;
             if (newStatus === 'Completed') {
                 item.completedAt = new Date();

@@ -7,7 +7,12 @@ const beforePackingSchema = new mongoose.Schema({
     },
     productName: {
         type: String,
-        required: true
+        required: false
+    },
+    // Legacy support
+    sweetName: {
+        type: String,
+        required: false
     },
     quantity: { // This will represent the REMAINING quantity
         type: Number,
@@ -16,7 +21,7 @@ const beforePackingSchema = new mongoose.Schema({
     },
     totalQuantity: { // This will represent the INITIAL quantity
         type: Number,
-        required: true,
+        required: false,
         min: 0
     },
     completedQuantity: { // This will represent the TOTAL completed quantity so far
