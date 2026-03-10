@@ -7,7 +7,12 @@ const afterPackingSchema = new mongoose.Schema({
     },
     productName: {
         type: String,
-        required: true
+        required: false
+    },
+    // Legacy support
+    sweetName: {
+        type: String,
+        required: false
     },
     quantity: {
         type: Number,

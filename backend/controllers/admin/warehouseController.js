@@ -969,9 +969,13 @@ const updateBeforePackingStatus = async (req, res) => {
         if (!item.productName && item.sweetName) {
             item.productName = item.sweetName;
         }
-        if (item.totalQuantity === undefined) {
+        if (item.totalQuantity === undefined || item.totalQuantity === null) {
             item.totalQuantity = item.quantity + (item.completedQuantity || 0);
         }
+        if (!item.scheduleId) item.scheduleId = 'LEGACY_UNKNOWN';
+        if (!item.unit) item.unit = 'unit';
+        if (item.price === undefined || item.price === null) item.price = 0;
+        if (!item.date) item.date = new Date();
 
         // Prevent changing status from Completed back to Pending
         if (item.status === 'Completed' && (status === 'Pending' || status === 'Partial')) {
@@ -1009,11 +1013,11 @@ const updateBeforePackingStatus = async (req, res) => {
 
             // Add to After Packing
             const afterPackingItem = new AfterPacking({
-                scheduleId: item.scheduleId,
-                productName: item.productName || item.sweetName,
-                quantity: actualCompletedQty,
-                unit: item.unit,
-                price: item.price,
+                scheduleId: item.scheduleId || 'LEGACY_UNKNOWN',
+                productName: item.productName || item.sweetName || 'Unknown Product',
+                quantity: actualCompletedQty || 0,
+                unit: item.unit || 'unit',
+                price: item.price || 0,
                 date: new Date(),
                 description: `Moved from Before Packing (${newStatus}) - ${item.description || ''}`
             });
