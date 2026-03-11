@@ -48,8 +48,8 @@ const workerSchema = new mongoose.Schema({
     endTime: String
   },
   breakTime: {
-    startTime: String,
-    endTime: String
+    from: String,
+    to: String
   },
   // Add batchId field to store the batch association
   batchId: {

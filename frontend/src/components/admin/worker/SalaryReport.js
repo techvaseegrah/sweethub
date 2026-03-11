@@ -12,14 +12,14 @@ const SalaryReport = () => {
     const [batches, setBatches] = useState({}); // Store batch information
     const [holidays, setHolidays] = useState([]); // Store holiday information
     const [generatedReport, setGeneratedReport] = useState(null);
-    
+
     // State for Add Incentive Modal
     const [showIncentiveModal, setShowIncentiveModal] = useState(false);
     const [selectedWorkerForIncentive, setSelectedWorkerForIncentive] = useState(null);
     const [incentiveAmount, setIncentiveAmount] = useState('');
     const [incentiveMonth, setIncentiveMonth] = useState(new Date().getMonth() + 1); // Default to current month
     const [incentiveYear, setIncentiveYear] = useState(new Date().getFullYear());
-    
+
     // State for Generate Report Modal
     const [showReportModal, setShowReportModal] = useState(false);
     const [selectedWorkerForReport, setSelectedWorkerForReport] = useState(null);
@@ -36,25 +36,25 @@ const SalaryReport = () => {
                 // Fetch workers
                 const workersResponse = await axios.get('/admin/workers');
                 console.log('Workers data:', workersResponse.data); // Debug log
-                
+
                 // Fetch batch settings
                 const batchesResponse = await axios.get('/admin/settings/batches');
                 console.log('Batches data:', batchesResponse.data); // Debug log
-                
+
                 // Fetch holidays
                 const holidaysResponse = await axios.get('/admin/holidays');
                 console.log('Holidays data:', holidaysResponse.data); // Debug log
-                
+
                 // Create a map of batch ID to batch name
                 const batchMap = {};
                 batchesResponse.data.forEach(batch => {
                     batchMap[batch.id] = batch.name || `Batch ${batch.id}`;
                 });
                 setBatches(batchMap);
-                
+
                 // Set holidays
                 setHolidays(holidaysResponse.data);
-                
+
                 setWorkers(workersResponse.data);
                 setFilteredWorkers(workersResponse.data);
             } catch (err) {
@@ -82,7 +82,7 @@ const SalaryReport = () => {
             const department = worker.department?.name?.toLowerCase() || '';
             // Search by working hours
             const workingHours = formatWorkingHours(worker)?.toLowerCase() || '';
-            
+
             return (
                 name.includes(searchTerm.toLowerCase()) ||
                 employeeId.includes(searchTerm.toLowerCase()) ||
@@ -102,7 +102,7 @@ const SalaryReport = () => {
         if (worker.batchId && batches[worker.batchId]) {
             return batches[worker.batchId];
         }
-        
+
         // If no direct batchId, we could try to match by working hours
         // This is a simplified example - you would need more robust matching logic
         return 'N/A';
@@ -140,15 +140,15 @@ const SalaryReport = () => {
                 month: incentiveMonth,
                 year: incentiveYear
             });
-            
+
             setSuccess(`Incentive of ₹${incentiveAmount} added for ${selectedWorkerForIncentive.name}`);
             setShowIncentiveModal(false);
-            
+
             // Refresh the worker list to get updated incentive data
             const workersResponse = await axios.get('/admin/workers');
             setWorkers(workersResponse.data);
             setFilteredWorkers(workersResponse.data);
-            
+
             // Clear success message after 3 seconds
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
@@ -174,183 +174,200 @@ const SalaryReport = () => {
     // Generate Salary Report
     const generateSalaryReport = async () => {
         if (!selectedWorkerForReport) return;
-        
+
         setGeneratingReport(true);
         setError('');
-        
+
         try {
-            // In a real implementation, you would call an API endpoint to generate the report
-            // For now, we'll mock the data in the format you've shown
-            const currentDate = new Date(reportYear, reportMonth - 1, 1);
+            // Fetch real attendance data for the selected worker and month
+            const attendanceResponse = await axios.get(`/admin/attendance/monthly/${reportYear}/${reportMonth}?workerId=${selectedWorkerForReport._id}`);
+
+            // The response for a single worker will be an array with one element (or empty if no worker found)
+            const workerData = attendanceResponse.data.find(w => w._id === selectedWorkerForReport._id);
+            const attendanceRecords = workerData?.attendance || [];
+
             const daysInMonth = new Date(reportYear, reportMonth, 0).getDate();
-            
-            // Generate mock daily data
+
+            // Map attendance records to their respective days
+            const attendanceMap = {};
+            attendanceRecords.forEach(record => {
+                const date = new Date(record.checkIn);
+                const day = date.getDate();
+                if (!attendanceMap[day]) {
+                    attendanceMap[day] = [];
+                }
+                attendanceMap[day].push(record);
+            });
+
+            // Prepare summary counters
             const dailyData = [];
             let totalWorkingDays = 0;
             let totalAbsentDays = 0;
             let totalHolidays = 0;
             let totalSundays = 0;
-            let totalWorkingHours = 0;
-            let totalPermissionTime = 0;
-            let totalDeductions = 0;
-            
-            // Generate data for each day of the month
+            let totalWorkingMinutes = 0;
+            let totalPermissionMinutes = 0;
+            let totalDelayDeductions = 0;
+
+            // Per day salary calculation (assuming 26 working days)
+            const baseSalary = parseFloat(selectedWorkerForReport.salary) || 0;
+            const workingDaysInMonth = 26;
+            const perDaySalary = baseSalary / workingDaysInMonth;
+            const perMinuteSalary = perDaySalary / 480; // Assuming 8 hours = 480 minutes
+
+            // Get current date for checking if a day is in the past or future
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth() + 1;
+            const currentDay = today.getDate();
+
+            // Process each day of the month
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(reportYear, reportMonth - 1, day);
                 const dayOfWeek = date.getDay();
                 const isSunday = dayOfWeek === 0;
-                const isHoliday = Math.random() > 0.95; // 5% chance of being a holiday for demo
-                
-                // Determine status
-                let status = 'Present';
+
+                // Check if this date is a holiday
+                const isHoliday = holidays.find(h => {
+                    const hDate = new Date(h.date);
+                    return hDate.getDate() === day && hDate.getMonth() === (reportMonth - 1) && hDate.getFullYear() === reportYear;
+                });
+
+                const dayRecords = attendanceMap[day] || [];
+                const isFutureDate = (reportYear > currentYear) ||
+                    (reportYear === currentYear && reportMonth > currentMonth) ||
+                    (reportYear === currentYear && reportMonth === currentMonth && day > currentDay);
+
+                let status = 'Absent';
+                let inTime = '-';
+                let outTime = '-';
+                let dayDeduction = 0;
+                let dayWorkingMinutes = 0;
+                let dayPermissionMinutes = 0;
+
+                // Calculate total working minutes for the day to check threshold
+                if (dayRecords.length > 0) {
+                    dayRecords.forEach(record => {
+                        dayWorkingMinutes += (record.workingDuration || 0);
+                        dayPermissionMinutes += (record.totalPermissionTime || 0);
+                    });
+                }
+
                 if (isSunday) {
                     status = 'Sunday';
+                    totalSundays++;
                 } else if (isHoliday) {
                     status = 'Holiday';
-                } else if (Math.random() > 0.8) { // 20% chance of being absent
-                    status = 'Absent';
-                }
-                
-                // Calculate values based on status
-                if (status === 'Present') {
-                    totalWorkingDays++;
-                    
-                    // Generate mock times
-                    const inTime = new Date(date);
-                    inTime.setHours(9, 30, 0, 0);
-                    
-                    const outTime = new Date(date);
-                    outTime.setHours(18, 30, 0, 0);
-                    
-                    // Add some randomness to times
-                    inTime.setMinutes(inTime.getMinutes() + Math.floor(Math.random() * 20));
-                    outTime.setMinutes(outTime.getMinutes() - Math.floor(Math.random() * 20));
-                    
-                    // Calculate delay time (if late entry)
-                    const scheduledInTime = new Date(date);
-                    scheduledInTime.setHours(9, 0, 0, 0);
-                    const delayMinutes = Math.max(0, (inTime - scheduledInTime) / (1000 * 60));
-                    
-                    // Mock delay deduction (₹0.62 per minute as in your example)
-                    const delayDeduction = delayMinutes * 0.6173;
-                    
-                    // Calculate working time
-                    const workingTimeMs = outTime - inTime;
-                    const workingHours = workingTimeMs / (1000 * 60 * 60);
-                    
-                    dailyData.push({
-                        date: date.getDate(),
-                        status,
-                        inTime: inTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        outTime: outTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        delayTime: delayMinutes > 0 ? `${Math.round(delayMinutes)} mins` : '-',
-                        delayDeduction: delayDeduction > 0 ? `₹${delayDeduction.toFixed(2)}` : '₹0.00'
-                    });
-                    
-                    totalWorkingHours += workingHours;
-                    totalPermissionTime += 0; // Simplified for demo
-                    totalDeductions += delayDeduction;
-                } else if (status === 'Absent') {
-                    totalAbsentDays++;
-                    dailyData.push({
-                        date: date.getDate(),
-                        status,
-                        inTime: 'Absent',
-                        outTime: 'Absent',
-                        delayTime: '-',
-                        delayDeduction: '₹333.33' // Full day deduction
-                    });
-                    totalDeductions += 333.33;
-                } else if (status === 'Holiday') {
                     totalHolidays++;
-                    dailyData.push({
-                        date: date.getDate(),
-                        status,
-                        inTime: '-',
-                        outTime: '-',
-                        delayTime: '-',
-                        delayDeduction: '₹0.00'
-                    });
-                } else if (status === 'Sunday') {
-                    totalSundays++;
-                    dailyData.push({
-                        date: date.getDate(),
-                        status,
-                        inTime: '-',
-                        outTime: '-',
-                        delayTime: '-',
-                        delayDeduction: '₹0.00'
-                    });
+                } else if (dayRecords.length > 0 && dayWorkingMinutes >= 1) { // At least 1 minute of work
+                    status = 'Present';
+                    totalWorkingDays++;
+
+                    // Format all punch times for display
+                    const sortedRecords = [...dayRecords].sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+                    
+                    const punchInTimes = sortedRecords
+                        .filter(record => record.checkIn)
+                        .map(record => new Date(record.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                    
+                    const punchOutTimes = sortedRecords
+                        .filter(record => record.checkOut)
+                        .map(record => new Date(record.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+
+                    inTime = punchInTimes;
+                    outTime = punchOutTimes;
+
+                    // Calculate delay deduction
+                    // If backend recorded permission time (late arrival/early leaving), use it
+                    if (dayPermissionMinutes > 0) {
+                        dayDeduction = dayPermissionMinutes * perMinuteSalary;
+                    }
+                    // Otherwise, if worked duration is less than standard 8 hours (480 mins), 
+                    // calculate deduction based on missing time. This serves as a fallback 
+                    // if shifts are not properly configured or for legacy records.
+                    else if (dayWorkingMinutes < 480) {
+                        dayDeduction = (480 - dayWorkingMinutes) * perMinuteSalary;
+                    }
+
+                    totalWorkingMinutes += dayWorkingMinutes;
+                    totalPermissionMinutes += dayPermissionMinutes;
+                    totalDelayDeductions += dayDeduction;
+                } else if (isFutureDate) {
+                    status = '-';
+                    inTime = '-';
+                    outTime = '-';
+                } else {
+                    status = 'Absent';
+                    totalAbsentDays++;
+                    dayDeduction = perDaySalary;
+                    
+                    // If there were records but not enough duration, show the times anyway
+                    if (dayRecords.length > 0) {
+                        const sortedRecords = [...dayRecords].sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
+                        inTime = sortedRecords.filter(r => r.checkIn).map(r => new Date(r.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                        outTime = sortedRecords.filter(r => r.checkOut).map(r => new Date(r.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                    }
                 }
+
+                dailyData.push({
+                    date: day,
+                    status,
+                    inTime,
+                    outTime,
+                    delayTime: status === 'Present' ? (dayPermissionMinutes > 0 ? `${dayPermissionMinutes.toFixed(2)} mins` : '-') : '-',
+                    delayDeduction: dayDeduction > 0 ? `₹${dayDeduction.toFixed(2)}` : '₹0.00',
+                    dayWorkingMinutes // Store for later if needed
+                });
             }
-            
-            // Calculate salary details
-            const originalSalary = parseFloat(selectedWorkerForReport.salary) || 0;
-            const totalDaysInPeriod = daysInMonth;
-            const actualWorkingDays = totalWorkingDays; // Simplified for demo
-            
-            // Calculate per day salary
-            const totalWorkingDaysForCalc = 25; // Example: 30 days - 5 Sundays
-            const perDaySalary = originalSalary / totalWorkingDaysForCalc;
-            
-            // Calculate per minute salary (assuming 8 hours per day = 480 minutes)
-            const perMinuteSalary = perDaySalary / 480;
-            
-            // Calculate actual earned salary
-            const absentDeduction = totalAbsentDays * (originalSalary / totalWorkingDaysForCalc);
-            const permissionDeduction = totalPermissionTime * perMinuteSalary;
-            const totalFinalDeductions = totalDeductions + absentDeduction + permissionDeduction;
-            const actualEarnedSalary = originalSalary - totalFinalDeductions;
-            
-            // Add total salary for day to each daily entry
+
+            // Calculate final results
+            const absentDeduction = totalAbsentDays * perDaySalary;
+            const totalFinalDeductions = totalDelayDeductions + absentDeduction;
+            const actualEarnedSalary = Math.max(0, baseSalary - totalFinalDeductions);
+
+            // Add total daily salary to entries
             const dailyDataWithSalary = dailyData.map(entry => {
                 let totalSalaryForDay = 0;
-                
                 if (entry.status === 'Present') {
-                    // For present days, calculate per day salary minus delay deductions
-                    const delayDeductionValue = parseFloat(entry.delayDeduction.replace('₹', '')) || 0;
-                    totalSalaryForDay = perDaySalary - delayDeductionValue;
-                } else if (entry.status === 'Absent') {
-                    // For absent days, no salary
-                    totalSalaryForDay = 0;
-                } else if (entry.status === 'Holiday' || entry.status === 'Sunday') {
-                    // For holidays and Sundays, full per day salary (paid leave)
-                    totalSalaryForDay = perDaySalary;
+                    const deduction = parseFloat(entry.delayDeduction.replace('₹', '')) || 0;
+                    totalSalaryForDay = perDaySalary - deduction;
+                } else if (entry.status === 'Sunday' || entry.status === 'Holiday') {
+                    totalSalaryForDay = perDaySalary; // Paid days
                 }
-                
+
                 return {
                     ...entry,
-                    totalSalaryForDay: `₹${totalSalaryForDay.toFixed(2)}`
+                    totalSalaryForDay: `₹${Math.max(0, totalSalaryForDay).toFixed(2)}`
                 };
             });
-            
+
             setGeneratedReport({
                 worker: selectedWorkerForReport,
                 month: reportMonth,
                 year: reportYear,
                 summary: {
-                    employeeId: selectedWorkerForReport.user?.username || 'N/A',
-                    originalSalary: `₹${originalSalary.toFixed(2)}`,
+                    employeeId: selectedWorkerForReport.rfid || 'N/A',
+                    originalSalary: `₹${baseSalary.toFixed(2)}`,
                     actualEarnedSalary: `₹${actualEarnedSalary.toFixed(2)}`,
                     totalFinalSalary: `₹${actualEarnedSalary.toFixed(2)}`,
-                    totalDaysInPeriod,
+                    totalDaysInPeriod: daysInMonth,
                     totalWorkingDays,
                     totalAbsentDays,
                     totalHolidays,
                     totalSundays,
-                    actualWorkingDays,
-                    totalWorkingHours: totalWorkingHours.toFixed(2),
-                    totalPermissionTime: totalPermissionTime.toFixed(2),
+                    actualWorkingDays: totalWorkingDays,
+                    totalWorkingHours: (totalWorkingMinutes / 60).toFixed(2),
+                    totalPermissionTime: totalPermissionMinutes.toFixed(2),
                     absentDeduction: `₹${absentDeduction.toFixed(2)}`,
-                    permissionDeduction: `₹${permissionDeduction.toFixed(2)}`,
+                    permissionDeduction: `₹${totalDelayDeductions.toFixed(2)}`,
                     totalDeductions: `₹${totalFinalDeductions.toFixed(2)}`,
-                    attendanceRate: `${((totalWorkingDays / totalDaysInPeriod) * 100).toFixed(2)}%`,
+                    attendanceRate: `${daysInMonth > 0 ? ((totalWorkingDays / (daysInMonth - totalSundays)) * 100).toFixed(2) : 0}%`,
                     perMinuteSalary: `₹${perMinuteSalary.toFixed(4)}`
                 },
                 dailyData: dailyDataWithSalary
             });
         } catch (err) {
-            setError('Failed to generate salary report');
+            setError('Failed to generate salary report: ' + (err.response?.data?.message || err.message));
             console.error('Salary report error:', err);
         } finally {
             setGeneratingReport(false);
@@ -389,7 +406,7 @@ const SalaryReport = () => {
                 <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
                     <div className="p-6">
                         <h3 className="text-lg font-medium text-gray-900 mb-4">Add Incentive</h3>
-                        
+
                         {selectedWorkerForIncentive && (
                             <div className="mb-4">
                                 <p className="text-gray-700">
@@ -397,7 +414,7 @@ const SalaryReport = () => {
                                 </p>
                             </div>
                         )}
-                        
+
                         <div className="mb-4">
                             <label className="block text-gray-700 text-sm font-bold mb-2">
                                 Month
@@ -414,7 +431,7 @@ const SalaryReport = () => {
                                 ))}
                             </select>
                         </div>
-                        
+
                         <div className="mb-4">
                             <label className="block text-gray-700 text-sm font-bold mb-2">
                                 Year
@@ -428,7 +445,7 @@ const SalaryReport = () => {
                                 max="2030"
                             />
                         </div>
-                        
+
                         <div className="mb-6">
                             <label className="block text-gray-700 text-sm font-bold mb-2">
                                 Incentive Amount (₹)
@@ -444,7 +461,7 @@ const SalaryReport = () => {
                                 autoFocus
                             />
                         </div>
-                        
+
                         <div className="flex justify-end space-x-3">
                             <button
                                 type="button"
@@ -468,7 +485,6 @@ const SalaryReport = () => {
         );
     };
 
-    // Salary Report Modal Component
     const ReportModal = () => {
         if (!showReportModal) return null;
 
@@ -487,129 +503,189 @@ const SalaryReport = () => {
                                 </svg>
                             </button>
                         </div>
-                        
+
+                        {selectedWorkerForReport && (
+                            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <p className="text-sm text-gray-600">Employee</p>
+                                        <p className="font-medium">{selectedWorkerForReport.name}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Period</p>
+                                        <p className="font-medium">{getMonthName(reportMonth)} {reportYear}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Employee ID</p>
+                                        <p className="font-medium">{generatedReport?.summary?.employeeId || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 flex space-x-3">
+                                    <div>
+                                        <label className="block text-sm text-gray-600 mb-1">Month</label>
+                                        <select
+                                            value={reportMonth}
+                                            onChange={(e) => setReportMonth(parseInt(e.target.value))}
+                                            className="px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
+                                                <option key={month} value={month}>
+                                                    {getMonthName(month)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm text-gray-600 mb-1">Year</label>
+                                        <select
+                                            value={reportYear}
+                                            onChange={(e) => setReportYear(parseInt(e.target.value))}
+                                            className="px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            {[2022, 2023, 2024, 2025, 2026].map(year => (
+                                                <option key={year} value={year}>{year}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="self-end">
+                                        <button
+                                            onClick={generateSalaryReport}
+                                            className="px-4 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none text-sm"
+                                        >
+                                            Generate
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {generatingReport && (
                             <div className="text-center py-4">
                                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                                 <p className="mt-2 text-gray-600">Generating report...</p>
                             </div>
                         )}
-                        
-                        {generatedReport && (
-                            <div className="space-y-6">
+
+                        {generatedReport && !generatingReport && (
+                            <div>
                                 {/* Summary Section */}
-                                <div className="border border-gray-200 rounded-lg p-4">
-                                    <h4 className="text-md font-semibold text-gray-800 mb-3">Summary</h4>
+                                <div className="mb-6">
+                                    <h4 className="text-md font-medium text-gray-900 mb-3">Salary Summary</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        <div>
-                                            <p className="text-sm text-gray-600">Employee ID</p>
-                                            <p className="font-medium">{generatedReport.summary.employeeId}</p>
-                                        </div>
-                                        <div>
+                                        <div className="p-3 bg-blue-50 rounded-lg">
                                             <p className="text-sm text-gray-600">Original Salary</p>
-                                            <p className="font-medium">{generatedReport.summary.originalSalary}</p>
+                                            <p className="text-lg font-bold text-blue-700">{generatedReport.summary.originalSalary}</p>
                                         </div>
-                                        <div>
-                                            <p className="text-sm text-gray-600">Actual Earned Salary</p>
-                                            <p className="font-medium text-green-600">{generatedReport.summary.actualEarnedSalary}</p>
+                                        <div className="p-3 bg-green-50 rounded-lg">
+                                            <p className="text-sm text-gray-600">Actual Earned</p>
+                                            <p className="text-lg font-bold text-green-700">{generatedReport.summary.actualEarnedSalary}</p>
                                         </div>
-                                        <div>
-                                            <p className="text-sm text-gray-600">Total Final Salary</p>
-                                            <p className="font-medium text-blue-600">{generatedReport.summary.totalFinalSalary}</p>
+                                        <div className="p-3 bg-yellow-50 rounded-lg">
+                                            <p className="text-sm text-gray-600">Total Deductions</p>
+                                            <p className="text-lg font-bold text-yellow-700">{generatedReport.summary.totalDeductions}</p>
+                                        </div>
+                                        <div className="p-3 bg-purple-50 rounded-lg">
+                                            <p className="text-sm text-gray-600">Attendance Rate</p>
+                                            <p className="text-lg font-bold text-purple-700">{generatedReport.summary.attendanceRate}</p>
                                         </div>
                                     </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
+                                </div>
+
+                                {/* Detailed Summary */}
+                                <div className="mb-6">
+                                    <h4 className="text-md font-medium text-gray-900 mb-3">Detailed Summary</h4>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                         <div>
-                                            <p className="text-sm text-gray-600">Total Days</p>
+                                            <p className="text-gray-600">Total Days</p>
                                             <p className="font-medium">{generatedReport.summary.totalDaysInPeriod}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-gray-600">Working Days</p>
+                                            <p className="text-gray-600">Working Days</p>
                                             <p className="font-medium">{generatedReport.summary.totalWorkingDays}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-gray-600">Absent Days</p>
+                                            <p className="text-gray-600">Absent Days</p>
                                             <p className="font-medium">{generatedReport.summary.totalAbsentDays}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-gray-600">Holidays</p>
+                                            <p className="text-gray-600">Holidays</p>
                                             <p className="font-medium">{generatedReport.summary.totalHolidays}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-gray-600">Sundays</p>
+                                            <p className="text-gray-600">Sundays</p>
                                             <p className="font-medium">{generatedReport.summary.totalSundays}</p>
                                         </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                                         <div>
-                                            <p className="text-sm text-gray-600">Actual Working Days</p>
-                                            <p className="font-medium">{generatedReport.summary.actualWorkingDays}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-gray-600">Working Hours</p>
+                                            <p className="text-gray-600">Working Hours</p>
                                             <p className="font-medium">{generatedReport.summary.totalWorkingHours} hrs</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-gray-600">Permission Time</p>
-                                            <p className="font-medium">{generatedReport.summary.totalPermissionTime} mins</p>
+                                            <p className="text-gray-600">Permission Time (min)</p>
+                                            <p className="font-medium">{generatedReport.summary.totalPermissionTime}</p>
                                         </div>
                                         <div>
-                                            <p className="text-sm text-gray-600">Attendance Rate</p>
-                                            <p className="font-medium">{generatedReport.summary.attendanceRate}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                                        <div>
-                                            <p className="text-sm text-gray-600">Absent Deduction</p>
-                                            <p className="font-medium text-red-600">{generatedReport.summary.absentDeduction}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-gray-600">Permission Deduction</p>
-                                            <p className="font-medium text-red-600">{generatedReport.summary.permissionDeduction}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-gray-600">Total Deductions</p>
-                                            <p className="font-medium text-red-600">{generatedReport.summary.totalDeductions}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-gray-600">Per Minute Salary</p>
+                                            <p className="text-gray-600">Per Minute Salary</p>
                                             <p className="font-medium">{generatedReport.summary.perMinuteSalary}</p>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                {/* Daily Breakdown Table */}
-                                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                                    <h4 className="text-md font-semibold text-gray-800 p-4 bg-gray-50">Daily Breakdown</h4>
+
+                                {/* Daily Data Table */}
+                                <div>
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="text-md font-medium text-gray-900">Daily Attendance</h4>
+                                        <button
+                                            onClick={downloadPDFReport}
+                                            className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none text-sm flex items-center"
+                                        >
+                                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                            </svg>
+                                            Download PDF
+                                        </button>
+                                    </div>
+
                                     <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-gray-200">
-                                            <thead className="bg-gray-50">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">In Time</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Out Time</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delay Time</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delay Deduction</th>
-                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Salary for Day</th>
+                                        <table className="min-w-full bg-white border border-gray-200">
+                                            <thead>
+                                                <tr className="bg-gray-100">
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">In Time</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Out Time</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Delay</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Deduction</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Salary</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="bg-white divide-y divide-gray-200">
-                                                {generatedReport.dailyData.map((entry, index) => (
-                                                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{entry.date} {new Date(generatedReport.year, generatedReport.month - 1, entry.date).toLocaleDateString('en-US', { month: 'long' })}</td>
-                                                        <td className={`px-4 py-3 text-sm ${
-                                                            entry.status === 'Present' ? 'text-green-600' : 
-                                                            entry.status === 'Absent' ? 'text-red-600' : 
-                                                            'text-blue-600'
-                                                        }`}>
+                                            <tbody>
+                                                 {generatedReport.dailyData.map((entry, index) => (
+                                                    <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
+                                                        <td className="px-4 py-3 text-sm text-gray-900">{entry.date} {getMonthName(generatedReport.month)}</td>
+                                                        <td className={`px-4 py-3 text-sm font-medium ${entry.status === 'Present' ? 'text-green-600' :
+                                                            entry.status === 'Absent' ? 'text-red-600' :
+                                                                entry.status === 'Holiday' || entry.status === 'Sunday' ? 'text-blue-600' :
+                                                                    'text-yellow-600'
+                                                            }`}>
                                                             {entry.status}
                                                         </td>
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{entry.inTime}</td>
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{entry.outTime}</td>
+                                                        <td className="px-4 py-3 text-sm text-green-600 font-medium">
+                                                            {Array.isArray(entry.inTime) ? (
+                                                                <div className="flex flex-col">
+                                                                    {entry.inTime.map((time, i) => <span key={i}>{time}</span>)}
+                                                                </div>
+                                                            ) : entry.inTime}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-sm text-red-600 font-medium">
+                                                            {Array.isArray(entry.outTime) ? (
+                                                                <div className="flex flex-col">
+                                                                    {entry.outTime.map((time, i) => <span key={i}>{time}</span>)}
+                                                                </div>
+                                                            ) : entry.outTime}
+                                                        </td>
                                                         <td className="px-4 py-3 text-sm text-gray-900">{entry.delayTime}</td>
                                                         <td className="px-4 py-3 text-sm text-gray-900">{entry.delayDeduction}</td>
                                                         <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.totalSalaryForDay}</td>
@@ -621,8 +697,7 @@ const SalaryReport = () => {
                                 </div>
                             </div>
                         )}
-                        
-                        {/* Show message if no report is generated and not loading */}
+
                         {!generatingReport && !generatedReport && (
                             <div className="text-center py-4 text-gray-500">
                                 <p>Select a worker and generate a report to view details.</p>

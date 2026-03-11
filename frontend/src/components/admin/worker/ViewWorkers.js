@@ -434,43 +434,38 @@ function ViewWorkers() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.department?.name}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.salary}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.batchId ? (
-                    <div>
+                  {(() => {
+                    const batch = worker.batchId ? batches.find(b => b.id === worker.batchId) : null;
+                    const workingHours = batch?.workingHours || worker.workingHours;
+                    const lunchBreak = batch?.lunchBreak || worker.lunchBreak;
+                    const breakTime = batch?.breakTime || worker.breakTime;
+                    
+                    return (
                       <div>
-                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
-                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
-                          : 'Not set'}
+                        <div>
+                          Working Hours: {workingHours?.from && workingHours?.to 
+                            ? `${formatTimeTo12Hour(workingHours.from)} - ${formatTimeTo12Hour(workingHours.to)}` 
+                            : (workingHours?.startTime && workingHours?.endTime 
+                                ? `${formatTimeTo12Hour(workingHours.startTime)} - ${formatTimeTo12Hour(workingHours.endTime)}`
+                                : 'Not set')}
+                        </div>
+                        <div>
+                          Lunch Break: {lunchBreak?.from && lunchBreak?.to 
+                            ? `${formatTimeTo12Hour(lunchBreak.from)} - ${formatTimeTo12Hour(lunchBreak.to)}` 
+                            : (lunchBreak?.startTime && lunchBreak?.endTime
+                                ? `${formatTimeTo12Hour(lunchBreak.startTime)} - ${formatTimeTo12Hour(lunchBreak.endTime)}`
+                                : 'Not set')}
+                        </div>
+                        <div>
+                          Break Time: {breakTime?.from && breakTime?.to 
+                            ? `${formatTimeTo12Hour(breakTime.from)} - ${formatTimeTo12Hour(breakTime.to)}` 
+                            : (breakTime?.startTime && breakTime?.endTime
+                                ? `${formatTimeTo12Hour(breakTime.startTime)} - ${formatTimeTo12Hour(breakTime.endTime)}`
+                                : 'Not set')}
+                        </div>
                       </div>
-                      <div>
-                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
-                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
-                          : 'Not set'}
-                      </div>
-                      <div>
-                        Break Time: {worker.breakTime?.startTime && worker.breakTime?.endTime 
-                          ? `${formatTimeTo12Hour(worker.breakTime.startTime)} - ${formatTimeTo12Hour(worker.breakTime.endTime)}` 
-                          : 'Not set'}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div>
-                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
-                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
-                          : 'Not set'}
-                      </div>
-                      <div>
-                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
-                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
-                          : 'Not set'}
-                      </div>
-                      <div>
-                        Break Time: {worker.breakTime?.startTime && worker.breakTime?.endTime 
-                          ? `${formatTimeTo12Hour(worker.breakTime.startTime)} - ${formatTimeTo12Hour(worker.breakTime.endTime)}` 
-                          : 'Not set'}
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.rfid || 'Not Assigned'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -559,9 +554,9 @@ function ViewWorkers() {
                     const batch = batches.find(b => b.id === editedWorkerData.selectedBatch);
                     return batch ? (
                       <div>
-                        <p>Working Hours: {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}</p>
-                        <p>Lunch Break: {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}</p>
-                        <p>Break Time: {batch.breakTime?.from ? formatTimeTo12Hour(batch.breakTime.from) : '--:--'} - {batch.breakTime?.to ? formatTimeTo12Hour(batch.breakTime.to) : '--:--'}</p>
+                        <p>Working Hours: {(batch.workingHours?.from || batch.workingHours?.startTime) ? formatTimeTo12Hour(batch.workingHours.from || batch.workingHours.startTime) : '--:--'} - {(batch.workingHours?.to || batch.workingHours?.endTime) ? formatTimeTo12Hour(batch.workingHours.to || batch.workingHours.endTime) : '--:--'}</p>
+                        <p>Lunch Break: {(batch.lunchBreak?.from || batch.lunchBreak?.startTime) ? formatTimeTo12Hour(batch.lunchBreak.from || batch.lunchBreak.startTime) : '--:--'} - {(batch.lunchBreak?.to || batch.lunchBreak?.endTime) ? formatTimeTo12Hour(batch.lunchBreak.to || batch.lunchBreak.endTime) : '--:--'}</p>
+                        <p>Break Time: {(batch.breakTime?.from || batch.breakTime?.startTime) ? formatTimeTo12Hour(batch.breakTime.from || batch.breakTime.startTime) : '--:--'} - {(batch.breakTime?.to || batch.breakTime?.endTime) ? formatTimeTo12Hour(batch.breakTime.to || batch.breakTime.endTime) : '--:--'}</p>
                       </div>
                     ) : null;
                   })()}

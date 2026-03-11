@@ -19,7 +19,7 @@ exports.enrollFace = async (req, res) => {
     console.log('Request body:', req.body);
     console.log('Request files:', req.files);
     console.log('Content-Type header:', req.headers['content-type']);
-    
+
     const { workerId } = req.body;
     let { faceDescriptors } = req.body;
     const files = req.files;
@@ -47,7 +47,7 @@ exports.enrollFace = async (req, res) => {
             return res.status(400).json({ message: 'Invalid faceDescriptors format. Must be valid JSON array.' });
         }
     }
-    
+
     console.log('After parsing:', {
         faceDescriptorsType: typeof faceDescriptors,
         faceDescriptors,
@@ -70,17 +70,17 @@ exports.enrollFace = async (req, res) => {
         cleanupFiles();
         return res.status(400).json({ message: 'Worker ID is required.' });
     }
-    
+
     // Check if we have face descriptors or files
     const hasFaceDescriptors = faceDescriptors && Array.isArray(faceDescriptors) && faceDescriptors.length > 0;
     const hasFiles = files && files.length > 0;
-    
+
     console.log('Validation check:', {
         hasFaceDescriptors,
         hasFiles,
         faceDescriptorsValid: hasFaceDescriptors
     });
-    
+
     if (!hasFaceDescriptors && !hasFiles) {
         cleanupFiles();
         return res.status(400).json({ message: 'Either face descriptors or face images are required.' });
@@ -89,20 +89,20 @@ exports.enrollFace = async (req, res) => {
     // Check if face recognition service is available
     if (!FACE_RECOGNITION_ENABLED) {
         cleanupFiles();
-        return res.status(503).json({ 
-            message: 'Face recognition service is currently disabled. Please use RFID attendance instead.' 
+        return res.status(503).json({
+            message: 'Face recognition service is currently disabled. Please use RFID attendance instead.'
         });
     }
 
     try {
         // For shop users, ensure the worker belongs to their shop
         let workerQuery = { _id: workerId };
-        
+
         // If this is a shop request (has shopId), ensure the worker belongs to this shop
         if (req.shopId) {
             workerQuery.shop = req.shopId;
         }
-        
+
         const worker = await Worker.findOne(workerQuery);
         if (!worker) {
             cleanupFiles();
@@ -110,15 +110,15 @@ exports.enrollFace = async (req, res) => {
         }
 
         let descriptors = [];
-        
+
         // If face descriptors are provided directly (from React), use them
         if (faceDescriptors && Array.isArray(faceDescriptors)) {
             descriptors = faceDescriptors;
         }
-        
+
         // If we have files but no descriptors, we might want to extract descriptors from files
         // But in this React-based implementation, descriptors are sent directly from frontend
-        
+
         console.log('Processing descriptors:', {
             descriptorsCount: descriptors.length,
             firstDescriptorType: descriptors.length > 0 ? typeof descriptors[0] : 'none',
@@ -133,12 +133,12 @@ exports.enrollFace = async (req, res) => {
         // Save face descriptors to the database for recognition
         if (descriptors.length > 0) {
             // Ensure descriptors are properly formatted as arrays of numbers
-            const formattedDescriptors = descriptors.map(desc => 
+            const formattedDescriptors = descriptors.map(desc =>
                 Array.isArray(desc) ? desc : Array.from(desc)
             );
             worker.faceEncodings = (worker.faceEncodings || []).concat(formattedDescriptors);
         }
-        
+
         // Handle image files if provided - store as binary data in database for display
         if (files && files.length > 0) {
             const imageDocuments = [];
@@ -146,26 +146,26 @@ exports.enrollFace = async (req, res) => {
                 if (fs.existsSync(file.path)) {
                     // Read the file as binary data
                     const imageData = fs.readFileSync(file.path);
-                    
+
                     // Create image document with binary data
                     imageDocuments.push({
                         data: imageData,
                         contentType: file.mimetype || 'image/jpeg',
                         originalName: file.originalname
                     });
-                    
+
                     // Delete the temporary file
                     fs.unlinkSync(file.path);
                 }
             }
-            
+
             // Add the binary image data to the worker's faceImages array
             worker.faceImages = (worker.faceImages || []).concat(imageDocuments);
         }
-        
+
         await worker.save();
 
-        res.status(200).json({ 
+        res.status(200).json({
             message: 'Face enrolled successfully with high-accuracy descriptors.',
             descriptorsSaved: descriptors.length
         });
@@ -181,10 +181,10 @@ exports.enrollFace = async (req, res) => {
 exports.recognizeFaceForAttendance = async (req, res) => {
     const { faceDescriptor, workerId, confidence } = req.body;
     const { file } = req;
-    
+
     // Log the incoming request for debugging
     console.log('Face recognition request received:', { faceDescriptor: !!faceDescriptor, workerId, confidence, hasFile: !!file });
-    
+
     // Check if we have either faceDescriptor (from React) or file (from traditional upload)
     if (!faceDescriptor && !file) {
         return res.status(400).json({ message: 'Face descriptor or image is required.' });
@@ -200,28 +200,28 @@ exports.recognizeFaceForAttendance = async (req, res) => {
     // Check if face recognition service is available
     if (!FACE_RECOGNITION_ENABLED) {
         cleanupFile();
-        return res.status(503).json({ 
-            message: 'Face recognition service is currently disabled. Please use RFID attendance instead.' 
+        return res.status(503).json({
+            message: 'Face recognition service is currently disabled. Please use RFID attendance instead.'
         });
     }
 
     try {
         // 1. Fetch workers with encodings, filtered to only admin workers (no shop association)
-        let workerQuery = { 
+        let workerQuery = {
             "faceEncodings.0": { "$exists": true },
             shop: { $exists: false }  // Only fetch admin workers (no shop association)
         };
-        
+
         const workersWithEncodings = await Worker.find(workerQuery).select('_id name faceEncodings lastAttendanceTime');
         console.log('Found admin workers with encodings:', workersWithEncodings.length);
-        
+
         if (!workersWithEncodings.length) {
             cleanupFile();
             return res.status(404).json({ message: 'No admin workers are enrolled for face recognition.' });
         }
 
         let descriptorToUse = faceDescriptor;
-        
+
         // If we don't have a faceDescriptor but have a file, we would normally process the file here
         // But since we're using React-based face recognition, the frontend sends descriptors directly
         if (!faceDescriptor) {
@@ -250,7 +250,7 @@ exports.recognizeFaceForAttendance = async (req, res) => {
             for (const enrolledDescriptor of worker.faceEncodings) {
                 // Calculate Euclidean distance between descriptors
                 const distance = calculateEuclideanDistance(descriptorToUse, enrolledDescriptor);
-                
+
                 if (distance < threshold && distance < bestDistance) {
                     bestDistance = distance;
                     bestMatch = worker;
@@ -268,7 +268,7 @@ exports.recognizeFaceForAttendance = async (req, res) => {
         const confidenceScore = confidence || Math.round((1 - bestDistance) * 100);
 
         console.log('Face recognized:', { worker: worker.name, confidence: confidenceScore, distance: bestDistance });
-        
+
         // Check for cooldown period (2 minutes)
         const now = new Date();
         if (worker.lastAttendanceTime && (now.getTime() - worker.lastAttendanceTime.getTime()) < 120000) {
@@ -279,12 +279,12 @@ exports.recognizeFaceForAttendance = async (req, res) => {
                 cooldown: remainingTime
             });
         }
-        
+
         // Use the unified attendance handler
         const result = await handleAttendancePunch(workerIdMatch);
-        
+
         cleanupFile();
-        
+
         res.json({
             ...result,
             confidence: confidenceScore,
@@ -303,7 +303,7 @@ function calculateEuclideanDistance(desc1, desc2) {
     if (!desc1 || !desc2 || desc1.length !== desc2.length) {
         return Infinity;
     }
-    
+
     let sum = 0;
     for (let i = 0; i < desc1.length; i++) {
         const diff = desc1[i] - desc2[i];
@@ -339,7 +339,7 @@ const handleAttendancePunch = async (workerId) => {
         const attendanceDetails = calculateAttendanceDetails(
             todaysIncompleteRecord.checkIn,
             todaysIncompleteRecord.checkOut,
-            worker.shift
+            worker
         );
 
         // Update record with calculated details
@@ -385,27 +385,27 @@ exports.recordRFIDAttendance = async (req, res) => {
     }
 
     if (!rfid) {
-      return res.status(400).json({ message: 'RFID is required.' });
+        return res.status(400).json({ message: 'RFID is required.' });
     }
 
     try {
-      // Find worker by RFID and ensure they are an admin worker (no shop association)
-      const worker = await Worker.findOne({ rfid, shop: { $exists: false } });
-      if (!worker) {
-        return res.status(404).json({ message: 'No admin worker found with this RFID.' });
-      }
+        // Find worker by RFID and ensure they are an admin worker (no shop association)
+        const worker = await Worker.findOne({ rfid, shop: { $exists: false } });
+        if (!worker) {
+            return res.status(404).json({ message: 'No admin worker found with this RFID.' });
+        }
 
-      // Use the unified attendance handler
-      const result = await handleAttendancePunch(worker._id);
-      
-      res.json({
-          ...result,
-          rfid: worker.rfid
-      });
+        // Use the unified attendance handler
+        const result = await handleAttendancePunch(worker._id);
+
+        res.json({
+            ...result,
+            rfid: worker.rfid
+        });
 
     } catch (error) {
-      console.error('Database error:', error);
-      res.status(500).json({ message: 'Server error.' });
+        console.error('Database error:', error);
+        res.status(500).json({ message: 'Server error.' });
     }
 };
 
@@ -457,11 +457,11 @@ exports.getFaceRecognitionStatus = async (req, res) => {
                 'Confidence scoring for matches'
             ]
         };
-        
+
         res.json(status);
     } catch (error) {
         console.error('Error checking face recognition status:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             message: 'Unable to check service status',
             enabled: false,
             serviceReady: false,
@@ -471,108 +471,138 @@ exports.getFaceRecognitionStatus = async (req, res) => {
 };
 
 // Helper function to calculate working duration and permissions for a single in-out pair
-const calculateAttendanceDetails = (checkIn, checkOut, shiftDetails) => {
-  if (!checkIn || !checkOut) {
-    return {
-      workingDuration: 0,
-      lateArrival: 0,
-      earlyLeaving: 0,
-      totalPermissionTime: 0,
-      overtime: 0
-    };
-  }
+const calculateAttendanceDetails = (checkIn, checkOut, worker) => {
+    if (!checkIn || !checkOut) {
+        return {
+            workingDuration: 0,
+            lateArrival: 0,
+            earlyLeaving: 0,
+            totalPermissionTime: 0,
+            overtime: 0
+        };
+    }
 
-  // Convert to moment objects for easier manipulation
-  const checkInTime = new Date(checkIn);
-  const checkOutTime = new Date(checkOut);
-  
-  // Calculate working duration in minutes
-  const durationInMs = checkOutTime.getTime() - checkInTime.getTime();
-  const workingDuration = Math.floor(durationInMs / (1000 * 60)); // Convert to minutes
-  
-  let lateArrival = 0;
-  let earlyLeaving = 0;
-  let overtime = 0;
-  
-  // If shift details are provided, calculate permissions
-  if (shiftDetails && shiftDetails.startTime && shiftDetails.endTime) {
-    const [shiftStartHours, shiftStartMinutes] = shiftDetails.startTime.split(':').map(Number);
-    const [shiftEndHours, shiftEndMinutes] = shiftDetails.endTime.split(':').map(Number);
-    
-    // Create shift start and end times for the same day as checkIn
-    const shiftStartDate = new Date(checkInTime);
-    shiftStartDate.setHours(shiftStartHours, shiftStartMinutes, 0, 0);
-    
-    const shiftEndDate = new Date(checkInTime);
-    shiftEndDate.setHours(shiftEndHours, shiftEndMinutes, 0, 0);
-    
-    // Calculate late arrival (if checkIn is after shift start)
-    if (checkInTime > shiftStartDate) {
-      const lateMs = checkInTime.getTime() - shiftStartDate.getTime();
-      lateArrival = Math.floor(lateMs / (1000 * 60));
+    // Convert to dates
+    const checkInTime = new Date(checkIn);
+    const checkOutTime = new Date(checkOut);
+
+    // Calculate working duration in minutes (using float for precision)
+    const durationInMs = checkOutTime.getTime() - checkInTime.getTime();
+    const workingDuration = parseFloat((durationInMs / (1000 * 60)).toFixed(2)); // Convert to minutes with 2 decimal precision
+
+    let lateArrival = 0;
+    let earlyLeaving = 0;
+    let overtime = 0;
+
+    // Use shift details if available, otherwise fall back to workingHours
+    let startTime = null;
+    let endTime = null;
+
+    if (worker) {
+        if (worker.shift && worker.shift.startTime && worker.shift.endTime) {
+            startTime = worker.shift.startTime;
+            endTime = worker.shift.endTime;
+        } else if (worker.workingHours && worker.workingHours.from && worker.workingHours.to) {
+            startTime = worker.workingHours.from;
+            endTime = worker.workingHours.to;
+        }
     }
-    
-    // Calculate early leaving (if checkOut is before shift end)
-    if (checkOutTime < shiftEndDate) {
-      const earlyMs = shiftEndDate.getTime() - checkOutTime.getTime();
-      earlyLeaving = Math.floor(earlyMs / (1000 * 60));
+
+    // If start and end times are available, calculate permissions
+    if (startTime && endTime) {
+        const parseTime = (timeStr) => {
+            if (!timeStr) return [0, 0];
+            // Handle both "09:00" and "09:00 AM" formats
+            const match = timeStr.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
+            if (!match) return [0, 0];
+            
+            let hours = parseInt(match[1], 10);
+            let minutes = parseInt(match[2], 10);
+            const modifier = match[3] ? match[3].toUpperCase() : null;
+            
+            if (modifier === 'PM' && hours < 12) hours += 12;
+            if (modifier === 'AM' && hours === 12) hours = 0;
+            
+            return [hours, minutes];
+        };
+
+        const [shiftStartHours, shiftStartMinutes] = parseTime(startTime);
+        const [shiftEndHours, shiftEndMinutes] = parseTime(endTime);
+
+        // Create shift start and end times for the same day as checkIn
+        const shiftStartDate = new Date(checkInTime);
+        shiftStartDate.setHours(shiftStartHours, shiftStartMinutes, 0, 0);
+
+        const shiftEndDate = new Date(checkInTime);
+        shiftEndDate.setHours(shiftEndHours, shiftEndMinutes, 0, 0);
+
+        // Calculate late arrival (if checkIn is after shift start)
+        if (checkInTime > shiftStartDate) {
+            const lateMs = checkInTime.getTime() - shiftStartDate.getTime();
+            lateArrival = parseFloat((lateMs / (1000 * 60)).toFixed(2));
+        }
+
+        // Calculate early leaving (if checkOut is before shift end)
+        if (checkOutTime < shiftEndDate) {
+            const earlyMs = shiftEndDate.getTime() - checkOutTime.getTime();
+            earlyLeaving = parseFloat((earlyMs / (1000 * 60)).toFixed(2));
+        }
+
+        // Calculate overtime (if working duration exceeds shift duration)
+        const shiftDurationMs = shiftEndDate.getTime() - shiftStartDate.getTime();
+        const shiftDurationMinutes = shiftDurationMs / (1000 * 60);
+
+        if (workingDuration > shiftDurationMinutes) {
+            overtime = parseFloat((workingDuration - shiftDurationMinutes).toFixed(2));
+        }
     }
-    
-    // Calculate overtime (if working duration exceeds shift duration)
-    const shiftDurationMs = shiftEndDate.getTime() - shiftStartDate.getTime();
-    const shiftDurationMinutes = Math.floor(shiftDurationMs / (1000 * 60));
-    
-    if (workingDuration > shiftDurationMinutes) {
-      overtime = workingDuration - shiftDurationMinutes;
-    }
-  }
-  
-  const totalPermissionTime = lateArrival + earlyLeaving;
-  
-  return {
-    workingDuration,
-    lateArrival,
-    earlyLeaving,
-    totalPermissionTime,
-    overtime
-  };
+
+    const totalPermissionTime = parseFloat((lateArrival + earlyLeaving).toFixed(2));
+
+    return {
+        workingDuration,
+        lateArrival,
+        earlyLeaving,
+        totalPermissionTime,
+        overtime
+    };
 };
 
 // Helper function to calculate total working duration for a worker on a specific day
 // based on all completed in-out pairs
 const calculateTotalDailyWorkingDuration = (attendanceRecords) => {
-  let totalWorkingDuration = 0;
-  let totalLateArrival = 0;
-  let totalEarlyLeaving = 0;
-  let totalPermissionTime = 0;
-  let totalOvertime = 0;
-  
-  // Filter out completed in-out pairs (records with both checkIn and checkOut)
-  const completedPairs = attendanceRecords.filter(record => record.checkIn && record.checkOut);
-  
-  // Calculate totals for all completed pairs
-  completedPairs.forEach(record => {
-    const attendanceDetails = calculateAttendanceDetails(
-      record.checkIn,
-      record.checkOut,
-      record.worker?.shift
-    );
-    
-    totalWorkingDuration += attendanceDetails.workingDuration;
-    totalLateArrival += attendanceDetails.lateArrival;
-    totalEarlyLeaving += attendanceDetails.earlyLeaving;
-    totalPermissionTime += attendanceDetails.totalPermissionTime;
-    totalOvertime += attendanceDetails.overtime;
-  });
-  
-  return {
-    totalWorkingDuration,
-    totalLateArrival,
-    totalEarlyLeaving,
-    totalPermissionTime,
-    totalOvertime,
-    completedPairsCount: completedPairs.length
-  };
+    let totalWorkingDuration = 0;
+    let totalLateArrival = 0;
+    let totalEarlyLeaving = 0;
+    let totalPermissionTime = 0;
+    let totalOvertime = 0;
+
+    // Filter out completed in-out pairs (records with both checkIn and checkOut)
+    const completedPairs = attendanceRecords.filter(record => record.checkIn && record.checkOut);
+
+    // Calculate totals for all completed pairs
+    completedPairs.forEach(record => {
+        const attendanceDetails = calculateAttendanceDetails(
+            record.checkIn,
+            record.checkOut,
+            record.worker
+        );
+
+        totalWorkingDuration += attendanceDetails.workingDuration;
+        totalLateArrival += attendanceDetails.lateArrival;
+        totalEarlyLeaving += attendanceDetails.earlyLeaving;
+        totalPermissionTime += attendanceDetails.totalPermissionTime;
+        totalOvertime += attendanceDetails.overtime;
+    });
+
+    return {
+        totalWorkingDuration,
+        totalLateArrival,
+        totalEarlyLeaving,
+        totalPermissionTime,
+        totalOvertime,
+        completedPairsCount: completedPairs.length
+    };
 };
 
 // Helper function to get date bounds for a wider range (last 30 days)
@@ -581,19 +611,19 @@ const getWiderDateBounds = () => {
     // Get start of 30 days ago for a wider range of attendance data
     const startOfRange = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
     const endOfRange = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1); // End of today
-    
+
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     const endOfYesterday = startOfToday; // Start of today is end of yesterday
-    
-    return { 
-        startOfRange, 
-        endOfRange, 
-        startOfToday, 
-        endOfToday, 
-        startOfYesterday, 
-        endOfYesterday 
+
+    return {
+        startOfRange,
+        endOfRange,
+        startOfToday,
+        endOfToday,
+        startOfYesterday,
+        endOfYesterday
     };
 };
 
@@ -611,38 +641,38 @@ const checkForIncompleteYesterdayRecord = async (workerId) => {
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const startOfYesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
     const endOfYesterday = startOfToday;
-    
+
     // Find any incomplete attendance record from yesterday
     const incompleteRecord = await Attendance.findOne({
         worker: workerId,
         checkIn: { $gte: startOfYesterday, $lt: endOfYesterday },
         checkOut: { $exists: false }
     }).sort({ checkIn: -1 });
-    
+
     return incompleteRecord;
 };
 
 // Helper function to check for incomplete records from previous day
 const checkForIncompletePreviousDayRecord = async (workerId) => {
-  const today = new Date();
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const startOfYesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-  
-  // Find any incomplete attendance record from yesterday
-  const incompleteRecord = await Attendance.findOne({
-    worker: workerId,
-    checkIn: { $gte: startOfYesterday, $lt: startOfToday },
-    checkOut: { $exists: false }
-  }).sort({ checkIn: -1 });
-  
-  return incompleteRecord;
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startOfYesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+
+    // Find any incomplete attendance record from yesterday
+    const incompleteRecord = await Attendance.findOne({
+        worker: workerId,
+        checkIn: { $gte: startOfYesterday, $lt: startOfToday },
+        checkOut: { $exists: false }
+    }).sort({ checkIn: -1 });
+
+    return incompleteRecord;
 };
 
 // Helper function to group attendance records by worker and date
 // This function now properly groups all punch in and punch out times for each worker by date
 const groupAttendanceByWorkerAndDate = (attendanceRecords) => {
     const grouped = {};
-    
+
     attendanceRecords.forEach(record => {
         // Get worker ID safely
         let workerId;
@@ -657,22 +687,22 @@ const groupAttendanceByWorkerAndDate = (attendanceRecords) => {
             console.error('Error processing worker ID for record:', record, error);
             return; // Skip this record if there's an error processing the worker ID
         }
-        
+
         // Initialize worker in grouped object if not exists
         if (!grouped[workerId]) {
             grouped[workerId] = {};
         }
-        
+
         // Use the checkIn date as the primary date for grouping
         try {
             const checkInDate = new Date(record.checkIn);
             const dateKey = new Date(checkInDate.getFullYear(), checkInDate.getMonth(), checkInDate.getDate()).toISOString();
-            
+
             // Initialize date for this worker if not exists
             if (!grouped[workerId][dateKey]) {
                 grouped[workerId][dateKey] = [];
             }
-            
+
             // Add record to the appropriate worker and date group
             grouped[workerId][dateKey].push(record);
         } catch (dateError) {
@@ -681,7 +711,7 @@ const groupAttendanceByWorkerAndDate = (attendanceRecords) => {
             return;
         }
     });
-    
+
     return grouped;
 };
 
@@ -690,63 +720,63 @@ exports.getTodaysAttendance = async (req, res) => {
         console.log('Fetching attendance for admin (last 30 days)');
         const { startOfRange, endOfRange, startOfToday, endOfToday, startOfYesterday, endOfYesterday } = getWiderDateBounds();
         console.log('Date bounds:', { startOfRange, endOfRange, startOfToday, endOfToday, startOfYesterday, endOfYesterday });
-        
+
         // Fetch ALL attendance records for the wider date range for admin workers only
         // Include records that were completed during the range even if they started earlier
-        const allAttendance = await Attendance.find({ 
+        const allAttendance = await Attendance.find({
             $and: [
                 {
                     $or: [
                         { checkIn: { $gte: startOfRange, $lt: endOfRange } },
-                        { 
+                        {
                             checkIn: { $lt: startOfRange },
                             checkOut: { $gte: startOfRange, $lt: endOfRange }
                         }
                     ]
                 },
-                { 
+                {
                     worker: { $in: await Worker.find({ shop: { $exists: false } }).distinct('_id') }
                 }
             ]
         }).populate('worker', 'name rfid shift').lean();
-        
+
         console.log('Found attendance records:', allAttendance.length);
-        
+
         // Group attendance records by worker and date
         const groupedAttendance = groupAttendanceByWorkerAndDate(allAttendance);
         console.log('Grouped attendance by worker and date');
-        
+
         // Get workers - only get admin workers (no shop association)
         const workersQuery = { shop: { $exists: false } };
         console.log('Workers query:', workersQuery);
-        
+
         const workers = await Worker.find(workersQuery).lean();
         console.log('Found workers:', workers.length);
-        
+
         // Combine worker data with their attendance records grouped by date
         const combinedData = workers.map(worker => {
             // Ensure worker has an _id before trying to access it
             if (worker && worker._id) {
                 const workerId = worker._id.toString();
                 const workerAttendanceByDate = groupedAttendance[workerId] || {};
-                
+
                 // Create an array to hold all attendance records grouped by date
                 const attendanceRecordsGroupedByDate = [];
-                
+
                 // Process each date's records
                 Object.keys(workerAttendanceByDate).forEach(dateKey => {
                     // Get all records for this date
                     const recordsForDate = workerAttendanceByDate[dateKey];
-                    
+
                     // Create a consolidated record for this date
                     const consolidatedRecord = {
                         date: dateKey,
                         records: recordsForDate
                     };
-                    
+
                     attendanceRecordsGroupedByDate.push(consolidatedRecord);
                 });
-                
+
                 return {
                     ...worker,
                     attendanceRecordsGroupedByDate: attendanceRecordsGroupedByDate
@@ -755,7 +785,7 @@ exports.getTodaysAttendance = async (req, res) => {
             // Return worker as is if _id is missing
             return worker;
         });
-        
+
         console.log('Sending combined data:', combinedData.length);
         res.json(combinedData);
     } catch (error) {
@@ -767,173 +797,184 @@ exports.getTodaysAttendance = async (req, res) => {
 exports.checkIn = async (req, res) => {
     const { workerId } = req.body;
     try {
-      // Ensure the worker is an admin worker (no shop association)
-      const worker = await Worker.findOne({ _id: workerId, shop: { $exists: false } });
-      if (!worker) {
-        return res.status(404).json({ message: 'Worker not found or not authorized for admin attendance.' });
-      }
+        // Ensure the worker is an admin worker (no shop association)
+        const worker = await Worker.findOne({ _id: workerId, shop: { $exists: false } });
+        if (!worker) {
+            return res.status(404).json({ message: 'Worker not found or not authorized for admin attendance.' });
+        }
 
-      // Find any incomplete attendance records for this worker (records without checkOut)
-      const incompleteRecords = await Attendance.find({ 
-        worker: workerId, 
-        checkOut: { $exists: false }
-      }).sort({ checkIn: -1 });
-      
-      // If there are incomplete records, worker cannot check in
-      if (incompleteRecords.length > 0) {
-        return res.status(400).json({ 
-          message: 'Worker has an incomplete attendance record. Please check out first.' 
-        });
-      }
-      
-      // Check for incomplete record from previous day
-      const incompletePreviousRecord = await checkForIncompletePreviousDayRecord(workerId);
-      if (incompletePreviousRecord) {
-        return res.status(400).json({ 
-          message: 'Worker has an incomplete attendance record from previous day. Please complete it first.',
-          incompleteRecord: incompletePreviousRecord
-        });
-      }
-      
-      // Allow check-in - no incomplete records found
-      const newAttendance = new Attendance({ worker: workerId, checkIn: new Date() });
-      await newAttendance.save();
-      res.status(201).json(newAttendance);
+        // Find any incomplete attendance records for this worker (records without checkOut)
+        const incompleteRecords = await Attendance.find({
+            worker: workerId,
+            checkOut: { $exists: false }
+        }).sort({ checkIn: -1 });
+
+        // If there are incomplete records, worker cannot check in
+        if (incompleteRecords.length > 0) {
+            return res.status(400).json({
+                message: 'Worker has an incomplete attendance record. Please check out first.'
+            });
+        }
+
+        // Check for incomplete record from previous day
+        const incompletePreviousRecord = await checkForIncompletePreviousDayRecord(workerId);
+        if (incompletePreviousRecord) {
+            return res.status(400).json({
+                message: 'Worker has an incomplete attendance record from previous day. Please complete it first.',
+                incompleteRecord: incompletePreviousRecord
+            });
+        }
+
+        // Allow check-in - no incomplete records found
+        const newAttendance = new Attendance({ worker: workerId, checkIn: new Date() });
+        await newAttendance.save();
+        res.status(201).json(newAttendance);
     } catch (error) {
-      console.error('Error during check-in:', error);
-      res.status(500).json({ message: 'Server Error' });
+        console.error('Error during check-in:', error);
+        res.status(500).json({ message: 'Server Error' });
     }
-  };
+};
 
 exports.checkOut = async (req, res) => {
     const { workerId } = req.body;
     try {
-      // Ensure the worker is an admin worker (no shop association)
-      const worker = await Worker.findOne({ _id: workerId, shop: { $exists: false } });
-      if (!worker) {
-        return res.status(404).json({ message: 'Worker not found or not authorized for admin attendance.' });
-      }
+        // Ensure the worker is an admin worker (no shop association)
+        const worker = await Worker.findOne({ _id: workerId, shop: { $exists: false } });
+        if (!worker) {
+            return res.status(404).json({ message: 'Worker not found or not authorized for admin attendance.' });
+        }
 
-      // Find any incomplete attendance records for this worker (records without checkOut)
-      const incompleteRecords = await Attendance.find({ 
-        worker: workerId, 
-        checkOut: { $exists: false }
-      }).sort({ checkIn: -1 });
-      
-      // Check if there's a record without check-out
-      if (incompleteRecords.length > 0) {
-        // Update the latest incomplete record with check-out time
-        const latestIncompleteRecord = incompleteRecords[0];
-        latestIncompleteRecord.checkOut = new Date();
-        
-        // Get worker shift details for calculation
-        const worker = await Worker.findById(workerId).populate('shift');
-        
-        // Calculate attendance details for this specific in-out pair
-        const attendanceDetails = calculateAttendanceDetails(
-          latestIncompleteRecord.checkIn, 
-          latestIncompleteRecord.checkOut, 
-          worker.shift
-        );
-        
-        // Update the record with calculated details
-        latestIncompleteRecord.workingDuration = attendanceDetails.workingDuration;
-        latestIncompleteRecord.lateArrival = attendanceDetails.lateArrival;
-        latestIncompleteRecord.earlyLeaving = attendanceDetails.earlyLeaving;
-        latestIncompleteRecord.totalPermissionTime = attendanceDetails.totalPermissionTime;
-        latestIncompleteRecord.overtime = attendanceDetails.overtime;
-        
-        const attendanceRecord = await latestIncompleteRecord.save();
-        res.json(attendanceRecord);
-      } else {
-        return res.status(404).json({ message: 'No active check-in found for this worker.' });
-      }
+        // Find any incomplete attendance records for this worker (records without checkOut)
+        const incompleteRecords = await Attendance.find({
+            worker: workerId,
+            checkOut: { $exists: false }
+        }).sort({ checkIn: -1 });
+
+        // Check if there's a record without check-out
+        if (incompleteRecords.length > 0) {
+            // Update the latest incomplete record with check-out time
+            const latestIncompleteRecord = incompleteRecords[0];
+            latestIncompleteRecord.checkOut = new Date();
+
+            // Get worker shift details for calculation
+            const worker = await Worker.findById(workerId).populate('shift');
+
+            // Calculate attendance details for this specific in-out pair
+            const attendanceDetails = calculateAttendanceDetails(
+                latestIncompleteRecord.checkIn,
+                latestIncompleteRecord.checkOut,
+                worker
+            );
+
+            // Update the record with calculated details
+            latestIncompleteRecord.workingDuration = attendanceDetails.workingDuration;
+            latestIncompleteRecord.lateArrival = attendanceDetails.lateArrival;
+            latestIncompleteRecord.earlyLeaving = attendanceDetails.earlyLeaving;
+            latestIncompleteRecord.totalPermissionTime = attendanceDetails.totalPermissionTime;
+            latestIncompleteRecord.overtime = attendanceDetails.overtime;
+
+            const attendanceRecord = await latestIncompleteRecord.save();
+            res.json(attendanceRecord);
+        } else {
+            return res.status(404).json({ message: 'No active check-in found for this worker.' });
+        }
     } catch (error) {
-      console.error('Error during check-out:', error);
-      res.status(500).json({ message: 'Server Error' });
+        console.error('Error during check-out:', error);
+        res.status(500).json({ message: 'Server Error' });
     }
 };
 
 // Endpoint for manually correcting missing punches from previous day
 exports.correctMissingPunch = async (req, res) => {
-  const { workerId, checkOutTime } = req.body;
-  
-  if (!workerId || !checkOutTime) {
-    return res.status(400).json({ message: 'Worker ID and check-out time are required.' });
-  }
-  
-  try {
-    // Ensure the worker is an admin worker (no shop association)
-    const worker = await Worker.findOne({ _id: workerId, shop: { $exists: false } });
-    if (!worker) {
-      return res.status(404).json({ message: 'Worker not found or not authorized for admin attendance.' });
+    const { workerId, checkOutTime } = req.body;
+
+    if (!workerId || !checkOutTime) {
+        return res.status(400).json({ message: 'Worker ID and check-out time are required.' });
     }
-    
-    // Find incomplete record from previous day
-    const today = new Date();
-    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const startOfYesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-    
-    const incompleteRecord = await Attendance.findOne({
-      worker: workerId,
-      checkIn: { $gte: startOfYesterday, $lt: startOfToday },
-      checkOut: { $exists: false }
-    }).sort({ checkIn: -1 });
-    
-    if (!incompleteRecord) {
-      return res.status(404).json({ message: 'No incomplete attendance record found for previous day.' });
+
+    try {
+        // Ensure the worker is an admin worker (no shop association)
+        const worker = await Worker.findOne({ _id: workerId, shop: { $exists: false } });
+        if (!worker) {
+            return res.status(404).json({ message: 'Worker not found or not authorized for admin attendance.' });
+        }
+
+        // Find incomplete record from previous day
+        const today = new Date();
+        const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const startOfYesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+
+        const incompleteRecord = await Attendance.findOne({
+            worker: workerId,
+            checkIn: { $gte: startOfYesterday, $lt: startOfToday },
+            checkOut: { $exists: false }
+        }).sort({ checkIn: -1 });
+
+        if (!incompleteRecord) {
+            return res.status(404).json({ message: 'No incomplete attendance record found for previous day.' });
+        }
+
+        // Update the record with the provided check-out time
+        incompleteRecord.checkOut = new Date(checkOutTime);
+        incompleteRecord.isManualCorrection = true;
+
+        // Get worker shift details for calculation
+        const workerDetails = await Worker.findById(workerId).populate('shift');
+
+        // Calculate attendance details for this specific in-out pair
+        const attendanceDetails = calculateAttendanceDetails(
+            incompleteRecord.checkIn,
+            incompleteRecord.checkOut,
+            workerDetails
+        );
+
+        // Update the record with calculated details
+        incompleteRecord.workingDuration = attendanceDetails.workingDuration;
+        incompleteRecord.lateArrival = attendanceDetails.lateArrival;
+        incompleteRecord.earlyLeaving = attendanceDetails.earlyLeaving;
+        incompleteRecord.totalPermissionTime = attendanceDetails.totalPermissionTime;
+        incompleteRecord.overtime = attendanceDetails.overtime;
+
+        const updatedRecord = await incompleteRecord.save();
+
+        res.json({
+            message: 'Missing punch corrected successfully.',
+            attendance: updatedRecord
+        });
+    } catch (error) {
+        console.error('Error correcting missing punch:', error);
+        res.status(500).json({ message: 'Server Error' });
     }
-    
-    // Update the record with the provided check-out time
-    incompleteRecord.checkOut = new Date(checkOutTime);
-    incompleteRecord.isManualCorrection = true;
-    
-    // Get worker shift details for calculation
-    const workerDetails = await Worker.findById(workerId).populate('shift');
-    
-    // Calculate attendance details for this specific in-out pair
-    const attendanceDetails = calculateAttendanceDetails(
-      incompleteRecord.checkIn, 
-      incompleteRecord.checkOut, 
-      workerDetails.shift
-    );
-    
-    // Update the record with calculated details
-    incompleteRecord.workingDuration = attendanceDetails.workingDuration;
-    incompleteRecord.lateArrival = attendanceDetails.lateArrival;
-    incompleteRecord.earlyLeaving = attendanceDetails.earlyLeaving;
-    incompleteRecord.totalPermissionTime = attendanceDetails.totalPermissionTime;
-    incompleteRecord.overtime = attendanceDetails.overtime;
-    
-    const updatedRecord = await incompleteRecord.save();
-    
-    res.json({ 
-      message: 'Missing punch corrected successfully.',
-      attendance: updatedRecord
-    });
-  } catch (error) {
-    console.error('Error correcting missing punch:', error);
-    res.status(500).json({ message: 'Server Error' });
-  }
 };
 
 exports.getMonthlyAttendance = async (req, res) => {
     try {
         const { year, month } = req.params;
+        const { workerId: queryWorkerId } = req.query; // Optional workerId filter
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 1);
-        
-        // Only get admin workers (no shop association)
-        const workersQuery = { shop: { $exists: false } };
-        
-        const workers = await Worker.find(workersQuery).select('name username').lean();
-        const attendanceRecords = await Attendance.find({ 
+
+        let workersQuery = { shop: { $exists: false } };
+        if (queryWorkerId) {
+            workersQuery._id = queryWorkerId;
+        }
+
+        const workers = await Worker.find(workersQuery).select('name username salary shift workingHours').lean();
+
+        let attendanceQuery = {
             $and: [
-                { checkIn: { $gte: startDate, $lt: endDate } },
-                { worker: { $in: await Worker.find({ shop: { $exists: false } }).distinct('_id') } }
+                { checkIn: { $gte: startDate, $lt: endDate } }
             ]
-        }).populate('worker', 'shift').lean();
-        
+        };
+
+        if (queryWorkerId) {
+            attendanceQuery.$and.push({ worker: queryWorkerId });
+        } else {
+            attendanceQuery.$and.push({ worker: { $in: await Worker.find({ shop: { $exists: false } }).distinct('_id') } });
+        }
+
+        const attendanceRecords = await Attendance.find(attendanceQuery).populate('worker', 'shift workingHours').lean();
+
         // Calculate daily totals for each worker
         const attendanceByWorker = {};
         attendanceRecords.forEach(record => {
@@ -949,17 +990,17 @@ exports.getMonthlyAttendance = async (req, res) => {
                 }
             }
         });
-        
+
         // Calculate daily totals for each worker
         const responseData = workers.map(worker => {
             // Ensure worker has an _id before trying to access it
             if (worker && worker._id) {
                 const workerId = worker._id.toString();
                 const workerAttendanceRecords = attendanceByWorker[workerId] || [];
-                
+
                 // Calculate total daily working duration
                 const dailyTotals = calculateTotalDailyWorkingDuration(workerAttendanceRecords);
-                
+
                 return {
                     ...worker,
                     attendance: workerAttendanceRecords,
@@ -969,7 +1010,7 @@ exports.getMonthlyAttendance = async (req, res) => {
             // Return worker as is if _id is missing
             return worker;
         });
-        
+
         res.json(responseData);
     } catch (error) {
         console.error('Error fetching monthly attendance:', error);

@@ -530,9 +530,9 @@ const AddWorker = () => {
                                     const batch = batches.find(b => b.id === formData.selectedBatch);
                                     return batch ? (
                                         <div>
-                                            <p>Working Hours: {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}</p>
-                                            <p>Lunch Break: {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}</p>
-                                            <p>Break Time: {batch.breakTime?.startTime ? formatTimeTo12Hour(batch.breakTime.startTime) : '--:--'} - {batch.breakTime?.endTime ? formatTimeTo12Hour(batch.breakTime.endTime) : '--:--'}</p>
+                                            <p>Working Hours: {(batch.workingHours?.from || batch.workingHours?.startTime) ? formatTimeTo12Hour(batch.workingHours.from || batch.workingHours.startTime) : '--:--'} - {(batch.workingHours?.to || batch.workingHours?.endTime) ? formatTimeTo12Hour(batch.workingHours.to || batch.workingHours.endTime) : '--:--'}</p>
+                                            <p>Lunch Break: {(batch.lunchBreak?.from || batch.lunchBreak?.startTime) ? formatTimeTo12Hour(batch.lunchBreak.from || batch.lunchBreak.startTime) : '--:--'} - {(batch.lunchBreak?.to || batch.lunchBreak?.endTime) ? formatTimeTo12Hour(batch.lunchBreak.to || batch.lunchBreak.endTime) : '--:--'}</p>
+                                            <p>Break Time: {(batch.breakTime?.from || batch.breakTime?.startTime) ? formatTimeTo12Hour(batch.breakTime.from || batch.breakTime.startTime) : '--:--'} - {(batch.breakTime?.to || batch.breakTime?.endTime) ? formatTimeTo12Hour(batch.breakTime.to || batch.breakTime.endTime) : '--:--'}</p>
                                         </div>
                                     ) : null;
                                 })()}
