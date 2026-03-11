@@ -62,12 +62,9 @@ export const convertUnit = (quantity, fromUnit, toUnit) => {
     return quantity;
   }
 
-  const fromFactor = UNIT_CONVERSION_FACTORS[normalizedFromUnit];
-  const toFactor = UNIT_CONVERSION_FACTORS[normalizedToUnit];
-
-  if (fromFactor === undefined || toFactor === undefined) {
-    throw new Error(`Unsupported unit conversion: ${fromUnit} to ${toUnit}`);
-  }
+  // Default to 1 if unit is unknown
+  const fromFactor = UNIT_CONVERSION_FACTORS[normalizedFromUnit] !== undefined ? UNIT_CONVERSION_FACTORS[normalizedFromUnit] : 1;
+  const toFactor = UNIT_CONVERSION_FACTORS[normalizedToUnit] !== undefined ? UNIT_CONVERSION_FACTORS[normalizedToUnit] : 1;
 
   // Convert to base unit (kg), then to target unit
   const quantityInBaseUnit = quantity * fromFactor;

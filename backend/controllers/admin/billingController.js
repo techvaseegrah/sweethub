@@ -48,18 +48,21 @@ exports.createBill = async (req, res) => {
         return res.status(404).json({ message: `Product with ID ${item.product} not found.` });
       }
       // Check Stock - convert item quantity to product's unit if units are related
-      let itemQuantityInProductUnit = item.quantity;
-      if (product.prices && product.prices.length > 0) {
-        const productBaseUnit = product.prices[0].unit; // Assuming all prices use the same base unit
-        if (areRelatedUnits(item.unit, productBaseUnit)) {
-          itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+      // Only check stock if billType is ORDINARY, skip if REFERENCE
+      if (billType !== 'REFERENCE') {
+        let itemQuantityInProductUnit = item.quantity;
+        if (product.prices && product.prices.length > 0) {
+          const productBaseUnit = product.prices[0].unit; // Assuming all prices use the same base unit
+          if (areRelatedUnits(item.unit, productBaseUnit)) {
+            itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+          }
         }
-      }
 
-      if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}` });
+        if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
+          await session.abortTransaction();
+          session.endSession();
+          return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}` });
+        }
       }
 
       itemsWithDetails.push({

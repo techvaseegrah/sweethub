@@ -1107,7 +1107,7 @@ const updateAfterPackingStatus = async (req, res) => {
 const addToStockFromAfterPacking = async (req, res) => {
     try {
         const { id } = req.params;
-        const { expiryDate: manualExpiryDate, usedByDate: manualUsedByDate } = req.body;
+        const { expiryDate: manualExpiryDate, usedByDate: manualUsedByDate, completedQty, selectedUnit, deductionQty, editedProductName, sku, category, netPrice, sellPrice } = req.body;
 
         const item = await AfterPacking.findById(id);
         if (!item) {
@@ -1118,10 +1118,12 @@ const addToStockFromAfterPacking = async (req, res) => {
         let expiryDate = manualExpiryDate ? new Date(manualExpiryDate) : null;
         let usedByDate = manualUsedByDate ? new Date(manualUsedByDate) : null;
 
+        const finalProductName = (editedProductName || item.productName || item.sweetName || '').trim();
+
         // If manual dates are not provided, try to calculate from manufacturing process
         if (!expiryDate || !usedByDate) {
             const manufacturingProcess = await Manufacturing.findOne({
-                productName: { $regex: new RegExp(`^${(item.productName || item.sweetName || '').trim()}$`, 'i') }
+                productName: { $regex: new RegExp(`^${finalProductName}$`, 'i') }
             });
 
             if (manufacturingProcess) {
@@ -1137,9 +1139,10 @@ const addToStockFromAfterPacking = async (req, res) => {
             }
         }
 
-        // Find the product by name (case-insensitive)
+        // Find the product by name (case-insensitive) and scope to current admin
         const product = await Product.findOne({
-            name: { $regex: new RegExp(`^${(item.productName || item.sweetName || '').trim()}$`, 'i') }
+            name: { $regex: new RegExp(`^${finalProductName}$`, 'i') },
+            admin: req.user.id
         });
 
         if (product) {
@@ -1162,8 +1165,37 @@ const addToStockFromAfterPacking = async (req, res) => {
                 }
             }
 
+            // Determine quantity to add to stock
+            let qtyToAdd = Number(item.quantity);
+            let unitToAdd = item.unit;
+            if (completedQty && selectedUnit) {
+                // Determine conversion multiplier if units differ
+                // Simple assumption: if they pass in completedQty that is already converted in frontend
+                // Actually frontend passes the actual amount, backend should just trust frontend's completedQty
+                // Wait, if frontend converted it, backend receives the convertedQty which is in item.unit!
+                qtyToAdd = Number(completedQty);
+                unitToAdd = selectedUnit;
+            }
+
+            if (sku) product.sku = sku;
+            if (category) product.category = category;
+
+            // Find price object matching selectedUnit or fallback
+            let targetPriceObj = product.prices.find(p => p.unit.toLowerCase() === unitToAdd.toLowerCase());
+            if (!targetPriceObj) {
+                targetPriceObj = {
+                    unit: unitToAdd,
+                    netPrice: netPrice ? Number(netPrice) : item.price,
+                    sellingPrice: sellPrice ? Number(sellPrice) : item.price * 1.2
+                };
+                product.prices.push(targetPriceObj);
+            } else {
+                if (netPrice) targetPriceObj.netPrice = Number(netPrice);
+                if (sellPrice) targetPriceObj.sellingPrice = Number(sellPrice);
+            }
+
             // Update the stock level by adding the packed quantity
-            product.stockLevel = (product.stockLevel || 0) + Number(item.quantity);
+            product.stockLevel = (product.stockLevel || 0) + qtyToAdd;
 
             // Update expiry and use-by dates if available from manufacturing process
             if (expiryDate) {
@@ -1175,41 +1207,75 @@ const addToStockFromAfterPacking = async (req, res) => {
 
             await product.save();
         } else {
+            let qtyToAdd = Number(item.quantity);
+            let unitToAdd = item.unit;
+            if (completedQty && selectedUnit) {
+                qtyToAdd = Number(completedQty);
+                unitToAdd = selectedUnit;
+            }
+
             // If product doesn't exist in the products collection, create a new one
             const newProduct = new Product({
-                name: item.productName || item.sweetName,
-                category: null,
-                sku: `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                stockLevel: Number(item.quantity),
+                name: finalProductName,
+                category: category || null,
+                sku: sku || `PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                stockLevel: qtyToAdd,
                 prices: [{
-                    unit: item.unit,
-                    netPrice: item.price,
-                    sellingPrice: item.price * 1.2
+                    unit: unitToAdd,
+                    netPrice: netPrice ? Number(netPrice) : item.price,
+                    sellingPrice: sellPrice ? Number(sellPrice) : item.price * 1.2
                 }],
                 // Add expiry and use-by dates if available from manufacturing process
                 ...(expiryDate && { expiryDate }),
                 ...(usedByDate && { usedByDate }),
-                admin: req.user._id
+                admin: req.user.id
             });
 
             await newProduct.save();
         }
 
-        // Update the After Packing item status to Completed
-        const updatedItem = await AfterPacking.findByIdAndUpdate(
-            id,
-            {
-                status: 'Completed',
-                completedAt: new Date()
-            },
-            { new: true }
-        );
+        // Update the After Packing item status
+        // Since frontend passes the exact converted quantity based on item's unit, let's deduct
+        let actualCompletedQty = item.quantity;
+        if (deductionQty !== undefined) {
+            actualCompletedQty = Number(deductionQty);
+        } else if (completedQty && selectedUnit) {
+            // we assume frontend passes the converted quantity in item.unit or similar 
+            // actually if they want it exactly like before packing we should handle partial additions
+            actualCompletedQty = Number(completedQty);
+        }
+
+        if (editedProductName && editedProductName.trim() !== '') {
+            item.productName = editedProductName.trim();
+        }
+
+        let newStatus = 'Completed';
+        if (actualCompletedQty < item.quantity - 0.0001) {
+            newStatus = 'Partial';
+            // Save original totalQuantity if it doesn't have one yet, so the UI can accurately display X / Total Initial
+            if (item.totalQuantity === undefined) {
+                item.totalQuantity = item.quantity;
+            }
+            item.quantity -= actualCompletedQty;
+            item.status = newStatus;
+            await item.save();
+        } else {
+            item.status = 'Completed';
+            if (item.totalQuantity === undefined) {
+                item.totalQuantity = item.quantity;
+            }
+            item.completedAt = new Date();
+            await item.save();
+        }
 
         res.json({
             message: 'Item added to stock successfully',
-            item: updatedItem
+            item: item
         });
     } catch (error) {
+        if (error.code === 11000 && error.keyPattern && error.keyPattern.sku) {
+            return res.status(400).json({ message: 'The SKU provided is already in use by another product. Please use a unique SKU.' });
+        }
         console.error('Error adding to stock from After Packing:', error);
         res.status(500).json({ message: 'Server Error', error: error.message });
     }

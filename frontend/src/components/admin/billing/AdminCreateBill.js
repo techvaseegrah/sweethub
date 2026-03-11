@@ -49,9 +49,9 @@ function CreateBill({ baseUrl = '/admin' }) {
 
   // From/To Info
   const [fromInfo, setFromInfo] = useState({
-    name: 'The Sweet Hub, Thuraiyur',
-    address: 'Privu Road',
-    gstin: '33APSPY9123R1ZO',
+    name: 'Sri Krishna snacks',
+    address: 'Thuraiyur',
+    gstin: '33AOLPN6052Q1ZC',
     state: 'Tamil Nadu',
     stateCode: '33',
     phone: '7530023960',
@@ -216,7 +216,6 @@ function CreateBill({ baseUrl = '/admin' }) {
       setDiscountValue(bill.discountValue?.toString() || '');
       setPaymentMethod(bill.paymentMethod || 'Cash');
       setAmountPaid(bill.amountPaid?.toString() || '');
-      setAmountPaid(bill.amountPaid?.toString() || '');
       setBillType(bill.billType || 'ORDINARY');
 
       if (bill.billDate || bill.createdAt) {
@@ -279,9 +278,9 @@ function CreateBill({ baseUrl = '/admin' }) {
       }
     } else if (selectedShop === 'admin') {
       setFromInfo({
-        name: 'The Sweet Hub, Thuraiyur',
-        address: 'Privu Road',
-        gstin: '33APSPY9123R1ZO',
+        name: 'Sri Krishna snacks',
+        address: 'Thuraiyur',
+        gstin: '33AOLPN6052Q1ZC',
         state: 'Tamil Nadu',
         stateCode: '33',
         phone: '7530023960',
@@ -723,6 +722,7 @@ function CreateBill({ baseUrl = '/admin' }) {
         `}</style>
 
       {showNotification && <div className="fixed top-5 right-5 z-50"><MessageAlert type="success" message={notificationMessage} /></div>}
+      {error && <div className="fixed top-5 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md"><MessageAlert type="error" message={error} onClose={() => setError('')} /></div>}
 
       <CustomModal isOpen={showOutOfStockModal} onClose={() => setShowOutOfStockModal(false)} title="Out of Stock" customZIndex="z-[100]">
         <div className="p-4 text-center">

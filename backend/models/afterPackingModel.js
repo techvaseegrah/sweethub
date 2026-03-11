@@ -19,6 +19,10 @@ const afterPackingSchema = new mongoose.Schema({
         required: true,
         min: 0
     },
+    totalQuantity: {
+        type: Number,
+        required: false
+    },
     unit: {
         type: String,
         required: true
@@ -34,7 +38,7 @@ const afterPackingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending', 'Completed'],
+        enum: ['Pending', 'Completed', 'Partial'],
         default: 'Pending'
     },
     completedAt: {

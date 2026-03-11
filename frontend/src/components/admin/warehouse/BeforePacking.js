@@ -4,7 +4,7 @@ import { LuCheck } from 'react-icons/lu';
 import CreateBeforePackingAccountModal from './CreateBeforePackingAccountModal';
 import CustomModal from '../../CustomModal';
 import { AuthContext } from '../../../context/AuthContext';
-import { formatDateWithTime, convertUnit, getRelatedUnits } from '../../../utils/unitConversion';
+import { formatDateWithTime } from '../../../utils/unitConversion';
 
 const BeforePacking = () => {
     const { authState } = useContext(AuthContext);
@@ -13,13 +13,9 @@ const BeforePacking = () => {
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [showConfirmation, setShowConfirmation] = useState(false);
-    const [itemToComplete, setItemToComplete] = useState(null);
     const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
     const [showManageMode, setShowManageMode] = useState(false);
-    const [completedQty, setCompletedQty] = useState('');
-    const [selectedUnit, setSelectedUnit] = useState('');
 
     const fetchItems = useCallback(async () => {
         setLoading(true);
@@ -58,47 +54,9 @@ const BeforePacking = () => {
     };
 
     const confirmComplete = (item) => {
-        setItemToComplete(item);
-        setCompletedQty(item.quantity);
-        setSelectedUnit(item.unit);
-        setShowConfirmation(true);
+        handleStatusChange(item._id, 'Completed', item.quantity);
     };
 
-    const handleConfirmComplete = () => {
-        if (itemToComplete && completedQty && selectedUnit) {
-            try {
-                const inputQty = Number(completedQty);
-                if (inputQty <= 0) {
-                    setError('Please enter a valid quantity.');
-                    return;
-                }
-
-                // Convert input quantity to the original unit for comparison and processing
-                const convertedQty = convertUnit(inputQty, selectedUnit, itemToComplete.unit);
-
-                // Use a small epsilon for floating point comparison
-                if (convertedQty > itemToComplete.quantity + 0.000001) {
-                    setError(`Quantity cannot exceed remaining amount (${itemToComplete.quantity} ${itemToComplete.unit}).`);
-                    return;
-                }
-
-                const status = Math.abs(convertedQty - itemToComplete.quantity) < 0.000001 ? 'Completed' : 'Partial';
-                handleStatusChange(itemToComplete._id, status, convertedQty);
-                setShowConfirmation(false);
-                setItemToComplete(null);
-                setCompletedQty('');
-                setSelectedUnit('');
-            } catch (err) {
-                setError('Unit conversion error: ' + err.message);
-            }
-        }
-    };
-
-    const handleCancelConfirm = () => {
-        setShowConfirmation(false);
-        setItemToComplete(null);
-        setCompletedQty('');
-    };
 
     if (loading) return (
         <div className="p-4 flex flex-col items-center justify-center">
@@ -215,77 +173,6 @@ const BeforePacking = () => {
                 </table>
             </div>
 
-            {/* Confirmation Modal */}
-            {showConfirmation && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-                        <h3 className="text-lg font-bold mb-4">Complete Packing</h3>
-                        <div className="mb-4 text-sm text-gray-600">
-                            <p className="font-semibold text-gray-800">Product: {itemToComplete?.productName || itemToComplete?.sweetName}</p>
-                            <p>Total Original: {itemToComplete?.totalQuantity || itemToComplete?.quantity} {itemToComplete?.unit}</p>
-                            <p>Current Remaining: {itemToComplete?.quantity} {itemToComplete?.unit}</p>
-                            <p>Unit Price: ₹{itemToComplete?.price} / {itemToComplete?.unit}</p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Quantity
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                    value={completedQty}
-                                    onChange={(e) => setCompletedQty(e.target.value)}
-                                    min="0"
-                                    step="any"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Unit
-                                </label>
-                                <select
-                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                    value={selectedUnit}
-                                    onChange={(e) => setSelectedUnit(e.target.value)}
-                                >
-                                    {getRelatedUnits(itemToComplete?.unit).map(unit => (
-                                        <option key={unit} value={unit}>{unit}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        {completedQty && selectedUnit && itemToComplete && (
-                            <div className="mb-6 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <p className="text-sm font-semibold text-blue-800">
-                                    Total Value: ₹
-                                    {(convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit) * itemToComplete.price).toFixed(2)}
-                                </p>
-                                <p className="text-xs text-blue-600 mt-1">
-                                    (Converted Quantity: {convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit).toFixed(3)} {itemToComplete.unit})
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                onClick={handleCancelConfirm}
-                                className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleConfirmComplete}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors"
-                            >
-                                Update Status
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Create Account Modal */}
             {showCreateAccountModal && (
