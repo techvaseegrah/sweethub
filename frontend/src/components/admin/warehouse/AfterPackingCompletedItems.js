@@ -76,7 +76,6 @@ const AfterPackingCompletedItems = () => {
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Quantity</th>
                             <th className="py-2 px-4 text-left">Unit</th>
-                            <th className="py-2 px-4 text-left">Price</th>
                             <th className="py-2 px-4 text-left">Date</th>
                             <th className="py-2 px-4 text-left">Status</th>
                         </tr>
@@ -87,7 +86,6 @@ const AfterPackingCompletedItems = () => {
                                 <td className="border px-4 py-2">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
-                                <td className="border px-4 py-2">₹{item.price}</td>
                                 <td className="border px-4 py-2">
                                     {formatDateWithTime(item.date)}
                                 </td>
@@ -99,7 +97,7 @@ const AfterPackingCompletedItems = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="6" className="text-center py-4">No completed items found.</td>
+                                <td colSpan="5" className="text-center py-4">No completed items found.</td>
                             </tr>
                         )}
                     </tbody>

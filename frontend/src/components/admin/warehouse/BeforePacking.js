@@ -115,8 +115,6 @@ const BeforePacking = () => {
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Quantity / Total</th>
                             <th className="py-2 px-4 text-left">Unit</th>
-                            <th className="py-2 px-4 text-left">Price (Unit)</th>
-                            <th className="py-2 px-4 text-left">Total Value</th>
                             <th className="py-2 px-4 text-left">Date</th>
                             <th className="py-2 px-4 text-left">Status</th>
                             <th className="py-2 px-4 text-left">Actions</th>
@@ -130,10 +128,6 @@ const BeforePacking = () => {
                                     {item.quantity} / {item.totalQuantity || item.quantity}
                                 </td>
                                 <td className="border px-4 py-2">{item.unit}</td>
-                                <td className="border px-4 py-2">₹{item.price}</td>
-                                <td className="border px-4 py-2 text-blue-600 font-semibold">
-                                    ₹{(item.quantity * item.price).toFixed(2)}
-                                </td>
                                 <td className="border px-4 py-2">
                                     {formatDateWithTime(item.date)}
                                 </td>
@@ -166,7 +160,7 @@ const BeforePacking = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="7" className="text-center py-4">No items found.</td>
+                                <td colSpan="6" className="text-center py-4">No items found.</td>
                             </tr>
                         )}
                     </tbody>

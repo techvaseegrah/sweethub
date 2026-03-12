@@ -76,8 +76,6 @@ const BeforePackingCompletedItems = () => {
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Total Quantity</th>
                             <th className="py-2 px-4 text-left">Unit</th>
-                            <th className="py-2 px-4 text-left">Price (Unit)</th>
-                            <th className="py-2 px-4 text-left">Total Value</th>
                             <th className="py-2 px-4 text-left">Date</th>
                             <th className="py-2 px-4 text-left">Status</th>
                         </tr>
@@ -88,10 +86,6 @@ const BeforePackingCompletedItems = () => {
                                 <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.totalQuantity || item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
-                                <td className="border px-4 py-2">₹{item.price}</td>
-                                <td className="border px-4 py-2 text-blue-600 font-semibold">
-                                    ₹{((item.totalQuantity || item.quantity) * item.price).toFixed(2)}
-                                </td>
                                 <td className="border px-4 py-2">
                                     {formatDateWithTime(item.date)}
                                 </td>
@@ -103,7 +97,7 @@ const BeforePackingCompletedItems = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="6" className="text-center py-4">No completed items found.</td>
+                                <td colSpan="5" className="text-center py-4">No completed items found.</td>
                             </tr>
                         )}
                     </tbody>

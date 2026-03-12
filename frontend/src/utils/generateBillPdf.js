@@ -64,7 +64,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
   const itemsHtml = billData.items.map((item, index) => {
     const itemDisplayTotal = item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0);
     return `
-    <tr style="font-size: 9px;">
+    <tr style="font-size: 12px;">
       <td style="padding: 2px 3px; text-align: center;">${index + 1}</td>
       <td style="padding: 2px 3px; text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
       <td style="padding: 2px 3px; text-align: center;">${item.quantity || 0}${item.unit ? ' ' + item.unit : ''}</td>
@@ -93,7 +93,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           font-family: Arial, sans-serif;
           margin: 0;
           padding: 0;
-          font-size: 10px;
+          font-size: 12px;
           line-height: 1.2;
           color: #000;
         }
@@ -110,27 +110,27 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           padding-bottom: 5px;
         }
         .shop-name {
-          font-size: 12px;
+          font-size: 16px;
           font-weight: 800;
           margin: 0 0 2px 0;
           color: #000;
         }
         .shop-details {
-          font-size: 8px;
+          font-size: 11px;
           font-weight: 600;
           margin: 2px 0;
           color: #000;
         }
         .bill-title {
           text-align: center;
-          font-size: 12px;
+          font-size: 16px;
           font-weight: 800;
           margin: 8px 0;
           color: #000;
         }
         .bill-info {
           margin: 5px 0;
-          font-size: 9px;
+          font-size: 12px;
           color: #000;
           font-weight: 600;
         }
@@ -142,7 +142,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         }
         .from-to-info {
           margin: 8px 0;
-          font-size: 9px;
+          font-size: 12px;
           padding: 5px 0;
           color: #000;
           font-weight: 600;
@@ -156,10 +156,10 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           width: 100%;
           border-collapse: collapse;
           margin: 8px 0;
-          font-size: 10px;
+          font-size: 12px;
         }
         .items-table th {
-          font-size: 8px;
+          font-size: 11px;
           font-weight: 700;
           text-align: left;
           padding: 2px 3px;
@@ -168,13 +168,13 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         }
         .items-table td {
           padding: 2px 3px;
-          font-size: 9px;
+          font-size: 12px;
           color: #000;
           font-weight: 500;
         }
         .summary-row {
           font-weight: 700;
-          font-size: 10px;
+          font-size: 12px;
           color: #000;
         }
         .summary-row td {
@@ -182,7 +182,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           color: #000;
         }
         .total-row {
-          font-size: 11px;
+          font-size: 14px;
           font-weight: 800;
           color: #000;
         }
@@ -193,7 +193,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         .footer {
           text-align: center;
           margin-top: 10px;
-          font-size: 8px;
+          font-size: 11px;
           color: #000;
           font-weight: 600;
           padding-top: 5px;
@@ -206,7 +206,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
             print-color-adjust: exact;
           }
           body {
-            font-size: 10px;
+            font-size: 12px;
             line-height: 1.2;
             color: #000000;
           }
@@ -217,40 +217,40 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           }
           /* Bold headings for better print visibility */
           .shop-name {
-            font-size: 13px;
+            font-size: 17px;
             font-weight: 800;
             color: #000000;
           }
           .bill-title {
-            font-size: 13px;
+            font-size: 17px;
             font-weight: 800;
             color: #000000;
           }
           .shop-details {
-            font-size: 8px;
+            font-size: 11px;
             font-weight: 600;
             color: #000000;
           }
           .bill-info {
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 600;
             color: #000000;
           }
           /* Table header — semi-bold and black */
           .items-table th {
-            font-size: 8px;
+            font-size: 11px;
             font-weight: 700;
             color: #000000;
           }
           .items-table td {
-            font-size: 9px;
+            font-size: 12px;
             font-weight: 500;
             padding: 2px 3px;
             color: #000000;
           }
           /* Summary rows — bold labels */
           .summary-row {
-            font-size: 10px;
+            font-size: 12px;
             font-weight: 700;
             color: #000000;
           }
@@ -259,7 +259,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
           }
           /* Grand total row — extra bold */
           .total-row {
-            font-size: 11px;
+            font-size: 14px;
             font-weight: 800;
             color: #000000;
           }
@@ -300,7 +300,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         <div class="bill-title">BILL</div>
         
         <!-- Bill Details -->
-        <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 600; color: #000; margin: 5px 0;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #000; margin: 5px 0;">
           <div style="text-align: left;">
             <div><strong>Bill ID:</strong> ${billId}</div>
             <div><strong>Date:</strong> ${billDate}</div>
@@ -397,7 +397,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint) => {
         </table>
 
         ${gstPercentage > 0 ? `
-        <div style="margin-top: 6px; border-top: 1px dotted #000; padding-top: 5px; font-size: 9px; font-weight: 600;">
+        <div style="margin-top: 6px; border-top: 1px dotted #000; padding-top: 5px; font-size: 12px; font-weight: 600;">
           <div style="font-weight: 700; margin-bottom: 3px;">Tax Details:</div>
           <div style="display: flex; justify-content: space-between; margin-top: 2px;">
             <div>CGST@${(gstPercentage / 2).toFixed(1)}% on ₹${displayBaseOfSubtotal.toFixed(2)}</div>
