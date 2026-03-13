@@ -3,8 +3,12 @@ const mongoose = require('mongoose');
 const dailyScheduleSchema = new mongoose.Schema({
     productName: {
         type: String,
-        required: true,
+        required: false,
         trim: true,
+    },
+    batchId: {
+        type: String,
+        required: false
     },
     quantity: {
         type: Number,

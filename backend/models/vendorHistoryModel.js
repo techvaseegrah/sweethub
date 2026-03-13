@@ -5,6 +5,8 @@ const vendorHistorySchema = new mongoose.Schema({
   quantityReceived: { type: Number, required: true },
   unit: { type: String, required: true },
   vendorName: { type: String, required: true },
+  pricePerUnit: { type: Number, default: 0 },
+  materialType: { type: String, enum: ['Raw Material', 'Packing Material'], default: 'Raw Material' },
   receivedDate: { type: Date, default: Date.now },
 }, { timestamps: true });
 

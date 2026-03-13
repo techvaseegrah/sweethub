@@ -38,6 +38,40 @@ button:focus {
   }
 }
 
+@keyframes popup {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .animate-fade-in-down {
   animation: fade-in-down 0.3s ease-out forwards;
+}
+
+.animate-popup {
+  animation: popup 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
 }

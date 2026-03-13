@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 // import { LuPlus, LuTrash2 } from 'react-icons/lu';
-import { formatDateWithTime } from '../../../utils/unitConversion';
+import { formatDateWithTime, getBatchId } from '../../../utils/unitConversion';
 
 const ProductionSchedules = () => {
     const [schedules, setSchedules] = useState([]);
@@ -62,6 +62,7 @@ const ProductionSchedules = () => {
                 // First, add to Before Packing
                 await axios.post('/admin/warehouse/before-packing', {
                     scheduleId: scheduleToComplete._id,
+                    batchId: scheduleToComplete.batchId,
                     productName: scheduleToComplete.productName || scheduleToComplete.sweetName,
                     quantity: scheduleToComplete.quantity,
                     unit: scheduleToComplete.unit,
@@ -123,6 +124,7 @@ const ProductionSchedules = () => {
                 <table className="min-w-full bg-white">
                     <thead className="bg-light-gray">
                         <tr>
+                            <th className="py-2 px-4 text-left">Batch ID</th>
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Quantity</th>
                             <th className="py-2 px-4 text-left">Unit</th>
@@ -134,6 +136,7 @@ const ProductionSchedules = () => {
                     <tbody>
                         {filteredSchedules.length > 0 ? filteredSchedules.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">{getBatchId(item._id, item.batchId)}</td>
                                 <td className="border px-4 py-2">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
@@ -163,7 +166,7 @@ const ProductionSchedules = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="6" className="text-center py-4">No schedules found.</td>
+                                <td colSpan="7" className="text-center py-4">No schedules found.</td>
                             </tr>
                         )}
                     </tbody>

@@ -61,10 +61,18 @@ import ViewEWayBill from '../components/admin/eway-bills/ViewEWayBill';
 import OrderManagement from '../components/admin/OrderManagement';
 import { useFullScreenBill } from '../context/FullScreenBillContext';
 
+// Report module imports
+import SalesReport from '../components/admin/reports/SalesReport';
+import PurchaseReport from '../components/admin/reports/PurchaseReport';
+import ProductionReport from '../components/admin/reports/ProductionReport';
+import StockReport from '../components/admin/reports/StockReport';
+import ExpiryBatchReport from '../components/admin/reports/ExpiryBatchReport';
+import GSTReport from '../components/admin/reports/GSTReport';
+
 const AdminDashboardPage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { isFullScreenBill } = useFullScreenBill();
-    
+
     // Apply attendance-only protection
     useAttendanceOnlyProtection();
 
@@ -164,7 +172,6 @@ const AdminDashboardPage = () => {
                         <Route path="bills/view" element={<AdminViewBills />} />
                         <Route path="invoices/history" element={<InvoiceHistory />} />
                         <Route path="orders" element={<OrderManagement />} />
-                        <Route path="profit-loss" element={<ProfitLossPage />} />
                         {/* Expense module routes */}
                         <Route path="expenses" element={<ExpenseDashboard />} />
                         <Route path="expenses/add" element={<AddExpense />} />
@@ -174,6 +181,16 @@ const AdminDashboardPage = () => {
                         <Route path="eway-bills/create" element={<CreateEWayBill />} />
                         <Route path="eway-bills/history" element={<EWayBillsHistory />} />
                         <Route path="eway-bills/view/:id" element={<ViewEWayBill />} />
+
+                        {/* Report module routes */}
+                        <Route path="reports/sales" element={<SalesReport />} />
+                        <Route path="reports/purchase" element={<PurchaseReport />} />
+                        <Route path="reports/production" element={<ProductionReport />} />
+                        <Route path="reports/stock" element={<StockReport />} />
+                        <Route path="reports/expiry-batch" element={<ExpiryBatchReport />} />
+                        <Route path="reports/gst" element={<GSTReport />} />
+                        <Route path="reports/profit-loss" element={<ProfitLossPage />} />
+
                         <Route path="*" element={<Navigate to="dashboard" />} />
                     </Routes>
                 </main>

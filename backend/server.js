@@ -13,8 +13,8 @@ app.use(express.json({ extended: false }));
 
 // Enable CORS for all routes
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    credentials: true
 }));
 
 // Define Routes
@@ -45,11 +45,14 @@ const adminProductHistoryRoutes = require('./routes/admin/adminProductHistoryRou
 const adminAttendanceOnlyUserRoutes = require('./routes/admin/attendanceOnlyUserRoutes');
 const adminRawMaterialOnlyUserRoutes = require('./routes/admin/rawMaterialOnlyUserRoutes');
 const adminOrderRoutes = require('./routes/admin/orderRoutes');
+const productionReportRoutes = require('./routes/admin/productionReportRoutes');
+const stockReportRoutes = require('./routes/admin/stockReportRoutes');
+
 
 // SHOP ROUTES
 const shopRoutes = require('./routes/shop/shopRoutes');
 // We use shopBillRoutes (Make sure the file is named exactly this)
-const shopBillRoutes = require('./routes/shop/shopBillRoutes'); 
+const shopBillRoutes = require('./routes/shop/shopBillRoutes');
 const shopDepartmentRoutes = require('./routes/shop/shopDepartmentRoutes');
 const shopWorkerRoutes = require('./routes/shop/shopWorkerRoutes');
 const shopProductRoutes = require('./routes/shop/shopProductRoutes');
@@ -89,6 +92,9 @@ app.use('/api/admin/product-history', adminProductHistoryRoutes);
 app.use('/api/admin/attendance-only-users', adminAttendanceOnlyUserRoutes);
 app.use('/api/admin/raw-materials-only-users', adminRawMaterialOnlyUserRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin/reports/production', productionReportRoutes);
+app.use('/api/admin/reports/stock', stockReportRoutes);
+
 
 // SHOP
 app.use('/api/shop', shopRoutes);
@@ -167,7 +173,7 @@ app.get('/api/admin/before-packing-only-users', adminAuth, async (req, res) => {
             return res.status(404).json({ message: 'Before packing-only role not found' });
         }
 
-        const users = await User.find({ 
+        const users = await User.find({
             role: beforePackingOnlyRole._id,
             $or: [
                 { shop: { $exists: false } },
@@ -189,8 +195,8 @@ app.put('/api/admin/before-packing-only-users/:id', adminAuth, async (req, res) 
     const { username, password, name } = req.body;
 
     try {
-        const user = await User.findOne({ 
-            _id: id, 
+        const user = await User.findOne({
+            _id: id,
             $or: [
                 { shop: { $exists: false } },
                 { shop: null }
@@ -244,8 +250,8 @@ app.delete('/api/admin/before-packing-only-users/:id', adminAuth, async (req, re
     const { id } = req.params;
 
     try {
-        const user = await User.findOne({ 
-            _id: id, 
+        const user = await User.findOne({
+            _id: id,
             $or: [
                 { shop: { $exists: false } },
                 { shop: null }
@@ -322,7 +328,7 @@ app.get('/api/admin/after-packing-only-users', adminAuth, async (req, res) => {
             return res.status(404).json({ message: 'After packing-only role not found' });
         }
 
-        const users = await User.find({ 
+        const users = await User.find({
             role: afterPackingOnlyRole._id,
             $or: [
                 { shop: { $exists: false } },
@@ -344,8 +350,8 @@ app.put('/api/admin/after-packing-only-users/:id', adminAuth, async (req, res) =
     const { username, password, name } = req.body;
 
     try {
-        const user = await User.findOne({ 
-            _id: id, 
+        const user = await User.findOne({
+            _id: id,
             $or: [
                 { shop: { $exists: false } },
                 { shop: null }
@@ -399,8 +405,8 @@ app.delete('/api/admin/after-packing-only-users/:id', adminAuth, async (req, res
     const { id } = req.params;
 
     try {
-        const user = await User.findOne({ 
-            _id: id, 
+        const user = await User.findOne({
+            _id: id,
             $or: [
                 { shop: { $exists: false } },
                 { shop: null }

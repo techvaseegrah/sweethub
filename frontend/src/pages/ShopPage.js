@@ -49,13 +49,14 @@ import ReturnProductsPage from '../components/shop/returnproducts/ReturnProducts
 
 // Import order management component
 import ShopOrderManagement from '../components/shop/OrderManagement';
+import SalesReport from '../components/admin/reports/SalesReport';
 
 import { useFullScreenBill } from '../context/FullScreenBillContext';
 
 const ShopPage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const { isFullScreenBill } = useFullScreenBill();
-    
+
     // Apply attendance-only protection
     useAttendanceOnlyProtection();
 
@@ -155,9 +156,12 @@ const ShopPage = () => {
                         <Route path="expenses/add" element={<AddExpense />} />
                         <Route path="expenses/edit/:id" element={<EditExpense />} />
                         <Route path="expenses/history" element={<ExpenseHistory />} />
-                        
+
                         {/* Return Products Routes */}
                         <Route path="return-products" element={<ReturnProductsPage />} />
+
+                        {/* Reports Routes */}
+                        <Route path="reports/sales" element={<SalesReport />} />
 
                         {/* Default Redirect */}
                         <Route index element={<Navigate to="dashboard" />} />

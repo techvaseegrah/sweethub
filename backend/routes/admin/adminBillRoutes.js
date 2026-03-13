@@ -3,8 +3,11 @@ const router = express.Router();
 const billingController = require('../../controllers/admin/billingController');
 const { adminAuth } = require('../../middleware/auth');
 
+
 router.post('/', adminAuth, billingController.createBill);
+router.get('/report/sales', adminAuth, billingController.getSalesReport);
 router.get('/', adminAuth, billingController.getBills);
+
 router.get('/:id', adminAuth, billingController.getBillById);
 router.put('/:id', adminAuth, billingController.updateBill);
 router.patch('/:id/payment-method', adminAuth, billingController.updatePaymentMethod);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuPackage, LuClock, LuCheckCircle } from 'react-icons/lu';
 import MessageAlert from '../../MessageAlert';
-import { formatDateWithTime } from '../../../utils/unitConversion';
+import { formatDateWithTime, getBatchId } from '../../../utils/unitConversion';
 
 const BeforePackingCompletedItems = () => {
     const [items, setItems] = useState([]);
@@ -73,6 +73,7 @@ const BeforePackingCompletedItems = () => {
                 <table className="min-w-full bg-white">
                     <thead className="bg-light-gray">
                         <tr>
+                            <th className="py-2 px-4 text-left">Batch ID</th>
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Total Quantity</th>
                             <th className="py-2 px-4 text-left">Unit</th>
@@ -83,6 +84,7 @@ const BeforePackingCompletedItems = () => {
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">{getBatchId(item.scheduleId, item.batchId)}</td>
                                 <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.totalQuantity || item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
@@ -97,7 +99,7 @@ const BeforePackingCompletedItems = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="5" className="text-center py-4">No completed items found.</td>
+                                <td colSpan="6" className="text-center py-4">No completed items found.</td>
                             </tr>
                         )}
                     </tbody>

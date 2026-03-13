@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from '../../../api/axios';
-// We will use local logic for the specific format, but keeping imports if you use them elsewhere
 import { getAvailableUnits, convertUnit, areRelatedUnits, formatDateToDDMMYYYY } from '../../../utils/unitConversion';
 import CustomModal from '../../CustomModal';
 
 import { useFullScreenBill } from '../../../context/FullScreenBillContext';
 import MessageAlert from '../../MessageAlert';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+
+// No longer importing jsPDF or autoTable directly here as generateBillPdf.js handles it
+// import jsPDF from 'jspdf'; 
+// import autoTable from 'jspdf-autotable';
 
 function CreateBill({ baseUrl = '/admin' }) {
   const location = useLocation();
@@ -19,6 +20,9 @@ function CreateBill({ baseUrl = '/admin' }) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalBillId, setOriginalBillId] = useState(null);
   const [billType, setBillType] = useState("ORDINARY");
+  // NEW STATE: For Tax Invoice checkbox
+  const [isTaxInvoice, setIsTaxInvoice] = useState(false);
+
 
   // Data States
   const [products, setProducts] = useState([]);
@@ -37,11 +41,8 @@ function CreateBill({ baseUrl = '/admin' }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   // Bill Info States
-  // Bill Date State - defaults to current time, but user can change
-  // Format for datetime-local input: YYYY-MM-DDTHH:mm
   const [billDate, setBillDate] = useState(() => {
     const now = new Date();
-    // Adjust for local timezone offset to show correct local time in input
     const offset = now.getTimezoneOffset() * 60000;
     const localISOTime = (new Date(now - offset)).toISOString().slice(0, 16);
     return localISOTime;
@@ -217,6 +218,9 @@ function CreateBill({ baseUrl = '/admin' }) {
       setPaymentMethod(bill.paymentMethod || 'Cash');
       setAmountPaid(bill.amountPaid?.toString() || '');
       setBillType(bill.billType || 'ORDINARY');
+      // NEW: Set isTaxInvoice if present in bill data
+      setIsTaxInvoice(bill.isTaxInvoice || false);
+
 
       if (bill.billDate || bill.createdAt) {
         const dateToUse = new Date(bill.billDate || bill.createdAt);
@@ -328,7 +332,7 @@ function CreateBill({ baseUrl = '/admin' }) {
   // --- PDF GENERATION LOGIC ---
   const handlePrintBill = (billData = null, forcePrint = false) => {
     // Import the standard bill PDF generator
-    import('../../../utils/generateBillPdf').then(({ printBill, generateBillPdf }) => {
+    import('../../../utils/generateBillPdf').then(({ printBill, generateBillPdf, generateTaxInvoicePdf }) => {
       const dataToPrint = billData || {
         invoiceNo: isEditMode ? "UPDATED" : (Math.floor(Math.random() * 90000) + 10000),
         date: formatDateToDDMMYYYY(billDate),
@@ -368,25 +372,37 @@ function CreateBill({ baseUrl = '/admin' }) {
         fssaiNumber: fromInfo.fssaiNumber,
       };
 
-      // Use the standard bill generator which creates 2-inch format
-      // If forcePrint is true (when Print button is clicked), open print dialog
-      // Also download PDF if autoDownload is true
-      if (forcePrint) {
-        // Print first
-        printBill(billDataFormatted, shopData);
-        // Also download if autoDownload is true
-        if (autoDownload) {
-          generateBillPdf(billDataFormatted, shopData);
+      // NEW LOGIC: Conditional PDF generation based on isTaxInvoice
+      if (isTaxInvoice) {
+        // If Tax Invoice is checked, generate the A4 format
+        if (forcePrint) {
+          generateTaxInvoicePdf(billDataFormatted, shopData, true); // Print Tax Invoice
+          if (autoDownload) {
+            generateTaxInvoicePdf(billDataFormatted, shopData, false); // Also download Tax Invoice
+          }
+        } else if (autoDownload) {
+          generateTaxInvoicePdf(billDataFormatted, shopData, false); // Download Tax Invoice
+        } else {
+          generateTaxInvoicePdf(billDataFormatted, shopData, true); // Default to print if not auto-download
         }
-      } else if (autoDownload) {
-        generateBillPdf(billDataFormatted, shopData);
       } else {
-        printBill(billDataFormatted, shopData);
+        // Otherwise, use the existing 58mm POS receipt format
+        if (forcePrint) {
+          printBill(billDataFormatted, shopData); // Print POS receipt
+          if (autoDownload) {
+            generateBillPdf(billDataFormatted, shopData); // Also download if autoDownload is true
+          }
+        } else if (autoDownload) {
+          generateBillPdf(billDataFormatted, shopData); // Download POS receipt
+        } else {
+          printBill(billDataFormatted, shopData); // Default to print if not auto-download
+        }
       }
     }).catch(error => {
-      console.error('Error importing generateBillPdf:', error);
+      console.error('Error importing generateBillPdf or generateTaxInvoicePdf:', error);
     });
   };
+
 
   // --- HANDLERS ---
   const handleSearchChange = (e) => {
@@ -594,6 +610,7 @@ function CreateBill({ baseUrl = '/admin' }) {
         discountValue: discountValue ? parseFloat(discountValue) : 0,
         discountAmount,
         billType,
+        isTaxInvoice, // NEW: Add isTaxInvoice to payload
         ...(baseUrl === '/admin' && selectedShop !== 'admin' && { shopId: selectedShop }),
         fromInfo: fromInfo.name ? fromInfo : undefined,
         toInfo: toInfo.name ? toInfo : undefined,
@@ -625,6 +642,8 @@ function CreateBill({ baseUrl = '/admin' }) {
         setDiscountValue('');
         setDiscountType('none');
         setSearchTerm('');
+        setIsTaxInvoice(false); // NEW: Reset checkbox after successful bill creation
+
 
         setTimeout(() => {
           // Scroll container to top
@@ -708,7 +727,8 @@ function CreateBill({ baseUrl = '/admin' }) {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [showDropdown, filteredProducts, selectedProductIndex, currentItem, baseUrl, showWorkerDropdown, workers, workerSearchTerm]);
+  }, [showDropdown, filteredProducts, selectedProductIndex, currentItem, baseUrl, showWorkerDropdown, workers, workerSearchTerm, handleSubmit]); // Added handleSubmit to dependencies
+
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;
 
@@ -771,6 +791,20 @@ function CreateBill({ baseUrl = '/admin' }) {
                 </span>
               </span>
             </div>
+
+            {/* NEW: Tax Invoice Checkbox */}
+            <div className="flex items-center gap-2 ml-4">
+              <input
+                type="checkbox"
+                id="taxInvoiceCheckbox"
+                checked={isTaxInvoice}
+                onChange={(e) => setIsTaxInvoice(e.target.checked)}
+                className="form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded"
+              />
+              <label htmlFor="taxInvoiceCheckbox" className="text-sm font-medium text-gray-700 cursor-pointer">Tax Invoice</label>
+            </div>
+
+
           </div>
           <button onClick={() => navigate(baseUrl + '/bills/view')} className="text-gray-500 hover:text-red-500 text-xl">✕</button>
         </div>

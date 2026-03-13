@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuPackage, LuClock, LuCheckCircle } from 'react-icons/lu';
 import MessageAlert from '../../MessageAlert';
-import { formatDateWithTime } from '../../../utils/unitConversion';
+import { formatDateWithTime, getBatchId } from '../../../utils/unitConversion';
 
 const AfterPackingCompletedItems = () => {
     const [items, setItems] = useState([]);
@@ -39,13 +39,14 @@ const AfterPackingCompletedItems = () => {
     if (loading) return (
         <div className="p-4 flex flex-col items-center justify-center">
             <div className="relative flex justify-center items-center mb-4">
-                <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
                 <img
                     src="/sweethub-logo.png"
                     className="absolute w-8 h-8"
+                    alt="logo"
                 />
             </div>
-            <div className="text-red-500 font-medium">Loading Completed Items...</div>
+            <div className="text-blue-600 font-medium">Loading Completed Items...</div>
         </div>
     );
 
@@ -73,6 +74,7 @@ const AfterPackingCompletedItems = () => {
                 <table className="min-w-full bg-white">
                     <thead className="bg-light-gray">
                         <tr>
+                            <th className="py-2 px-4 text-left">Batch ID</th>
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Quantity</th>
                             <th className="py-2 px-4 text-left">Unit</th>
@@ -83,6 +85,7 @@ const AfterPackingCompletedItems = () => {
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">{getBatchId(item.scheduleId, item.batchId)}</td>
                                 <td className="border px-4 py-2">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">{item.quantity}</td>
                                 <td className="border px-4 py-2">{item.unit}</td>
@@ -97,7 +100,7 @@ const AfterPackingCompletedItems = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="5" className="text-center py-4">No completed items found.</td>
+                                <td colSpan="6" className="text-center py-4">No completed items found.</td>
                             </tr>
                         )}
                     </tbody>

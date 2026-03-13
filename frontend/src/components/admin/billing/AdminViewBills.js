@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
-import { generateBillPdf } from '../../../utils/generateBillPdf';
+import { generateBillPdf, generateTaxInvoicePdf } from '../../../utils/generateBillPdf';
 import BillDetailView from './BillDetailView';
 import { useNavigate } from 'react-router-dom';
 import { formatDateToDDMMYYYY, formatDateTime } from '../../../utils/unitConversion';
@@ -249,9 +249,13 @@ function AdminViewBills({ baseUrl = '/admin' }) {
     // Find the shop data for this bill
     const shop = selectedShop === 'admin'
       ? { name: 'Admin Shop', address: 'Main Admin Location', phone: '7339200636' }
-      : shops.find(s => s._id === selectedShop) || bill.shop;
+      : shops.find(s => s._id === (bill.shop?._id || bill.shop)) || bill.shop;
 
-    generateBillPdf(bill, shop);
+    if (bill.isTaxInvoice) {
+      generateTaxInvoicePdf(bill, shop, false);
+    } else {
+      generateBillPdf(bill, shop);
+    }
   };
 
   const viewBillDetails = (bill) => {
@@ -320,12 +324,7 @@ function AdminViewBills({ baseUrl = '/admin' }) {
   };
 
   const handleDownloadPDF = (bill) => {
-    // Find the shop data for this bill
-    const shop = selectedShop === 'admin'
-      ? { name: 'Admin Shop', address: 'Main Admin Location', phone: '7339200636' }
-      : shops.find(s => s._id === selectedShop) || bill.shop;
-
-    generateBillPdf(bill, shop);
+    generateInvoice(bill);
   };
 
   const handleDownloadExcelClick = () => {

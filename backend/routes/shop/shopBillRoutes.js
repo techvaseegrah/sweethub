@@ -3,8 +3,11 @@ const router = express.Router();
 const billController = require('../../controllers/shop/billController');
 const { shopAuth } = require('../../middleware/auth');
 
+
 router.post('/billing', shopAuth, billController.createBill);
+router.get('/report/sales', shopAuth, billController.getSalesReport);
 router.get('/billing', shopAuth, billController.getBills);
+
 router.get('/billing/:id', shopAuth, billController.getBillById);
 router.put('/billing/:id', shopAuth, billController.updateBill);
 router.patch('/billing/:id/payment-method', shopAuth, billController.updatePaymentMethod);

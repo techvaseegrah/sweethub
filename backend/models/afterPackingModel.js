@@ -9,6 +9,10 @@ const afterPackingSchema = new mongoose.Schema({
         type: String,
         required: false
     },
+    batchId: {
+        type: String,
+        required: false
+    },
     // Legacy support
     sweetName: {
         type: String,

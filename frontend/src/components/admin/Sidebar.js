@@ -11,9 +11,7 @@ import {
     LuFileText,
     LuArchive,
     LuRefreshCw,
-    LuChevronDown,
     LuChevronRight,
-    LuScanFace,
     LuFileClock,
     LuChartBar,
     LuLogOut,
@@ -28,62 +26,7 @@ import { useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import LogoutConfirmationModal from '../LogoutConfirmationModal';
 
-// Sweet SVG components
-const CakeSVG = ({ size = "w-8 h-8", color = "pink" }) => (
-    <svg viewBox="0 0 100 100" className={`${size} opacity-20`}>
-        {/* Cake base */}
-        <rect x="20" y="60" width="60" height="30" rx="5" fill={color === "pink" ? "#ff85a2" : "#ffd166"} />
-        {/* Cake middle */}
-        <rect x="25" y="45" width="50" height="20" rx="3" fill={color === "pink" ? "#ff6b9c" : "#ffc44d"} />
-        {/* Cake top */}
-        <rect x="30" y="35" width="40" height="15" rx="2" fill={color === "pink" ? "#ff5286" : "#ffb734"} />
-        {/* Candle */}
-        <rect x="48" y="25" width="4" height="15" fill="#4ade80" />
-        {/* Flame */}
-        <path d="M50 20 Q52 15 50 10 Q48 15 50 20" fill="#fbbf24" />
-    </svg>
-);
-
-const CookieSVG = ({ size = "w-6 h-6", color = "yellow" }) => (
-    <svg viewBox="0 0 100 100" className={`${size} opacity-20`}>
-        {/* Cookie base */}
-        <circle cx="50" cy="50" r="40" fill={color === "yellow" ? "#ffd166" : "#c968ff"} />
-        {/* Chocolate chips */}
-        <circle cx="40" cy="40" r="4" fill="#78350f" />
-        <circle cx="60" cy="35" r="3" fill="#78350f" />
-        <circle cx="50" cy="60" r="3.5" fill="#78350f" />
-    </svg>
-);
-
-const DonutSVG = ({ size = "w-7 h-7", color = "pink" }) => (
-    <svg viewBox="0 0 100 100" className={`${size} opacity-20`}>
-        {/* Donut outer ring */}
-        <circle cx="50" cy="50" r="40" fill={color === "pink" ? "#ff85a2" : "#6dcff6"} />
-        {/* Donut hole */}
-        <circle cx="50" cy="50" r="15" fill="#f0f0f0" />
-        {/* Sprinkles */}
-        <circle cx="50" cy="15" r="3" fill="#fbbf24" />
-        <circle cx="75" cy="35" r="2.5" fill="#34d399" />
-    </svg>
-);
-
-const IceCreamSVG = ({ size = "w-6 h-6", color = "pink" }) => (
-    <svg viewBox="0 0 100 100" className={`${size} opacity-20`}>
-        {/* Cone */}
-        <path d="M50 70 L35 90 L65 90 Z" fill="#f59e0b" />
-        {/* Ice cream scoop */}
-        <circle cx="50" cy="50" r="25" fill={color === "pink" ? "#ff85a2" : "#6dcff6"} />
-    </svg>
-);
-
-const CandySVG = ({ size = "w-5 h-5", color = "purple" }) => (
-    <svg viewBox="0 0 100 100" className={`${size} opacity-20`}>
-        {/* Candy wrapper */}
-        <path d="M20 30 Q50 10 80 30 L70 70 Q50 90 30 70 Z" fill={color === "purple" ? "#c968ff" : "#ff85a2"} />
-        {/* Candy center */}
-        <ellipse cx="50" cy="50" rx="20" ry="15" fill="#f0f0f0" />
-    </svg>
-);
+// SVG components removed as they were not being used
 
 const Sidebar = () => {
     const location = useLocation();
@@ -97,7 +40,6 @@ const Sidebar = () => {
     const [isAfterPackingOpen, setIsAfterPackingOpen] = useState(false);
     const [materialStockAlerts, setMaterialStockAlerts] = useState(0);
     const [unviewedOrdersCount, setUnviewedOrdersCount] = useState(0);
-    const [sweetItems, setSweetItems] = useState([]);
 
     const { authState, logout } = useContext(AuthContext);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -374,6 +316,38 @@ const Sidebar = () => {
                                         <span className="mr-2">+</span>
                                         <span className="font-medium">Expire Materials</span>
                                     </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/outgoing-materials"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Outgoing Materials</span>
+                                    </NavLink>
+                                    <NavLink
+                                        to="/admin/warehouse/material-stock-alerts"
+                                        className={({ isActive }) =>
+                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                            }`
+                                        }
+                                        onClick={() => {
+                                            // Close sidebar on mobile when link is clicked
+                                            if (window.innerWidth < 1024) {
+                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                            }
+                                        }}
+                                    >
+                                        <span className="mr-2">+</span>
+                                        <span className="font-medium">Material Stock Alerts</span>
+                                    </NavLink>
                                 </nav>
                             )}
                         </div>
@@ -422,22 +396,6 @@ const Sidebar = () => {
                                         <span className="font-medium">Daily Schedule</span>
                                     </NavLink>
                                     <NavLink
-                                        to="/admin/warehouse/outgoing-materials"
-                                        className={({ isActive }) =>
-                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                            }`
-                                        }
-                                        onClick={() => {
-                                            // Close sidebar on mobile when link is clicked
-                                            if (window.innerWidth < 1024) {
-                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                            }
-                                        }}
-                                    >
-                                        <span className="mr-2">+</span>
-                                        <span className="font-medium">Outgoing Materials</span>
-                                    </NavLink>
-                                    <NavLink
                                         to="/admin/warehouse/production-schedules"
                                         className={({ isActive }) =>
                                             `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
@@ -452,22 +410,6 @@ const Sidebar = () => {
                                     >
                                         <span className="mr-2">+</span>
                                         <span className="font-medium">Production Schedules</span>
-                                    </NavLink>
-                                    <NavLink
-                                        to="/admin/warehouse/material-stock-alerts"
-                                        className={({ isActive }) =>
-                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                            }`
-                                        }
-                                        onClick={() => {
-                                            // Close sidebar on mobile when link is clicked
-                                            if (window.innerWidth < 1024) {
-                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                            }
-                                        }}
-                                    >
-                                        <span className="mr-2">+</span>
-                                        <span className="font-medium">Material Stock Alerts</span>
                                     </NavLink>
                                 </nav>
                             )}
@@ -886,6 +828,38 @@ const Sidebar = () => {
                                                         <span className="mr-2">+</span>
                                                         <span className="font-medium">Expire Materials</span>
                                                     </NavLink>
+                                                    <NavLink
+                                                        to="/admin/warehouse/outgoing-materials"
+                                                        className={({ isActive }) =>
+                                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                                            }`
+                                                        }
+                                                        onClick={() => {
+                                                            // Close sidebar on mobile when link is clicked
+                                                            if (window.innerWidth < 1024) {
+                                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                                            }
+                                                        }}
+                                                    >
+                                                        <span className="mr-2">+</span>
+                                                        <span className="font-medium">Outgoing Materials</span>
+                                                    </NavLink>
+                                                    <NavLink
+                                                        to="/admin/warehouse/material-stock-alerts"
+                                                        className={({ isActive }) =>
+                                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                                            }`
+                                                        }
+                                                        onClick={() => {
+                                                            // Close sidebar on mobile when link is clicked
+                                                            if (window.innerWidth < 1024) {
+                                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                                            }
+                                                        }}
+                                                    >
+                                                        <span className="mr-2">+</span>
+                                                        <span className="font-medium">Material Stock Alerts</span>
+                                                    </NavLink>
                                                 </nav>
                                             )}
                                         </div>
@@ -936,22 +910,6 @@ const Sidebar = () => {
                                                         <span className="font-medium">Daily Schedule</span>
                                                     </NavLink>
                                                     <NavLink
-                                                        to="/admin/warehouse/outgoing-materials"
-                                                        className={({ isActive }) =>
-                                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                                            }`
-                                                        }
-                                                        onClick={() => {
-                                                            // Close sidebar on mobile when link is clicked
-                                                            if (window.innerWidth < 1024) {
-                                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                                            }
-                                                        }}
-                                                    >
-                                                        <span className="mr-2">+</span>
-                                                        <span className="font-medium">Outgoing Materials</span>
-                                                    </NavLink>
-                                                    <NavLink
                                                         to="/admin/warehouse/production-schedules"
                                                         className={({ isActive }) =>
                                                             `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
@@ -966,22 +924,6 @@ const Sidebar = () => {
                                                     >
                                                         <span className="mr-2">+</span>
                                                         <span className="font-medium">Production Schedules</span>
-                                                    </NavLink>
-                                                    <NavLink
-                                                        to="/admin/warehouse/material-stock-alerts"
-                                                        className={({ isActive }) =>
-                                                            `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
-                                                            }`
-                                                        }
-                                                        onClick={() => {
-                                                            // Close sidebar on mobile when link is clicked
-                                                            if (window.innerWidth < 1024) {
-                                                                window.dispatchEvent(new CustomEvent('close-sidebar'));
-                                                            }
-                                                        }}
-                                                    >
-                                                        <span className="mr-2">+</span>
-                                                        <span className="font-medium">Material Stock Alerts</span>
                                                     </NavLink>
                                                 </nav>
                                             )}
@@ -1277,6 +1219,121 @@ const Sidebar = () => {
 
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                     <>
+                        {/* Reports Management */}
+                        <details className="group">
+                            <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
+                                <div className="flex items-center">
+                                    <LuFileClock className={`mr-3 text-lg ${iconColor}`} />
+                                    <span className="font-medium">Reports</span>
+                                </div>
+                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                            </summary>
+                            <nav className="mt-1 ml-6 space-y-1">
+                                <NavLink
+                                    to="/admin/reports/sales"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Sales report</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/reports/purchase"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Purchase report</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/reports/production"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Production report</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/reports/stock"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Stock report</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/reports/expiry-batch"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Expiry / batch report</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/reports/gst"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">GST report</span>
+                                </NavLink>
+                                <NavLink
+                                    to="/admin/reports/profit-loss"
+                                    className={({ isActive }) =>
+                                        `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`
+                                        }`
+                                    }
+                                    onClick={() => {
+                                        if (window.innerWidth < 1024) {
+                                            window.dispatchEvent(new CustomEvent('close-sidebar'));
+                                        }
+                                    }}
+                                >
+                                    <span className="font-medium">Profit & loss</span>
+                                </NavLink>
+                            </nav>
+                        </details>
+                    </>
+                )}
+
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                    <>
                         {/* E-Way Bill Management */}
                         <details className="group">
                             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
@@ -1429,31 +1486,40 @@ const Sidebar = () => {
                     </NavLink>
                 )}
 
-                {/* Removed Face Service Diagnostic */}
-
+                {/* Reports Module */}
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
-                    <NavLink
-                        to="/admin/profit-loss"
-                        className={({ isActive }) =>
-                            `flex items-center px-3 py-2.5 rounded-lg ${isActive
-                                ? activeRed
-                                : `${textPrimary} ${hoverBg}`
-                            }`
-                        }
-                        onClick={() => {
-                            // Close sidebar on mobile when link is clicked
-                            if (window.innerWidth < 1024) {
-                                window.dispatchEvent(new CustomEvent('close-sidebar'));
-                            }
-                        }}
-                    >
-                        {({ isActive }) => (
-                            <>
-                                <LuChartBar className={`mr-3 text-lg ${isActive ? iconActive : iconColor}`} />
+                    <details className="group">
+                        <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
+                            <div className="flex items-center">
+                                <LuChartBar className={`mr-3 text-lg ${iconColor}`} />
+                                <span className="font-medium">Reports</span>
+                            </div>
+                            <LuChevronRight className="w-4 h-4 text-gray-400" />
+                        </summary>
+                        <nav className="mt-1 ml-6 space-y-1">
+                            <NavLink to="/admin/reports/sales" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                                <span className="font-medium">Sales Report</span>
+                            </NavLink>
+                            <NavLink to="/admin/reports/purchase" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                                <span className="font-medium">Purchase Report</span>
+                            </NavLink>
+                            <NavLink to="/admin/reports/production" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                                <span className="font-medium">Production Report</span>
+                            </NavLink>
+                            <NavLink to="/admin/reports/stock" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                                <span className="font-medium">Stock Report</span>
+                            </NavLink>
+                            <NavLink to="/admin/reports/expiry-batch" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                                <span className="font-medium">Expiry/Batch Report</span>
+                            </NavLink>
+                            <NavLink to="/admin/reports/gst" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                                <span className="font-medium">GST Report</span>
+                            </NavLink>
+                            <NavLink to="/admin/reports/profit-loss" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                                 <span className="font-medium">Profit & Loss</span>
-                            </>
-                        )}
-                    </NavLink>
+                            </NavLink>
+                        </nav>
+                    </details>
                 )}
 
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (

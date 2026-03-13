@@ -189,3 +189,25 @@ export function formatDateWithTime(dateString) {
     </>
   );
 }
+
+// Format schedule ID as a Batch ID
+export function getBatchId(scheduleId, batchId) {
+  // If we already have a clean sequential batchId, use it
+  if (batchId && batchId !== 'N/A') return batchId;
+
+  if (!scheduleId) return 'N/A';
+
+  // Handle legacy IDs or already formatted PRO- IDs
+  const idStr = scheduleId.toString();
+  if (idStr.startsWith('LEGACY_') || idStr.startsWith('PRO-')) {
+    return idStr;
+  }
+
+  // Format long IDs (like MongoDB Object IDs) to a shorter readable format
+  // Using the last 8 characters for uniqueness
+  if (idStr.length >= 8) {
+    return `BAT-${idStr.slice(-8).toUpperCase()}`;
+  }
+
+  return `BAT-${idStr.toUpperCase()}`;
+}

@@ -9,7 +9,7 @@ const { generateAdminBillId, generateShopBillId } = require('../../utils/billIdG
 const { convertUnit, areRelatedUnits } = require('../../utils/unitConversion');
 
 exports.createBill = async (req, res) => {
-  const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate } = req.body;
+  const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate, isTaxInvoice } = req.body;
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -103,8 +103,8 @@ exports.createBill = async (req, res) => {
       discountValue: discountValue || 0,
       discountAmount: discountAmount || 0,
       billType,
-      billType,
       ...(worker && { worker }),
+      isTaxInvoice: isTaxInvoice || false,
       billDate: billDate || Date.now() // Use provided date or default to now
     });
 
@@ -174,7 +174,7 @@ exports.getBillById = async (req, res) => {
 
 // Update an existing bill
 exports.updateBill = async (req, res) => {
-  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate } = req.body;
+  const { customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate, isTaxInvoice } = req.body;
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -310,8 +310,7 @@ exports.updateBill = async (req, res) => {
         discountAmount: discountAmount || 0,
         billType,
         ...(worker && { worker }),
-        billType,
-        ...(worker && { worker }),
+        isTaxInvoice: isTaxInvoice !== undefined ? isTaxInvoice : bill.isTaxInvoice,
         ...(billDate && { billDate }), // Update billDate if provided
         isEdited: true // Mark as edited
       },
@@ -494,3 +493,116 @@ exports.updatePaymentMethod = async (req, res) => {
   }
 };
 
+
+// Get Sales Report with aggregation
+exports.getSalesReport = async (req, res) => {
+  try {
+    const { startDate, endDate, shopId } = req.query;
+
+    let filter = { isDeleted: false };
+
+    if (startDate && endDate) {
+      filter.billDate = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    if (shopId && shopId !== 'all') {
+      if (shopId === 'admin') {
+        filter.$or = [
+          { shop: null },
+          { shop: { $exists: false } },
+          { shop: { $eq: null } }
+        ];
+      } else {
+        filter.shop = new mongoose.Types.ObjectId(shopId);
+      }
+    }
+
+    // Aggregation for Total Revenue, Total Transactions, and Total Items Sold
+    const statsResult = await Bill.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$totalAmount' },
+          totalTransactions: { $sum: 1 },
+          totalItemsSold: { $sum: { $sum: '$items.quantity' } }
+        }
+      }
+    ]);
+
+    const stats = statsResult.length > 0 ? statsResult[0] : { totalRevenue: 0, totalTransactions: 0, totalItemsSold: 0 };
+
+    // Aggregation for Product-wise Sales
+    const productSales = await Bill.aggregate([
+      { $match: filter },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.productName',
+          totalQuantity: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } }
+        }
+      },
+      { $sort: { totalQuantity: -1 } }
+    ]);
+
+    // Aggregation for Customer-wise Sales
+    const customerSales = await Bill.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$customerMobileNumber',
+          customerName: { $first: '$customerName' },
+          totalSpent: { $sum: '$totalAmount' },
+          totalBills: { $sum: 1 }
+        }
+      },
+      { $sort: { totalSpent: -1 } },
+      { $limit: 20 } // Limit to top 20 customers
+    ]);
+
+    // Aggregation for Shop-wise Sales (only for admin when shopId is 'all')
+    let shopSummaries = [];
+    if (!req.shopId && shopId === 'all') {
+      shopSummaries = await Bill.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: '$shop',
+            shopName: { $first: '$shopName' },
+            totalRevenue: { $sum: '$totalAmount' },
+            totalTransactions: { $sum: 1 }
+          }
+        },
+        { $sort: { totalRevenue: -1 } }
+      ]);
+    }
+
+    res.json({
+      stats,
+      productSales: productSales.map(item => ({
+        productName: item._id,
+        totalQuantity: item.totalQuantity,
+        totalRevenue: item.totalRevenue
+      })),
+      customerSales: customerSales.map(item => ({
+        mobile: item._id,
+        name: item.customerName || 'Unknown',
+        totalSpent: item.totalSpent,
+        totalBills: item.totalBills
+      })),
+      shopSummaries: shopSummaries.map(item => ({
+        shopId: item._id || 'admin',
+        shopName: item.shopName || 'Admin Factory',
+        totalRevenue: item.totalRevenue,
+        totalTransactions: item.totalTransactions
+      }))
+    });
+  } catch (error) {
+    console.error('Get Sales Report Error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

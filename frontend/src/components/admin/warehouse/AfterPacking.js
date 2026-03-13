@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
-import { LuCheck, LuPackage, LuX } from 'react-icons/lu';
+import { LuCheck, LuPackage, LuX, LuDownload } from 'react-icons/lu';
 import CreateAfterPackingAccountModal from './CreateAfterPackingAccountModal';
 import CustomModal from '../../CustomModal';
 import { AuthContext } from '../../../context/AuthContext';
-import { formatDateWithTime, convertUnit } from '../../../utils/unitConversion';
+import { formatDateWithTime, convertUnit, getBatchId } from '../../../utils/unitConversion';
+import * as XLSX from 'xlsx';
 
 const AfterPacking = () => {
     const { authState } = useContext(AuthContext);
@@ -13,6 +14,7 @@ const AfterPacking = () => {
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [timeFilter, setTimeFilter] = useState('all');
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [itemToComplete, setItemToComplete] = useState(null);
     const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
@@ -102,10 +104,52 @@ const AfterPacking = () => {
     }, [fetchItems]);
 
     const filteredItems = items
-        .filter(item =>
-            (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
+        .filter(item => {
+            const matchesSearch = (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
+
+            if (timeFilter === 'all') return true;
+
+            const itemDate = new Date(item.date);
+            const now = new Date();
+
+            if (timeFilter === 'hour') {
+                return (now - itemDate) <= 60 * 60 * 1000;
+            }
+            if (timeFilter === 'today') {
+                return itemDate.toDateString() === now.toDateString();
+            }
+            if (timeFilter === 'yesterday') {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                return itemDate.toDateString() === yesterday.toDateString();
+            }
+            if (timeFilter === 'week') {
+                return (now - itemDate) <= 7 * 24 * 60 * 60 * 1000;
+            }
+            if (timeFilter === 'month') {
+                return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+            }
+            return true;
+        })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const handleDownloadExcel = () => {
+        const dataToExport = filteredItems.map(item => ({
+            'Batch ID': getBatchId(item.scheduleId, item.batchId),
+            'Product Name': item.productName || item.sweetName,
+            'Quantity': item.quantity,
+            'Total Quantity': item.totalQuantity || item.quantity,
+            'Unit': item.unit,
+            'Date': formatDateWithTime(item.date),
+            'Status': item.status
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'After Packing');
+        XLSX.writeFile(wb, `After_Packing_Report_${timeFilter}.xlsx`);
+    };
 
     /* UNUSED: handleStatusChange */
 
@@ -231,22 +275,44 @@ const AfterPacking = () => {
         <div className="bg-white p-6 rounded-xl shadow-md">
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold">After Packing</h1>
-                {/* Show Create Account button only for admin users (not for after-packing-only users) */}
-                {authState?.isAuthenticated && authState?.role === 'admin' && (
-                    <button
-                        onClick={() => {
-                            setEditingAccount(null);  // Ensure we're in create mode
-                            setShowManageMode(false);  // Set to open modal in create mode
-                            setShowCreateAccountModal(true);
-                        }}
-                        className="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base flex items-center"
+                <div className="flex items-center gap-4">
+                    <select
+                        value={timeFilter}
+                        onChange={(e) => setTimeFilter(e.target.value)}
+                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white outline-none focus:ring-2 focus:ring-green-500 font-medium text-gray-700"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
-                        </svg>
-                        Create Account
+                        <option value="all">All Records</option>
+                        <option value="hour">Per Hour</option>
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                    </select>
+                    <button
+                        onClick={handleDownloadExcel}
+                        className="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center gap-2"
+                        title="Download Excel"
+                    >
+                        <LuDownload className="w-4 h-4" />
+                        Download
                     </button>
-                )}
+                    {/* Show Create Account button only for admin users (not for after-packing-only users) */}
+                    {authState?.isAuthenticated && authState?.role === 'admin' && (
+                        <button
+                            onClick={() => {
+                                setEditingAccount(null);  // Ensure we're in create mode
+                                setShowManageMode(false);  // Set to open modal in create mode
+                                setShowCreateAccountModal(true);
+                            }}
+                            className="bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base flex items-center"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+                            </svg>
+                            Create Account
+                        </button>
+                    )}
+                </div>
             </div>
             <p className="text-gray-600 mb-6">Manage products ready for final packaging and stock addition.</p>
 
@@ -267,6 +333,7 @@ const AfterPacking = () => {
                 <table className="min-w-full bg-white">
                     <thead className="bg-light-gray">
                         <tr>
+                            <th className="py-2 px-4 text-left">Batch ID</th>
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Quantity / Total</th>
                             <th className="py-2 px-4 text-left">Unit</th>
@@ -278,6 +345,7 @@ const AfterPacking = () => {
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">{getBatchId(item.scheduleId, item.batchId)}</td>
                                 <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">
                                     {item.quantity} / {item.totalQuantity || item.quantity}
@@ -315,7 +383,7 @@ const AfterPacking = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="6" className="text-center py-4">No items found.</td>
+                                <td colSpan="7" className="text-center py-4">No items found.</td>
                             </tr>
                         )}
                     </tbody>

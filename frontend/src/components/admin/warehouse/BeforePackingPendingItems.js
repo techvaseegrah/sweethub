@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuPackage, LuClock, LuCheckCircle } from 'react-icons/lu';
 import MessageAlert from '../../MessageAlert';
-import { formatDateWithTime } from '../../../utils/unitConversion';
+import { formatDateWithTime, getBatchId } from '../../../utils/unitConversion';
 
 const BeforePackingPendingItems = () => {
     const [items, setItems] = useState([]);
@@ -73,6 +73,7 @@ const BeforePackingPendingItems = () => {
                 <table className="min-w-full bg-white">
                     <thead className="bg-light-gray">
                         <tr>
+                            <th className="py-2 px-4 text-left">Batch ID</th>
                             <th className="py-2 px-4 text-left">Product Name</th>
                             <th className="py-2 px-4 text-left">Quantity / Total</th>
                             <th className="py-2 px-4 text-left">Unit</th>
@@ -83,6 +84,7 @@ const BeforePackingPendingItems = () => {
                     <tbody>
                         {filteredItems.length > 0 ? filteredItems.map((item) => (
                             <tr key={item._id} className="border-b hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">{getBatchId(item.scheduleId, item.batchId)}</td>
                                 <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
                                 <td className="border px-4 py-2">
                                     {item.quantity} / {item.totalQuantity || item.quantity}
@@ -102,7 +104,7 @@ const BeforePackingPendingItems = () => {
                             </tr>
                         )) : (
                             <tr>
-                                <td colSpan="5" className="text-center py-4">No pending items found.</td>
+                                <td colSpan="6" className="text-center py-4">No pending items found.</td>
                             </tr>
                         )}
                     </tbody>

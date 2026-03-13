@@ -103,7 +103,7 @@ const billSchema = new mongoose.Schema({
   shopGstNumber: String,
   shopFssaiNumber: String,
   shopPhone: String,
-  
+
   // Soft delete fields
   isDeleted: {
     type: Boolean,
@@ -119,18 +119,23 @@ const billSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  
+
   // Worker who created the bill
   worker: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Worker'
   },
-  
+
   // Bill type: ORDINARY for regular bills, REFERENCE for dummy bills
   billType: {
     type: String,
     enum: ['ORDINARY', 'REFERENCE'],
     default: 'ORDINARY'
+  },
+  // NEW: Tax Invoice flag
+  isTaxInvoice: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true,

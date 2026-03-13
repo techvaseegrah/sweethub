@@ -10,6 +10,7 @@ const DailySchedule = require('../../models/dailyScheduleModel');
 const Product = require('../../models/productModel');
 const BeforePacking = require('../../models/beforePackingModel');
 const AfterPacking = require('../../models/afterPackingModel');
+const { generateBatchId } = require('../../utils/billIdGenerator');
 
 // Raw Materials / Store Room
 const addRawMaterial = async (req, res) => {
@@ -24,7 +25,9 @@ const addRawMaterial = async (req, res) => {
                 materialName: name,
                 quantityReceived: Number(quantity),
                 unit: unit,
-                vendorName: vendor
+                vendorName: vendor,
+                pricePerUnit: Number(price) || 0,
+                materialType: 'Raw Material'
             });
             await vendorHistory.save();
         }
@@ -233,6 +236,20 @@ const updateStoreRoomItem = async (req, res) => {
         if (!updatedItem) {
             return res.status(404).json({ message: 'Item not found' });
         }
+
+        // If vendor or price is updated, log to history as a record update
+        if (updateData.vendor || updateData.price) {
+            const vendorHistory = new VendorHistory({
+                materialName: updatedItem.name,
+                quantityReceived: updatedItem.quantity,
+                unit: updatedItem.unit,
+                vendorName: updatedItem.vendor || updatedItem.name,
+                pricePerUnit: updatedItem.price || 0,
+                materialType: 'Raw Material'
+            });
+            await vendorHistory.save();
+        }
+
         res.json(updatedItem);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -266,7 +283,9 @@ const addPackingMaterial = async (req, res) => {
                 materialName: name,
                 quantityReceived: Number(quantity),
                 unit: 'unit', // Default unit for packing materials
-                vendorName: vendor
+                vendorName: vendor,
+                pricePerUnit: Number(price) || 0,
+                materialType: 'Packing Material'
             });
             await vendorHistory.save();
         }
@@ -305,14 +324,16 @@ const updatePackingMaterial = async (req, res) => {
         const updatedMaterial = await PackingMaterial.findByIdAndUpdate(id, req.body, { new: true });
 
         // If vendor is updated, save to vendor history
-        if (req.body.vendor) {
+        if (req.body.vendor || req.body.price) {
             const material = await PackingMaterial.findById(id);
             if (material) {
                 const vendorHistory = new VendorHistory({
                     materialName: material.name,
                     quantityReceived: material.quantity,
                     unit: 'unit', // Default unit for packing materials
-                    vendorName: req.body.vendor
+                    vendorName: req.body.vendor || material.vendor || material.name,
+                    pricePerUnit: req.body.price || material.price || 0,
+                    materialType: 'Packing Material'
                 });
                 await vendorHistory.save();
             }
@@ -669,13 +690,13 @@ const getOutgoingMaterials = async (req, res) => {
             // Calculate total cost
             const totalCost = item.quantityUsed * item.pricePerUnit;
 
-            // Create readable schedule reference
+            // Create readable schedule reference (Batch ID)
             let readableScheduleRef = item.scheduleId;
             if (mongoose.Types.ObjectId.isValid(item.scheduleId)) {
-                readableScheduleRef = `SCH-${item.scheduleId.substring(0, 8).toUpperCase()}`;
+                readableScheduleRef = `BAT-${item.scheduleId.toString().slice(-8).toUpperCase()}`;
             } else if (item.scheduleId.startsWith('SCHEDULE_')) {
                 // Convert old format to readable format
-                readableScheduleRef = `SCH-${item.scheduleId.substring(9, 17)}`;
+                readableScheduleRef = `BAT-${item.scheduleId.substring(9, 17)}`;
             }
 
             return {
@@ -827,6 +848,7 @@ const createDailySchedule = async (req, res) => {
 
         const schedule = new DailySchedule({
             productName,
+            batchId: await generateBatchId(),
             quantity: Number(quantity),
             ingredients,
             price: Number(price),
@@ -924,7 +946,7 @@ const getBeforePackingItems = async (req, res) => {
 
 const addToBeforePacking = async (req, res) => {
     try {
-        const { scheduleId, productName, quantity, unit, price, date, description } = req.body;
+        const { scheduleId, batchId, productName, quantity, unit, price, date, description } = req.body;
 
         // Check if item already exists for this schedule
         const existingItem = await BeforePacking.findOne({ scheduleId });
@@ -934,6 +956,7 @@ const addToBeforePacking = async (req, res) => {
 
         const newItem = new BeforePacking({
             scheduleId,
+            batchId: batchId || 'N/A',
             productName,
             quantity: Number(quantity),
             totalQuantity: Number(quantity),
@@ -1014,6 +1037,7 @@ const updateBeforePackingStatus = async (req, res) => {
             // Add to After Packing
             const afterPackingItem = new AfterPacking({
                 scheduleId: item.scheduleId || 'LEGACY_UNKNOWN',
+                batchId: item.batchId || 'N/A',
                 productName: item.productName || item.sweetName || 'Unknown Product',
                 quantity: actualCompletedQty || 0,
                 unit: item.unit || 'unit',

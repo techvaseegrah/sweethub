@@ -485,3 +485,90 @@ exports.updatePaymentMethod = async (req, res) => {
   }
 };
 
+
+// Get Sales Report with aggregation for shop
+exports.getSalesReport = async (req, res) => {
+  try {
+    const shopId = req.user?.shopId || req.shopId;
+
+    if (!shopId) {
+      return res.status(403).json({ message: 'Unauthorized' });
+    }
+
+    const { startDate, endDate } = req.query;
+
+    let filter = {
+      isDeleted: false,
+      shop: new mongoose.Types.ObjectId(shopId)
+    };
+
+    if (startDate && endDate) {
+      filter.billDate = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    // Aggregation for Total Revenue, Total Transactions, and Total Items Sold
+    const statsResult = await Bill.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: null,
+          totalRevenue: { $sum: '$totalAmount' },
+          totalTransactions: { $sum: 1 },
+          totalItemsSold: { $sum: { $sum: '$items.quantity' } }
+        }
+      }
+    ]);
+
+    const stats = statsResult.length > 0 ? statsResult[0] : { totalRevenue: 0, totalTransactions: 0, totalItemsSold: 0 };
+
+    // Aggregation for Product-wise Sales
+    const productSales = await Bill.aggregate([
+      { $match: filter },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: '$items.productName',
+          totalQuantity: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } }
+        }
+      },
+      { $sort: { totalQuantity: -1 } }
+    ]);
+
+    // Aggregation for Customer-wise Sales
+    const customerSales = await Bill.aggregate([
+      { $match: filter },
+      {
+        $group: {
+          _id: '$customerMobileNumber',
+          customerName: { $first: '$customerName' },
+          totalSpent: { $sum: '$totalAmount' },
+          totalBills: { $sum: 1 }
+        }
+      },
+      { $sort: { totalSpent: -1 } },
+      { $limit: 20 }
+    ]);
+
+    res.json({
+      stats,
+      productSales: productSales.map(item => ({
+        productName: item._id,
+        totalQuantity: item.totalQuantity,
+        totalRevenue: item.totalRevenue
+      })),
+      customerSales: customerSales.map(item => ({
+        mobile: item._id,
+        name: item.customerName || 'Unknown',
+        totalSpent: item.totalSpent,
+        totalBills: item.totalBills
+      }))
+    });
+  } catch (error) {
+    console.error('Get Shop Sales Report Error:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

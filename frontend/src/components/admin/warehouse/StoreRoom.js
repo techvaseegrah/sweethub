@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from '../../../api/axios';
-import { LuPencil, LuTrash2, LuHistory } from 'react-icons/lu';
+import { LuPencil, LuTrash2, LuHistory, LuDownload, LuBox, LuFileText, LuSearch } from 'react-icons/lu';
+import * as XLSX from 'xlsx';
 
 const StoreRoom = () => {
+    const [view, setView] = useState('stock'); // 'stock' or 'records'
     const [items, setItems] = useState([]);
+    const [vendorHistory, setVendorHistory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [vendorSearch, setVendorSearch] = useState('');
+    const [timeFilter, setTimeFilter] = useState('all'); // all, hour, today, yesterday, week, month
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentItem, setCurrentItem] = useState(null);
-    
-    // Vendor history state
-    const [isVendorHistoryModalOpen, setIsVendorHistoryModalOpen] = useState(false);
-    const [vendorHistory, setVendorHistory] = useState([]);
-    const [vendorHistoryLoading, setVendorHistoryLoading] = useState(false);
-    
+
     // Delete confirmation modal state
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
@@ -23,11 +23,15 @@ const StoreRoom = () => {
     const fetchItems = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axios.get('/admin/warehouse/store-room');
-            setItems(response.data);
+            const [stockRes, historyRes] = await Promise.all([
+                axios.get('/admin/warehouse/store-room'),
+                axios.get('/admin/warehouse/vendor-history')
+            ]);
+            setItems(stockRes.data);
+            setVendorHistory(historyRes.data);
             setError('');
         } catch (err) {
-            setError('Failed to fetch store room items.');
+            setError('Failed to fetch store room data.');
             console.error(err);
         } finally {
             setLoading(false);
@@ -43,322 +47,399 @@ const StoreRoom = () => {
         setItemToDelete(item);
         setIsDeleteModalOpen(true);
     };
-    
+
     const confirmDelete = async () => {
         if (!itemToDelete) return;
-        
         try {
             await axios.delete(`/admin/warehouse/store-room/${itemToDelete._id}`);
-            fetchItems(); // Refresh the list
+            fetchItems();
             setIsDeleteModalOpen(false);
             setItemToDelete(null);
-            setError('');
         } catch (err) {
             setError('Failed to delete item.');
-            console.error(err);
         }
-    };
-    
-    const cancelDelete = () => {
-        setIsDeleteModalOpen(false);
-        setItemToDelete(null);
     };
 
     const openEditModal = (item) => {
         setCurrentItem({ ...item });
         setIsModalOpen(true);
     };
-    
+
     const handleModalChange = (e) => {
         const { name, value } = e.target;
         setCurrentItem(prev => ({ ...prev, [name]: value }));
-    };
-
-    const closeModal = () => {
-        setIsModalOpen(false);
-        setCurrentItem(null);
-    };
-    
-    // Vendor history functions
-    const openVendorHistoryModal = async () => {
-        setIsVendorHistoryModalOpen(true);
-        setVendorHistoryLoading(true);
-        
-        try {
-            const response = await axios.get(`/admin/warehouse/vendor-history`);
-            setVendorHistory(response.data);
-        } catch (err) {
-            setError('Failed to fetch vendor history.');
-            console.error(err);
-        } finally {
-            setVendorHistoryLoading(false);
-        }
-    };
-    
-    const closeVendorHistoryModal = () => {
-        setIsVendorHistoryModalOpen(false);
-        setVendorHistory([]);
     };
 
     const handleUpdate = async () => {
         if (!currentItem) return;
         try {
             await axios.put(`/admin/warehouse/store-room/${currentItem._id}`, currentItem);
-            closeModal();
-            fetchItems(); // Refresh the list
+            setIsModalOpen(false);
+            setCurrentItem(null);
+            fetchItems();
         } catch (err) {
             setError('Failed to update item.');
-            console.error(err);
         }
     };
-    
-    const filteredItems = items.filter(item =>
-        item.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+
+    // Filter Logic
+    const filteredStock = useMemo(() => {
+        return items.filter(item =>
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+            (vendorSearch === '' || (item.vendor && item.vendor.toLowerCase().includes(vendorSearch.toLowerCase())))
+        );
+    }, [items, searchTerm, vendorSearch]);
+
+    const filteredRecords = useMemo(() => {
+        const now = new Date();
+        return vendorHistory.filter(record => {
+            const recordDate = new Date(record.receivedDate || record.createdAt);
+
+            // Time Filter
+            let matchesTime = true;
+            if (timeFilter === 'hour') {
+                const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000));
+                matchesTime = recordDate >= oneHourAgo;
+            } else if (timeFilter === 'today') {
+                matchesTime = recordDate.toDateString() === now.toDateString();
+            } else if (timeFilter === 'yesterday') {
+                const yesterday = new Date(now);
+                yesterday.setDate(now.getDate() - 1);
+                matchesTime = recordDate.toDateString() === yesterday.toDateString();
+            } else if (timeFilter === 'week') {
+                const oneWeekAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                matchesTime = recordDate >= oneWeekAgo;
+            } else if (timeFilter === 'month') {
+                matchesTime = recordDate.getMonth() === now.getMonth() && recordDate.getFullYear() === now.getFullYear();
+            }
+
+            // Vendor Filter
+            const matchesVendor = vendorSearch === '' ||
+                (record.vendorName && record.vendorName.toLowerCase().includes(vendorSearch.toLowerCase()));
+
+            // Search Term (Material Name)
+            const matchesSearch = searchTerm === '' ||
+                (record.materialName && record.materialName.toLowerCase().includes(searchTerm.toLowerCase()));
+
+            return matchesTime && matchesVendor && matchesSearch;
+        });
+    }, [vendorHistory, timeFilter, vendorSearch, searchTerm]);
+
+    const totalPurchaseValue = useMemo(() => {
+        return filteredRecords.reduce((sum, record) => sum + ((record.quantityReceived || 0) * (record.pricePerUnit || 0)), 0);
+    }, [filteredRecords]);
+
+    const downloadReport = () => {
+        const dataToExport = filteredRecords.map(record => ({
+            'Material Name': record.materialName,
+            'Vendor Name': record.vendorName,
+            'Quantity': record.quantityReceived,
+            'Unit': record.unit,
+            'Price Per Unit': record.pricePerUnit || 0,
+            'Total Value': (record.quantityReceived * (record.pricePerUnit || 0)).toFixed(2),
+            'Date': new Date(record.receivedDate).toLocaleString()
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Purchase Records");
+        XLSX.writeFile(workbook, `StoreRoom_Report_${timeFilter}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
 
     if (loading) return (
-      <div className="p-4 flex flex-col items-center justify-center">
-        <div className="relative flex justify-center items-center mb-4">
-          <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
-            className="absolute w-8 h-8"
-          />
+        <div className="p-4 flex flex-col items-center justify-center h-64">
+            <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin mb-4"></div>
+            <div className="text-red-500 font-medium">Loading store room data...</div>
         </div>
-        <div className="text-red-500 font-medium">Loading...</div>
-      </div>
     );
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-md">
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold">Store Room</h1>
-                <button 
-                    onClick={openVendorHistoryModal}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
-                >
-                    <LuHistory className="mr-2" />
-                    Vendor History
-                </button>
-            </div>
-            
-            {error && <div className="text-red-500 mb-4">{error}</div>}
+        <div className="bg-gray-50 min-h-screen p-4 md:p-6">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">Store Room Management</h1>
+                        <p className="text-gray-500 mt-1">Manage inventory and track purchase records</p>
+                    </div>
 
-            <div className="mb-4">
-                <input
-                    type="text"
-                    placeholder="Search by material name..."
-                    className="w-full md:w-1/3 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="min-w-full bg-white">
-                    <thead className="bg-light-gray">
-                        <tr>
-                            <th className="py-2 px-4 text-left">Material Name</th>
-                            <th className="py-2 px-4 text-left">Quantity</th>
-                            <th className="py-2 px-4 text-left">Unit</th>
-                            <th className="py-2 px-4 text-left">Price (per unit)</th>
-                            <th className="py-2 px-4 text-left">Vendor</th>
-                            <th className="py-2 px-4 text-left">Address</th>
-                            <th className="py-2 px-4 text-left">Expiry Date</th>
-                            <th className="py-2 px-4 text-left">Used By Date</th>
-                            <th className="py-2 px-4 text-left">Stock Alert Threshold</th>
-                            <th className="py-2 px-4 text-left">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredItems.length > 0 ? filteredItems.map((item) => (
-                            <tr key={item._id} className="border-b hover:bg-gray-50">
-                                <td className="border px-4 py-2">{item.name}</td>
-                                <td className="border px-4 py-2">{item.quantity}</td>
-                                <td className="border px-4 py-2">{item.unit}</td>
-                                <td className="border px-4 py-2">₹{item.price}</td>
-                                <td className="border px-4 py-2">{item.vendor || '-'}</td>
-                                <td className="border px-4 py-2">{item.address || '-'}</td>
-                                <td className="border px-4 py-2">{item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : '-'}</td>
-                                <td className="border px-4 py-2">{item.usedByDate ? new Date(item.usedByDate).toLocaleDateString() : '-'}</td>
-                                <td className="border px-4 py-2">{item.stockAlertThreshold}</td>
-                                <td className="border px-4 py-2">
-                                    <button onClick={() => openEditModal(item)} className="text-blue-600 hover:text-blue-800 mr-3 p-1 rounded hover:bg-blue-50">
-                                        <LuPencil />
-                                    </button>
-                                    <button onClick={() => handleDelete(item._id)} className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50">
-                                        <LuTrash2 />
-                                    </button>
-                                </td>
-                            </tr>
-                        )) : (
-                            <tr>
-                                <td colSpan="8" className="text-center py-4">No items found. Add items via the Raw Materials page.</td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-
-            {isModalOpen && currentItem && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center">
-                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-4">Edit Item</h2>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium">Name</label>
-                                <input type="text" name="name" value={currentItem.name} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium">Quantity</label>
-                                <input type="text" name="quantity" value={currentItem.quantity} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
-                            </div>
-                             <div>
-                                <label className="block text-sm font-medium">Unit</label>
-                                <input type="text" name="unit" value={currentItem.unit} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium">Price</label>
-                                <input type="text" name="price" value={currentItem.price} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium">Vendor</label>
-                                <input type="text" name="vendor" value={currentItem.vendor || ''} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium">Address</label>
-                                <input type="text" name="address" value={currentItem.address || ''} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium">Expiry Date</label>
-                                <input 
-                                    type="date" 
-                                    name="expiryDate" 
-                                    value={currentItem.expiryDate ? new Date(currentItem.expiryDate).toISOString().split('T')[0] : ''} 
-                                    onChange={handleModalChange} 
-                                    className="w-full px-3 py-2 border rounded-md" 
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium">Used By Date</label>
-                                <input 
-                                    type="date" 
-                                    name="usedByDate" 
-                                    value={currentItem.usedByDate ? new Date(currentItem.usedByDate).toISOString().split('T')[0] : ''} 
-                                    onChange={handleModalChange} 
-                                    className="w-full px-3 py-2 border rounded-md" 
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium">Stock Alert Threshold</label>
-                                <input 
-                                    type="number" 
-                                    name="stockAlertThreshold" 
-                                    value={currentItem.stockAlertThreshold || ''} 
-                                    onChange={handleModalChange} 
-                                    className="w-full px-3 py-2 border rounded-md" 
-                                />
-                            </div>
-                        </div>
-                        <div className="mt-6 flex justify-end gap-4">
-                            <button onClick={closeModal} className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Cancel</button>
-                            <button onClick={handleUpdate} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Update</button>
-                        </div>
+                    <div className="flex bg-white rounded-lg p-1 shadow-sm border">
+                        <button
+                            onClick={() => setView('stock')}
+                            className={`flex items-center px-4 py-2 rounded-md transition-all ${view === 'stock' ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                            <LuBox className="mr-2" /> Stock Inventory
+                        </button>
+                        <button
+                            onClick={() => setView('records')}
+                            className={`flex items-center px-4 py-2 rounded-md transition-all ${view === 'records' ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                        >
+                            <LuFileText className="mr-2" /> Purchase Records
+                        </button>
                     </div>
                 </div>
-            )}
-            
-            {/* Vendor History Modal */}
-            {isVendorHistoryModalOpen && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-xl font-bold">
-                                All Vendor History
-                            </h2>
-                            <button 
-                                onClick={closeVendorHistoryModal}
-                                className="text-gray-500 hover:text-gray-700 text-2xl"
+
+                {error && <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 text-red-700">{error}</div>}
+
+                {/* Filters Section */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="relative">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Search Material</label>
+                            <div className="relative">
+                                <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="e.g. Sugar, Milk..."
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="relative">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Search Vendor</label>
+                            <div className="relative">
+                                <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Vendor name..."
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                                    value={vendorSearch}
+                                    onChange={(e) => setVendorSearch(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Time Period</label>
+                            <select
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                value={timeFilter}
+                                onChange={(e) => setTimeFilter(e.target.value)}
                             >
-                                &times;
+                                <option value="all">All Records</option>
+                                <option value="hour">Per Hour</option>
+                                <option value="today">Today</option>
+                                <option value="yesterday">Yesterday</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                            </select>
+                        </div>
+
+                        <div className="flex items-end">
+                            <button
+                                onClick={downloadReport}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center transition-colors shadow-sm"
+                            >
+                                <LuDownload className="mr-2" /> Download Report
                             </button>
                         </div>
-                        
-                        {vendorHistoryLoading ? (
-                            <div className="text-center py-4">Loading vendor history...</div>
-                        ) : vendorHistory.length > 0 ? (
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full bg-white">
-                                    <thead className="bg-light-gray">
-                                        <tr>
-                                            <th className="py-2 px-4 text-left">Material Name</th>
-                                            <th className="py-2 px-4 text-left">Vendor Name</th>
-                                            <th className="py-2 px-4 text-left">Quantity Received</th>
-                                            <th className="py-2 px-4 text-left">Unit</th>
-                                            <th className="py-2 px-4 text-left">Date & Time</th>
+                    </div>
+
+                    {view === 'records' && (
+                        <div className="mt-6 pt-6 border-t flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-primary/10 rounded-full text-primary">
+                                    <LuFileText size={24} />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500 font-medium">Filtered Purchase Value</p>
+                                    <p className="text-2xl font-bold text-gray-800">₹{totalPurchaseValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                                </div>
+                            </div>
+                            <div className="text-sm text-gray-500">
+                                Showing <span className="font-bold text-gray-800">{filteredRecords.length}</span> transaction(s)
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Data Table */}
+                <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-gray-50 border-b border-gray-100">
+                                {view === 'stock' ? (
+                                    <tr>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Material Name</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Quantity</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Unit</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price (Unit)</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendor</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Expiry / Used By</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                ) : (
+                                    <tr>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Material Name</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendor</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Quantity</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price/Unit</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total Value</th>
+                                    </tr>
+                                )}
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {view === 'stock' ? (
+                                    filteredStock.length > 0 ? filteredStock.map((item) => (
+                                        <tr key={item._id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-medium text-gray-800">{item.name}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded text-sm font-bold ${item.quantity <= item.stockAlertThreshold ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                                    {item.quantity}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600">{item.unit}</td>
+                                            <td className="px-6 py-4 text-gray-800 font-semibold">₹{item.price}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-sm font-medium text-gray-800">{item.vendor || 'N/A'}</div>
+                                                <div className="text-xs text-gray-500">{item.address || ''}</div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-xs">
+                                                    <span className="text-gray-400">EXP:</span> {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : '-'}
+                                                </div>
+                                                <div className="text-xs">
+                                                    <span className="text-gray-400">USE:</span> {item.usedByDate ? new Date(item.usedByDate).toLocaleDateString() : '-'}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => openEditModal(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                        <LuPencil />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(item._id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                                        <LuTrash2 />
+                                                    </button>
+                                                </div>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        {vendorHistory.map((entry, index) => (
-                                            <tr key={index} className="border-b hover:bg-gray-50">
-                                                <td className="border px-4 py-2">{entry.materialName}</td>
-                                                <td className="border px-4 py-2">{entry.vendorName}</td>
-                                                <td className="border px-4 py-2">{entry.quantityReceived}</td>
-                                                <td className="border px-4 py-2">{entry.unit}</td>
-                                                <td className="border px-4 py-2">
-                                                    {new Date(entry.receivedDate).toLocaleString()}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="7" className="px-6 py-12 text-center text-gray-500">No stock items found matching your search.</td>
+                                        </tr>
+                                    )
+                                ) : (
+                                    filteredRecords.length > 0 ? filteredRecords.map((record, index) => (
+                                        <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4 text-sm text-gray-500">
+                                                {new Date(record.receivedDate || record.createdAt).toLocaleString()}
+                                            </td>
+                                            <td className="px-6 py-4 font-medium text-gray-800">{record.materialName}</td>
+                                            <td className="px-6 py-4 text-gray-600">{record.vendorName}</td>
+                                            <td className="px-6 py-4">
+                                                <span className="font-bold">{record.quantityReceived}</span> {record.unit}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600">₹{record.pricePerUnit || 0}</td>
+                                            <td className="px-6 py-4 font-bold text-gray-800">
+                                                ₹{(record.quantityReceived * (record.pricePerUnit || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            </td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan="6" className="px-6 py-12 text-center text-gray-500">No purchase records found for the selected filters.</td>
+                                        </tr>
+                                    )
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {/* Edit Modal */}
+            {isModalOpen && currentItem && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-800">Edit Material Details</h2>
+                            <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                        </div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Material Name</label>
+                                <input type="text" name="name" value={currentItem.name} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
-                        ) : (
-                            <div className="text-center py-4 text-gray-500">
-                                No vendor history found.
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Quantity</label>
+                                <input type="number" name="quantity" value={currentItem.quantity} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
-                        )}
-                        
-                        <div className="mt-6 flex justify-end">
-                            <button 
-                                onClick={closeVendorHistoryModal}
-                                className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300"
-                            >
-                                Close
-                            </button>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Unit</label>
+                                <input type="text" name="unit" value={currentItem.unit} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Price per Unit (₹)</label>
+                                <input type="number" name="price" value={currentItem.price} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Alert Threshold</label>
+                                <input type="number" name="stockAlertThreshold" value={currentItem.stockAlertThreshold} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Vendor Name</label>
+                                <input type="text" name="vendor" value={currentItem.vendor || ''} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Vendor Address</label>
+                                <input type="text" name="address" value={currentItem.address || ''} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Expiry Date</label>
+                                <input
+                                    type="date"
+                                    name="expiryDate"
+                                    value={currentItem.expiryDate ? new Date(currentItem.expiryDate).toISOString().split('T')[0] : ''}
+                                    onChange={handleModalChange}
+                                    className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Used By Date</label>
+                                <input
+                                    type="date"
+                                    name="usedByDate"
+                                    value={currentItem.usedByDate ? new Date(currentItem.usedByDate).toISOString().split('T')[0] : ''}
+                                    onChange={handleModalChange}
+                                    className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+                            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                            <button onClick={handleUpdate} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark shadow-md transition-all">Update Stock</button>
                         </div>
                     </div>
                 </div>
             )}
-            
-            {/* Delete Confirmation Modal */}
+
+            {/* Delete Modal */}
             {isDeleteModalOpen && itemToDelete && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md mx-4">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
                         <div className="text-center">
                             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-                                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
+                                <LuTrash2 className="h-6 w-6 text-red-600" />
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">Delete Item</h3>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Material?</h3>
                             <p className="text-gray-500 mb-6">
-                                Are you sure you want to delete <span className="font-semibold text-gray-700">{itemToDelete.name}</span>? 
-                                This action cannot be undone.
+                                Are you sure you want to delete <span className="font-bold text-gray-700">{itemToDelete.name}</span>?
+                                This will remove it from current stock permanently.
                             </p>
                             <div className="flex justify-center gap-3">
                                 <button
-                                    onClick={cancelDelete}
-                                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                                    onClick={() => setIsDeleteModalOpen(false)}
+                                    className="px-6 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={confirmDelete}
-                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                                    className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-md transition-colors"
                                 >
-                                    Delete
+                                    Delete Now
                                 </button>
                             </div>
                         </div>
