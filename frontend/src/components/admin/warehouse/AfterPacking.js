@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
-import { LuCheck, LuPackage, LuX, LuDownload } from 'react-icons/lu';
+import { LuCheck, LuPackage, LuX, LuDownload, LuTrash2, LuTriangleAlert } from 'react-icons/lu';
 import CreateAfterPackingAccountModal from './CreateAfterPackingAccountModal';
 import CustomModal from '../../CustomModal';
 import { AuthContext } from '../../../context/AuthContext';
@@ -20,6 +20,9 @@ const AfterPacking = () => {
     const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
     const [showManageMode, setShowManageMode] = useState(false);
+    const [viewMode, setViewMode] = useState('OWN'); // 'OWN' or 'FINISHED'
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
     const [expiryDate, setExpiryDate] = useState('');
     const [usedByDate, setUsedByDate] = useState('');
     const [completedQty, setCompletedQty] = useState('');
@@ -108,6 +111,10 @@ const AfterPacking = () => {
             const matchesSearch = (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase());
             if (!matchesSearch) return false;
 
+            const itemSource = item.source || 'OWN';
+            if (viewMode === 'OWN' && itemSource !== 'OWN') return false;
+            if (viewMode === 'FINISHED' && itemSource !== 'FINISHED PRODUCT') return false;
+
             if (timeFilter === 'all') return true;
 
             const itemDate = new Date(item.date);
@@ -152,6 +159,24 @@ const AfterPacking = () => {
     };
 
     /* UNUSED: handleStatusChange */
+
+    const confirmDelete = (item) => {
+        setItemToDelete(item);
+        setShowDeleteConfirm(true);
+    };
+
+    const handleDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const response = await axios.delete(`/admin/warehouse/after-packing/${itemToDelete._id}`);
+            setMessage(response.data.message);
+            setShowDeleteConfirm(false);
+            setItemToDelete(null);
+            fetchItems(); // Refresh the list
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to delete item.');
+        }
+    };
 
     const handleAddToStock = async (itemId, inputQty, userSelectedUnit, convertedQtyToDeduct, newProductName, customSku, customCategory, customNetPrice, customSellPrice) => {
         try {
@@ -314,7 +339,24 @@ const AfterPacking = () => {
                     )}
                 </div>
             </div>
-            <p className="text-gray-600 mb-6">Manage products ready for final packaging and stock addition.</p>
+
+            <div className="flex justify-between flex-wrap gap-4 mb-6">
+                <p className="text-gray-600">Manage products ready for final packaging and stock addition.</p>
+                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                    <button
+                        onClick={() => setViewMode('OWN')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${viewMode === 'OWN' ? 'bg-white text-green-600 shadow' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        OWN Products
+                    </button>
+                    <button
+                        onClick={() => setViewMode('FINISHED')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${viewMode === 'FINISHED' ? 'bg-white text-green-600 shadow' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        Finished Products
+                    </button>
+                </div>
+            </div>
 
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
@@ -365,20 +407,29 @@ const AfterPacking = () => {
                                     </span>
                                 </td>
                                 <td className="border px-4 py-2">
-                                    {item.status !== 'Completed' ? (
+                                    <div className="flex items-center gap-2">
+                                        {item.status !== 'Completed' ? (
+                                            <button
+                                                onClick={() => confirmComplete(item)}
+                                                className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center gap-1"
+                                            >
+                                                <LuPackage className="w-4 h-4" />
+                                                Add to Stock
+                                            </button>
+                                        ) : (
+                                            <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                <LuCheck className="w-4 h-4" />
+                                                Added to Stock
+                                            </span>
+                                        )}
                                         <button
-                                            onClick={() => confirmComplete(item)}
-                                            className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center gap-1"
+                                            onClick={() => confirmDelete(item)}
+                                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors flex items-center justify-center"
+                                            title="Delete Item"
                                         >
-                                            <LuPackage className="w-4 h-4" />
-                                            Add to Stock
+                                            <LuTrash2 className="w-5 h-5" />
                                         </button>
-                                    ) : (
-                                        <span className="text-gray-500 text-sm flex items-center gap-1">
-                                            <LuCheck className="w-4 h-4" />
-                                            Added to Stock
-                                        </span>
-                                    )}
+                                    </div>
                                 </td>
                             </tr>
                         )) : (
@@ -568,40 +619,10 @@ const AfterPacking = () => {
                                     ))}
                                 </select>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Net Price (₹)
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                    value={netPrice}
-                                    onChange={(e) => setNetPrice(e.target.value)}
-                                    step="any"
-                                    min="0"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Sell Price (₹)
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                    value={sellPrice}
-                                    onChange={(e) => setSellPrice(e.target.value)}
-                                    step="any"
-                                    min="0"
-                                />
-                            </div>
                         </div>
 
                         {completedQty && selectedUnit && itemToComplete && (
                             <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <p className="text-sm font-semibold text-blue-800">
-                                    Total Value: ₹
-                                    {(convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit) * itemToComplete.price).toFixed(2)}
-                                </p>
                                 <p className="text-xs text-blue-600 mt-1">
                                     (Converted Quantity: {convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit).toFixed(3)} {itemToComplete.unit})
                                 </p>
@@ -645,6 +666,42 @@ const AfterPacking = () => {
                             >
                                 Confirm
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full animate-fadeIn">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                <LuTriangleAlert className="w-10 h-10 text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Item</h3>
+                            <p className="text-gray-600 mb-6">
+                                Are you sure you want to delete <span className="font-semibold">{itemToDelete?.productName || itemToDelete?.sweetName}</span>?
+                                This action will also automatically delete the corresponding item in Before Packing. This action cannot be undone.
+                            </p>
+                            <div className="flex gap-4 w-full">
+                                <button
+                                    onClick={() => {
+                                        setShowDeleteConfirm(false);
+                                        setItemToDelete(null);
+                                    }}
+                                    className="flex-1 py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors flex justify-center items-center gap-2"
+                                >
+                                    <LuTrash2 className="w-5 h-5" />
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

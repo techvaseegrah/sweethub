@@ -35,9 +35,10 @@ function CreateBill({ baseUrl = '/shop' }) {
     const now = new Date();
     // Adjust for local timezone offset to show correct local time in input
     const offset = now.getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(now - offset)).toISOString().slice(0, 16);
+    const localISOTime = (new Date(now - offset)).toISOString().slice(0, 19);
     return localISOTime;
   });
+  const [isManualTime, setIsManualTime] = useState(false);
 
   // To Info
 
@@ -138,8 +139,20 @@ function CreateBill({ baseUrl = '/shop' }) {
   const amountPaidRef = useRef(null);
   const createBillButtonRef = useRef(null);
 
-  // --- EFFECTS ---
-  // Timer effect removed as we now use manual date selection
+  useEffect(() => {
+    let timer;
+    if (!isManualTime && !isEditMode) {
+      timer = setInterval(() => {
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(now - offset)).toISOString().slice(0, 19);
+        setBillDate(localISOTime);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isManualTime, isEditMode]);
 
   useEffect(() => {
     enterFullScreenBill();
@@ -606,6 +619,7 @@ function CreateBill({ baseUrl = '/shop' }) {
         setDiscountType('none');
         setSearchTerm('');
         // Reset customer info as well
+        setIsManualTime(false); // Reset manual time after saving
         setToInfo({
           name: '',
           address: '',
@@ -858,11 +872,12 @@ function CreateBill({ baseUrl = '/shop' }) {
               <span className="text-gray-500">Date:</span>
               <input
                 type="date"
-                value={new Date(billDate).toISOString().split('T')[0]}
+                value={billDate.split('T')[0]}
                 onChange={(e) => {
                   const newDate = e.target.value;
-                  const currentTime = new Date(billDate).toTimeString().slice(0, 5);
+                  const currentTime = billDate.split('T')[1];
                   setBillDate(`${newDate}T${currentTime}`);
+                  setIsManualTime(true);
                 }}
                 className="font-bold border rounded p-1 text-sm"
               />
@@ -871,11 +886,13 @@ function CreateBill({ baseUrl = '/shop' }) {
               <span className="text-gray-500">Time:</span>
               <input
                 type="time"
-                value={new Date(billDate).toTimeString().slice(0, 5)}
+                step="1"
+                value={billDate.split('T')[1]}
                 onChange={(e) => {
                   const newTime = e.target.value;
-                  const currentDate = new Date(billDate).toISOString().split('T')[0];
+                  const currentDate = billDate.split('T')[0];
                   setBillDate(`${currentDate}T${newTime}`);
+                  setIsManualTime(true);
                 }}
                 className="font-bold border rounded p-1 text-sm"
               />

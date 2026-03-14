@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { formatDateToDDMMYYYY } from '../../../utils/unitConversion';
+import { formatDateToDDMMYYYY, formatDateTime } from '../../../utils/unitConversion';
 import axios from '../../../api/axios';
 
 const BillDetailView = ({ bill, onClose, onUpdate, initialEditMode = false }) => {
@@ -58,7 +58,26 @@ const BillDetailView = ({ bill, onClose, onUpdate, initialEditMode = false }) =>
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Bill Information</h3>
               <p className="text-gray-600"><span className="font-medium">Bill ID:</span> {bill.billId || bill._id}</p>
-              <p className="text-gray-600"><span className="font-medium">Date:</span> {bill.billDate ? formatDateToDDMMYYYY(bill.billDate) : (bill.createdAt ? formatDateToDDMMYYYY(bill.createdAt) : 'N/A')}</p>
+              <p className="text-gray-600">
+                <span className="font-medium">Date & Time:</span>{" "}
+                {bill.billDate ? (
+                  <>
+                    {(() => {
+                      const dt = formatDateTime(bill.billDate);
+                      return `${dt.date} ${dt.time}`;
+                    })()}
+                  </>
+                ) : bill.createdAt ? (
+                  <>
+                    {(() => {
+                      const dt = formatDateTime(bill.createdAt);
+                      return `${dt.date} ${dt.time}`;
+                    })()}
+                  </>
+                ) : (
+                  "N/A"
+                )}
+              </p>
 
               <div className="flex items-center space-x-2 mt-1">
                 <span className="text-gray-600 font-medium">Payment Method:</span>

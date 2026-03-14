@@ -16,6 +16,7 @@ const PackingMaterials = () => {
         name: '',
         quantity: '',
         price: '',
+        gstPercentage: '5',
         stockAlertThreshold: '',
         vendor: ''
     });
@@ -74,7 +75,7 @@ const PackingMaterials = () => {
             } else {
                 setMessage(`Successfully added "${newItem.name}".`);
             }
-            setNewItem({ name: '', quantity: '', price: '', stockAlertThreshold: '', vendor: '' });
+            setNewItem({ name: '', quantity: '', price: '', gstPercentage: '5', stockAlertThreshold: '', vendor: '' });
             fetchMaterials(); // Refresh list
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to add packing material.');
@@ -183,7 +184,7 @@ const PackingMaterials = () => {
 
             <div className="bg-gray-50 p-4 rounded-lg shadow-sm mb-6">
                 <h2 className="text-lg font-semibold mb-2">Add New Packing Material</h2>
-                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Material Name</label>
                         <PackingMaterialNameSelector 
@@ -199,6 +200,10 @@ const PackingMaterials = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
                         <input type="text" name="price" placeholder="Price" value={newItem.price} onChange={handleInputChange} className="border p-2 rounded-md w-full" required />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">GST %</label>
+                        <input type="number" name="gstPercentage" placeholder="GST %" value={newItem.gstPercentage} onChange={handleInputChange} className="border p-2 rounded-md w-full" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Alert Threshold</label>
@@ -302,6 +307,10 @@ const PackingMaterials = () => {
                              <div>
                                 <label className="block text-sm font-medium">Price</label>
                                 <input type="text" name="price" value={currentItem.price} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">GST %</label>
+                                <input type="number" name="gstPercentage" value={currentItem.gstPercentage || '0'} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Stock Alert Threshold</label>

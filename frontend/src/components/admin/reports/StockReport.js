@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LuDownload, LuBox, LuSearch, LuStore, LuChevronDown, LuTriangleAlert, LuPackage, LuContainer } from 'react-icons/lu';
+import { LuDownload, LuBox, LuSearch, LuStore, LuChevronDown, LuTriangleAlert, LuPackage, LuContainer, LuLayoutGrid, LuCalendar } from 'react-icons/lu';
+import { format } from 'date-fns';
 import axios from '../../../api/axios';
 import { toast } from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { generateStockReportExcel } from '../../../utils/generateStockReportExcel';
 
 const StockReport = () => {
     const [loading, setLoading] = useState(true);
@@ -14,14 +16,24 @@ const StockReport = () => {
 
     const [selectedShop, setSelectedShop] = useState('all');
     const [shops, setShops] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
+    const [dateRange, setDateRange] = useState({
+        startDate: format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'),
+        endDate: format(new Date(), 'yyyy-MM-dd')
+    });
 
-    const fetchShops = useCallback(async () => {
+    const fetchShopsAndCategories = useCallback(async () => {
         try {
-            const response = await axios.get('/admin/shops');
-            setShops(response.data);
+            const [shopsRes, categoriesRes] = await Promise.all([
+                axios.get('/admin/shops'),
+                axios.get('/admin/categories')
+            ]);
+            setShops(shopsRes.data);
+            setCategories(categoriesRes.data);
         } catch (error) {
-            console.error('Error fetching shops:', error);
+            console.error('Error fetching shops and categories:', error);
         }
     }, []);
 
@@ -29,7 +41,10 @@ const StockReport = () => {
         setLoading(true);
         try {
             const params = {
-                shopId: selectedShop
+                shopId: selectedShop,
+                ...(selectedCategory !== 'all' && { categoryId: selectedCategory }),
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate
             };
             const response = await axios.get('/admin/reports/stock', { params });
             setStockData(response.data);
@@ -39,11 +54,20 @@ const StockReport = () => {
         } finally {
             setLoading(false);
         }
-    }, [selectedShop]);
+    }, [selectedShop, selectedCategory, dateRange]);
 
     useEffect(() => {
-        fetchShops();
-    }, [fetchShops]);
+        fetchShopsAndCategories();
+    }, [fetchShopsAndCategories]);
+
+    const handleExportExcel = () => {
+        const viewName = selectedShop === 'all' ? 'Global' : 
+                        selectedShop === 'admin' ? 'Admin Side' : 
+                        shops.find(s => s._id === selectedShop)?.name || 'Shop';
+        
+        generateStockReportExcel(stockData, dateRange, viewName);
+        toast.success('Excel report generated');
+    };
 
     useEffect(() => {
         fetchStockReport();
@@ -148,10 +172,53 @@ const StockReport = () => {
                             className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm w-full md:w-64 shadow-sm font-semibold"
                         />
                     </div>
+                    <button 
+                        onClick={handleExportExcel}
+                        className="flex items-center space-x-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-sm"
+                    >
+                        <LuDownload className="w-4 h-4" />
+                        <span>Export Excel</span>
+                    </button>
                     <button className="flex items-center space-x-2 bg-red-600 text-white px-5 py-2.5 rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-500/20 font-bold text-sm">
                         <LuDownload className="w-4 h-4" />
                         <span>Export PDF</span>
                     </button>
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div className="mb-8 flex flex-col lg:flex-row items-start lg:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                {/* Date Filter */}
+                <div className="flex items-center space-x-3 text-gray-700 min-w-max">
+                    <div className="p-2 bg-emerald-50 rounded-lg">
+                        <LuCalendar className="w-5 h-5 text-emerald-500" />
+                    </div>
+                    <div>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Time Period</span>
+                        <span className="text-sm font-bold text-gray-800 uppercase tracking-tight">Date Range</span>
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col sm:flex-row items-center gap-3 w-full">
+                    <div className="relative w-full">
+                        <LuCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="date"
+                            value={dateRange.startDate}
+                            onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-sm font-medium"
+                        />
+                    </div>
+                    <span className="text-gray-400 font-bold hidden sm:block">to</span>
+                    <div className="relative w-full">
+                        <LuCalendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="date"
+                            value={dateRange.endDate}
+                            onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all text-sm font-medium"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -177,6 +244,35 @@ const StockReport = () => {
                         <option value="admin">Admin Side / Factory Only</option>
                         {shops.map(shop => (
                             <option key={shop._id} value={shop._id}>{shop.name}</option>
+                        ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <LuChevronDown className="w-4 h-4 text-gray-400" />
+                    </div>
+                </div>
+
+                {/* Category Dropdown */}
+                <div className="hidden lg:block h-10 w-px bg-gray-100 mx-2" />
+
+                <div className="flex items-center space-x-3 text-gray-700 min-w-max">
+                    <div className="p-2 bg-indigo-50 rounded-lg">
+                        <LuLayoutGrid className="w-5 h-5 text-indigo-500" />
+                    </div>
+                    <div>
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Filter By</span>
+                        <span className="text-sm font-bold text-gray-800 uppercase tracking-tight">Category</span>
+                    </div>
+                </div>
+
+                <div className="relative flex-1 w-full max-w-md">
+                    <select
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        className="w-full pl-5 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-bold text-gray-800 appearance-none cursor-pointer shadow-inner"
+                    >
+                        <option value="all">All Categories</option>
+                        {categories.map(category => (
+                            <option key={category._id} value={category._id}>{category.name}</option>
                         ))}
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">

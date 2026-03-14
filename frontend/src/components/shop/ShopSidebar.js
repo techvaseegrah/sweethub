@@ -81,7 +81,7 @@ const CandySVG = ({ size = "w-5 h-5", color = "purple" }) => (
 function ShopSidebar() {
   const [lowStockCount, setLowStockCount] = useState(0);
   const [shopName, setShopName] = useState('');
-  const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState(null);
   const [hasPendingInvoice, setHasPendingInvoice] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [sweetItems, setSweetItems] = useState([]);
@@ -245,8 +245,8 @@ function ShopSidebar() {
     setShowLogoutModal(false);
   };
 
-  const toggleProductMenu = () => {
-    setIsProductMenuOpen(!isProductMenuOpen);
+  const toggleMenu = (menuName) => {
+    setOpenMenu(prev => prev === menuName ? null : menuName);
   };
 
   const sidebarBg = 'bg-white';
@@ -330,6 +330,7 @@ function ShopSidebar() {
               }`
             }
             onClick={() => {
+              setOpenMenu(null);
               // Close sidebar on mobile when link is clicked
               if (window.innerWidth < 1024) {
                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -345,13 +346,16 @@ function ShopSidebar() {
           </NavLink>
         )}
 
-        <details className="group">
+        <details className="group" open={openMenu === 'workers'} onToggle={(e) => {
+          if (e.target.open) toggleMenu('workers');
+          else if (openMenu === 'workers') setOpenMenu(null);
+        }}>
           <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
             <div className="flex items-center">
               <LuUsers className={`mr-3 text-lg ${iconColor}`} />
               <span className="font-medium">Workers</span>
             </div>
-            <LuChevronRight className="w-4 h-4 text-gray-400" />
+            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
           </summary>
           <nav className="mt-1 ml-6 space-y-1">
             {authState?.role !== 'attendance-only' && (
@@ -386,13 +390,16 @@ function ShopSidebar() {
         </details>
 
         {authState?.role !== 'attendance-only' && (
-          <details className="group">
+          <details className="group" open={openMenu === 'departments'} onToggle={(e) => {
+            if (e.target.open) toggleMenu('departments');
+            else if (openMenu === 'departments') setOpenMenu(null);
+          }}>
             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
               <div className="flex items-center">
                 <LuBuilding className={`mr-3 text-lg ${iconColor}`} />
                 <span className="font-medium">Departments</span>
               </div>
-              <LuChevronRight className="w-4 h-4 text-gray-400" />
+              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'departments' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
               <NavLink to="/shop/departments/create" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
@@ -406,19 +413,22 @@ function ShopSidebar() {
         )}
 
         {authState?.role !== 'attendance-only' && (
-          <details className="group" open={isProductMenuOpen} onToggle={toggleProductMenu}>
+          <details className="group" open={openMenu === 'products'} onToggle={(e) => {
+            if (e.target.open) toggleMenu('products');
+            else if (openMenu === 'products') setOpenMenu(null);
+          }}>
             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
               <div className="flex items-center">
                 <LuBoxes className={`mr-3 text-lg ${iconColor}`} />
                 <span className="font-medium">Products</span>
               </div>
               <div className="flex items-center space-x-2">
-                {!isProductMenuOpen && lowStockCount > 0 && (
+                {openMenu !== 'products' && lowStockCount > 0 && (
                   <span className={`${alertBadge} text-xs font-bold px-1.5 py-0.5 rounded-full`}>
                     {lowStockCount}
                   </span>
                 )}
-                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'products' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
               </div>
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
@@ -439,7 +449,7 @@ function ShopSidebar() {
               </NavLink>
               <NavLink to="/shop/warehouse/alerts" className={({ isActive }) => `flex items-center justify-between px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">Stock Alerts</span>
-                {isProductMenuOpen && lowStockCount > 0 && (
+                {openMenu === 'products' && lowStockCount > 0 && (
                   <span className={`${alertBadge} text-xs font-bold px-1.5 py-0.5 rounded-full`}>
                     {lowStockCount}
                   </span>
@@ -457,6 +467,7 @@ function ShopSidebar() {
               }`
             }
             onClick={() => {
+              setOpenMenu(null);
               // Close sidebar on mobile when link is clicked
               if (window.innerWidth < 1024) {
                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -476,13 +487,16 @@ function ShopSidebar() {
         )}
 
         {authState?.role !== 'attendance-only' && (
-          <details className="group">
+          <details className="group" open={openMenu === 'billing'} onToggle={(e) => {
+            if (e.target.open) toggleMenu('billing');
+            else if (openMenu === 'billing') setOpenMenu(null);
+          }}>
             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
               <div className="flex items-center">
                 <LuReceipt className={`mr-3 text-lg ${iconColor}`} />
                 <span className="font-medium">Billing & Invoices</span>
               </div>
-              <LuChevronRight className="w-4 h-4 text-gray-400" />
+              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'billing' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
               <NavLink to="/shop/billing/create" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
@@ -503,6 +517,7 @@ function ShopSidebar() {
               }`
             }
             onClick={() => {
+              setOpenMenu(null);
               // Close sidebar on mobile when link is clicked
               if (window.innerWidth < 1024) {
                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -527,6 +542,7 @@ function ShopSidebar() {
               }`
             }
             onClick={() => {
+              setOpenMenu(null);
               // Close sidebar on mobile when link is clicked
               if (window.innerWidth < 1024) {
                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -551,6 +567,7 @@ function ShopSidebar() {
               }`
             }
             onClick={() => {
+              setOpenMenu(null);
               // Close sidebar on mobile when link is clicked
               if (window.innerWidth < 1024) {
                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -568,13 +585,16 @@ function ShopSidebar() {
 
         {/* Reports Module */}
         {authState?.role !== 'attendance-only' && (
-          <details className="group">
+          <details className="group" open={openMenu === 'reports'} onToggle={(e) => {
+            if (e.target.open) toggleMenu('reports');
+            else if (openMenu === 'reports') setOpenMenu(null);
+          }}>
             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
               <div className="flex items-center">
                 <LuChartBar className={`mr-3 text-lg ${iconColor}`} />
                 <span className="font-medium">Reports</span>
               </div>
-              <LuChevronRight className="w-4 h-4 text-gray-400" />
+              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reports' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
               <NavLink to="/shop/reports/sales" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
@@ -593,6 +613,7 @@ function ShopSidebar() {
               }`
             }
             onClick={() => {
+              setOpenMenu(null);
               // Close sidebar on mobile when link is clicked
               if (window.innerWidth < 1024) {
                 window.dispatchEvent(new CustomEvent('close-sidebar'));

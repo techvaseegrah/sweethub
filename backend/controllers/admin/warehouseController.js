@@ -15,18 +15,25 @@ const { generateBatchId } = require('../../utils/billIdGenerator');
 // Raw Materials / Store Room
 const addRawMaterial = async (req, res) => {
     try {
-        const { name, quantity, unit, price, vendor, address, expiryDate, usedByDate } = req.body;
+        const { name, quantity, unit, price, gstPercentage, vendor, address, expiryDate, usedByDate } = req.body;
         // Find item case-insensitively and trim whitespace
         let item = await StoreRoomItem.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } });
+
+        const gst = Number(gstPercentage) || 0;
+        const basePrice = Number(price) || 0;
+        const qty = Number(quantity) || 0;
+        const calculatedGstAmount = (qty * basePrice) * (gst / 100);
 
         // Save vendor history regardless of whether item exists or not
         if (vendor) {
             const vendorHistory = new VendorHistory({
                 materialName: name,
-                quantityReceived: Number(quantity),
+                quantityReceived: qty,
                 unit: unit,
                 vendorName: vendor,
-                pricePerUnit: Number(price) || 0,
+                pricePerUnit: basePrice,
+                gstPercentage: gst,
+                gstAmount: calculatedGstAmount,
                 materialType: 'Raw Material'
             });
             await vendorHistory.save();
@@ -34,8 +41,9 @@ const addRawMaterial = async (req, res) => {
 
         if (item) {
             // If item exists, add to quantity and update price
-            item.quantity += Number(quantity);
-            if (price) item.price = price; // Update price if provided
+            item.quantity += qty;
+            if (price) item.price = basePrice; // Update price if provided
+            if (gstPercentage !== undefined) item.gstPercentage = gst;
             if (unit) item.unit = unit; // Update unit if provided
             // Only update vendor if provided (keep existing vendor if not provided)
             if (vendor) item.vendor = vendor;
@@ -46,7 +54,7 @@ const addRawMaterial = async (req, res) => {
             if (usedByDate) item.usedByDate = new Date(usedByDate);
         } else {
             // Otherwise, create a new item
-            item = new StoreRoomItem({ name, quantity, unit, price, vendor, address, expiryDate: expiryDate ? new Date(expiryDate) : undefined, usedByDate: usedByDate ? new Date(usedByDate) : undefined });
+            item = new StoreRoomItem({ name, quantity: qty, unit, price: basePrice, gstPercentage: gst, vendor, address, expiryDate: expiryDate ? new Date(expiryDate) : undefined, usedByDate: usedByDate ? new Date(usedByDate) : undefined });
         }
         await item.save();
         res.status(201).json(item);
@@ -237,14 +245,21 @@ const updateStoreRoomItem = async (req, res) => {
             return res.status(404).json({ message: 'Item not found' });
         }
 
-        // If vendor or price is updated, log to history as a record update
-        if (updateData.vendor || updateData.price) {
+        // If vendor or price or gstPercentage is updated, log to history as a record update
+        if (updateData.vendor || updateData.price || updateData.gstPercentage !== undefined) {
+            const gst = Number(updatedItem.gstPercentage) || 0;
+            const price = Number(updatedItem.price) || 0;
+            const qty = Number(updatedItem.quantity) || 0;
+            const calculatedGstAmount = (qty * price) * (gst / 100);
+
             const vendorHistory = new VendorHistory({
                 materialName: updatedItem.name,
-                quantityReceived: updatedItem.quantity,
+                quantityReceived: qty,
                 unit: updatedItem.unit,
                 vendorName: updatedItem.vendor || updatedItem.name,
-                pricePerUnit: updatedItem.price || 0,
+                pricePerUnit: price,
+                gstPercentage: gst,
+                gstAmount: calculatedGstAmount,
                 materialType: 'Raw Material'
             });
             await vendorHistory.save();
@@ -272,19 +287,26 @@ const deleteStoreRoomItem = async (req, res) => {
 // Packing Materials
 const addPackingMaterial = async (req, res) => {
     try {
-        const { name, quantity, price, stockAlertThreshold, vendor } = req.body;
+        const { name, quantity, price, gstPercentage, stockAlertThreshold, vendor } = req.body;
 
         // Find item case-insensitively and trim whitespace
         let item = await PackingMaterial.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } });
+
+        const gst = Number(gstPercentage) || 0;
+        const basePrice = Number(price) || 0;
+        const qty = Number(quantity) || 0;
+        const calculatedGstAmount = (qty * basePrice) * (gst / 100);
 
         // Save vendor history regardless of whether item exists or not
         if (vendor) {
             const vendorHistory = new VendorHistory({
                 materialName: name,
-                quantityReceived: Number(quantity),
+                quantityReceived: qty,
                 unit: 'unit', // Default unit for packing materials
                 vendorName: vendor,
-                pricePerUnit: Number(price) || 0,
+                pricePerUnit: basePrice,
+                gstPercentage: gst,
+                gstAmount: calculatedGstAmount,
                 materialType: 'Packing Material'
             });
             await vendorHistory.save();
@@ -292,15 +314,16 @@ const addPackingMaterial = async (req, res) => {
 
         if (item) {
             // If item exists, add to quantity and update price if provided
-            item.quantity += Number(quantity);
-            if (price) item.price = price; // Update price if provided
+            item.quantity += qty;
+            if (price) item.price = basePrice; // Update price if provided
+            if (gstPercentage !== undefined) item.gstPercentage = gst;
             // Only update vendor if provided (keep existing vendor if not provided)
             if (vendor) item.vendor = vendor;
             await item.save();
             res.json(item);
         } else {
             // Otherwise, create a new item
-            const newMaterial = new PackingMaterial({ name, quantity, price, stockAlertThreshold, vendor });
+            const newMaterial = new PackingMaterial({ name, quantity: qty, price: basePrice, gstPercentage: gst, stockAlertThreshold, vendor });
             await newMaterial.save();
             res.status(201).json(newMaterial);
         }
@@ -324,15 +347,22 @@ const updatePackingMaterial = async (req, res) => {
         const updatedMaterial = await PackingMaterial.findByIdAndUpdate(id, req.body, { new: true });
 
         // If vendor is updated, save to vendor history
-        if (req.body.vendor || req.body.price) {
+        if (req.body.vendor || req.body.price || req.body.gstPercentage !== undefined) {
             const material = await PackingMaterial.findById(id);
             if (material) {
+                const gst = Number(material.gstPercentage) || 0;
+                const price = Number(material.price) || 0;
+                const qty = Number(material.quantity) || 0;
+                const calculatedGstAmount = (qty * price) * (gst / 100);
+
                 const vendorHistory = new VendorHistory({
                     materialName: material.name,
-                    quantityReceived: material.quantity,
+                    quantityReceived: qty,
                     unit: 'unit', // Default unit for packing materials
                     vendorName: req.body.vendor || material.vendor || material.name,
-                    pricePerUnit: req.body.price || material.price || 0,
+                    pricePerUnit: price,
+                    gstPercentage: gst,
+                    gstAmount: calculatedGstAmount,
                     materialType: 'Packing Material'
                 });
                 await vendorHistory.save();
@@ -946,7 +976,7 @@ const getBeforePackingItems = async (req, res) => {
 
 const addToBeforePacking = async (req, res) => {
     try {
-        const { scheduleId, batchId, productName, quantity, unit, price, date, description } = req.body;
+        const { scheduleId, batchId, productName, quantity, unit, price, date, description, source } = req.body;
 
         // Check if item already exists for this schedule
         const existingItem = await BeforePacking.findOne({ scheduleId });
@@ -963,7 +993,8 @@ const addToBeforePacking = async (req, res) => {
             unit,
             price: Number(price),
             date: new Date(date),
-            description: description || ''
+            description: description || '',
+            source: source || 'OWN'
         });
 
         await newItem.save();
@@ -1043,7 +1074,8 @@ const updateBeforePackingStatus = async (req, res) => {
                 unit: item.unit || 'unit',
                 price: item.price || 0,
                 date: new Date(),
-                description: `Moved from Before Packing (${newStatus}) - ${item.description || ''}`
+                description: `Moved from Before Packing (${newStatus}) - ${item.description || ''}`,
+                source: item.source || 'OWN'
             });
 
             await afterPackingItem.save();
@@ -1072,6 +1104,28 @@ const updateBeforePackingStatus = async (req, res) => {
         });
     } catch (error) {
         console.error('Error updating Before Packing status:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+const deleteBeforePackingItem = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const item = await BeforePacking.findByIdAndDelete(id);
+        if (!item) {
+            return res.status(404).json({ message: 'Before Packing item not found' });
+        }
+        
+        // delete the corresponding item in after packing using batchId or scheduleId
+        if (item.batchId && item.batchId !== 'N/A') {
+            await AfterPacking.deleteMany({ batchId: item.batchId });
+        } else if (item.scheduleId) {
+            await AfterPacking.deleteMany({ scheduleId: item.scheduleId });
+        }
+
+        res.json({ message: 'Item deleted successfully from Before and After Packing.' });
+    } catch (error) {
+        console.error('Error deleting Before Packing item:', error);
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
@@ -1305,6 +1359,28 @@ const addToStockFromAfterPacking = async (req, res) => {
     }
 };
 
+const deleteAfterPackingItem = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const item = await AfterPacking.findByIdAndDelete(id);
+        if (!item) {
+            return res.status(404).json({ message: 'After Packing item not found' });
+        }
+        
+        // delete the corresponding item in before packing using batchId or scheduleId
+        if (item.batchId && item.batchId !== 'N/A') {
+            await BeforePacking.deleteMany({ batchId: item.batchId });
+        } else if (item.scheduleId) {
+            await BeforePacking.deleteMany({ scheduleId: item.scheduleId });
+        }
+
+        res.json({ message: 'Item deleted successfully from After and Before Packing.' });
+    } catch (error) {
+        console.error('Error deleting After Packing item:', error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
 module.exports = {
     addRawMaterial,
     getStoreRoomItems,
@@ -1340,8 +1416,10 @@ module.exports = {
     getBeforePackingItems,
     addToBeforePacking,
     updateBeforePackingStatus,
+    deleteBeforePackingItem,
     // After Packing exports
     getAfterPackingItems,
     updateAfterPackingStatus,
-    addToStockFromAfterPacking
+    addToStockFromAfterPacking,
+    deleteAfterPackingItem
 };

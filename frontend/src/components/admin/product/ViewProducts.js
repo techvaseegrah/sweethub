@@ -14,6 +14,8 @@ function ViewProducts({ baseUrl = '/admin' }) {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editedProduct, setEditedProduct] = useState({});
@@ -84,8 +86,18 @@ function ViewProducts({ baseUrl = '/admin' }) {
       );
     }
 
+    if (dateFrom) {
+      tempProducts = tempProducts.filter(p => new Date(p.createdAt) >= new Date(dateFrom));
+    }
+    
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      tempProducts = tempProducts.filter(p => new Date(p.createdAt) <= toDate);
+    }
+
     setFilteredProducts(tempProducts);
-  }, [products, selectedCategory, searchTerm]);
+  }, [products, selectedCategory, searchTerm, dateFrom, dateTo]);
 
   const openDeleteConfirmation = (id) => {
     setProductToDelete(id);
@@ -238,7 +250,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
   };
 
   const downloadProductReport = () => {
-    generateProductReportPdf(filteredProducts, categories, selectedCategory);
+    generateProductReportPdf(filteredProducts, categories, selectedCategory, { dateFrom, dateTo });
   };
 
   if (loading) {
@@ -329,13 +341,13 @@ function ViewProducts({ baseUrl = '/admin' }) {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 mb-4">
+      <div className="flex flex-col md:flex-row gap-4 mb-4 flex-wrap">
         <input
           type="text"
           placeholder="Search by name or SKU..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full md:w-1/3 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <select
           value={selectedCategory}
@@ -349,6 +361,25 @@ function ViewProducts({ baseUrl = '/admin' }) {
             </option>
           ))}
         </select>
+        
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">From:</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">To:</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
       </div>
 
       {flattenedProducts.length === 0 ? (
@@ -404,11 +435,19 @@ function ViewProducts({ baseUrl = '/admin' }) {
                       {product.stockLevel}
                     </span>
                   </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ₹{product.netPrice}
+                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
+                    {Number(product.netPrice) === 0 ? (
+                      <span className="text-red-500 font-bold">(0)</span>
+                    ) : (
+                      <span className="text-gray-500">₹{product.netPrice}</span>
+                    )}
                   </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
-                    ₹{product.sellingPrice}
+                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm font-semibold">
+                    {Number(product.sellingPrice) === 0 ? (
+                      <span className="text-red-500 font-bold">(0)</span>
+                    ) : (
+                      <span className="text-green-600">₹{product.sellingPrice}</span>
+                    )}
                   </td>
                   <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('en-GB') : 'N/A'}

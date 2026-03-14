@@ -277,7 +277,9 @@ const StoreRoom = () => {
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendor</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Quantity</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price/Unit</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total Value</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GST (%)</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GST Amt</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total (with GST)</th>
                                     </tr>
                                 )}
                             </thead>
@@ -333,8 +335,10 @@ const StoreRoom = () => {
                                                 <span className="font-bold">{record.quantityReceived}</span> {record.unit}
                                             </td>
                                             <td className="px-6 py-4 text-gray-600">₹{record.pricePerUnit || 0}</td>
+                                            <td className="px-6 py-4 text-gray-600">{record.gstPercentage || 0}%</td>
+                                            <td className="px-6 py-4 text-emerald-600 font-medium">₹{(record.gstAmount || 0).toFixed(2)}</td>
                                             <td className="px-6 py-4 font-bold text-gray-800">
-                                                ₹{(record.quantityReceived * (record.pricePerUnit || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                ₹{((record.quantityReceived * (record.pricePerUnit || 0)) + (record.gstAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                             </td>
                                         </tr>
                                     )) : (
@@ -377,6 +381,10 @@ const StoreRoom = () => {
                             <div>
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">Alert Threshold</label>
                                 <input type="number" name="stockAlertThreshold" value={currentItem.stockAlertThreshold} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">GST %</label>
+                                <input type="number" name="gstPercentage" value={currentItem.gstPercentage || '0'} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">Vendor Name</label>

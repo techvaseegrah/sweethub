@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
-import { LuPackage, LuClock, LuCheckCircle, LuPlus, LuCheck, LuX, LuSearch } from 'react-icons/lu';
+import { LuPackage, LuX } from 'react-icons/lu';
 import { AuthContext } from '../../../context/AuthContext';
 import { formatDateWithTime, convertUnit, getBatchId } from '../../../utils/unitConversion';
 
@@ -18,6 +18,7 @@ const AfterPackingAddToStock = () => {
     const [editedProductName, setEditedProductName] = useState('');
     const [expiryDate, setExpiryDate] = useState('');
     const [usedByDate, setUsedByDate] = useState('');
+    const [viewMode, setViewMode] = useState('OWN'); // 'OWN' or 'FINISHED'
 
     // Auxiliary data for the modal
     const [categories, setCategories] = useState([]);
@@ -94,9 +95,16 @@ const AfterPackingAddToStock = () => {
     }, [editedProductName, selectedUnit, showConfirmation, products]);
 
     const filteredItems = items
-        .filter(item =>
-            (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
+        .filter(item => {
+            const matchesSearch = (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
+
+            const itemSource = item.source || 'OWN';
+            if (viewMode === 'OWN' && itemSource !== 'OWN') return false;
+            if (viewMode === 'FINISHED' && itemSource !== 'FINISHED PRODUCT') return false;
+
+            return true;
+        })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const confirmComplete = (item) => {
@@ -182,282 +190,331 @@ const AfterPackingAddToStock = () => {
     if (loading) return (
         <div className="p-4 flex flex-col items-center justify-center">
             <div className="relative flex justify-center items-center mb-4">
-                <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-                <img src="/sweethub-logo.png" className="absolute w-8 h-8" alt="logo" />
+                <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                <img
+                    src="/sweethub-logo.png"
+                    alt="Sweet Hub Logo"
+                    className="absolute w-8 h-8"
+                />
             </div>
-            <div className="text-blue-600 font-medium">Loading items for stock...</div>
+            <div className="text-red-500 font-medium">Loading items for stock...</div>
         </div>
     );
 
     return (
-        <div className="bg-gray-50 min-h-screen p-4 md:p-6">
-            <div className="max-w-7xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <div>
-                        <h1 className="text-3xl font-extrabold text-gray-900 flex items-center gap-3">
-                            <LuPackage className="text-blue-600" />
-                            Add to Stock
-                        </h1>
-                        <p className="text-gray-500 mt-1">Transform packed items into available inventory.</p>
-                    </div>
+        <div className="bg-white p-6 rounded-xl shadow-md">
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold">Add to Stock</h1>
+            </div>
 
-                    <div className="relative w-full md:w-auto">
-                        <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                        <input
-                            type="text"
-                            placeholder="Search products..."
-                            className="pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-80 shadow-sm transition-all"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-
-                {error && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg mb-6 flex items-center gap-3 animate-shake">
-                        <LuX className="text-red-500 w-5 h-5 cursor-pointer" onClick={() => setError('')} />
-                        <span className="text-red-700 font-medium">{error}</span>
-                    </div>
-                )}
-                {message && (
-                    <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-6 flex items-center gap-3 animate-fadeIn">
-                        <LuCheck className="text-green-500 w-5 h-5" />
-                        <span className="text-green-700 font-medium">{message}</span>
-                    </div>
-                )}
-
-                <div className="overflow-hidden rounded-xl border border-gray-100 shadow-sm">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50 text-gray-500 text-xs font-semibold uppercase tracking-wider">
-                            <tr>
-                                <th className="py-4 px-6 text-left">Batch ID</th>
-                                <th className="py-4 px-6 text-left">Product</th>
-                                <th className="py-4 px-6 text-left">Quantity</th>
-                                <th className="py-4 px-6 text-left">Unit</th>
-                                <th className="py-4 px-6 text-left">Produced On</th>
-                                <th className="py-4 px-6 text-left">Status</th>
-                                <th className="py-4 px-6 text-center">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-100">
-                            {filteredItems.length > 0 ? filteredItems.map((item) => (
-                                <tr key={item._id} className="hover:bg-blue-50/30 transition-colors">
-                                    <td className="py-4 px-6 font-mono text-sm text-gray-600">
-                                        {getBatchId(item.scheduleId, item.batchId)}
-                                    </td>
-                                    <td className="py-4 px-6 font-bold text-gray-900">
-                                        {item.productName || item.sweetName}
-                                    </td>
-                                    <td className="py-4 px-6 text-gray-700 font-medium">
-                                        {item.quantity} {item.status === 'Partial' && `(of ${item.totalQuantity || item.quantity})`}
-                                    </td>
-                                    <td className="py-4 px-6 text-gray-500 uppercase text-xs font-bold">
-                                        {item.unit}
-                                    </td>
-                                    <td className="py-4 px-6 text-gray-500 text-sm">
-                                        {formatDateWithTime(item.date)}
-                                    </td>
-                                    <td className="py-4 px-6">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${item.status === 'Pending'
-                                            ? 'bg-yellow-100 text-yellow-700'
-                                            : 'bg-orange-100 text-orange-700'
-                                            }`}>
-                                            {item.status}
-                                        </span>
-                                    </td>
-                                    <td className="py-4 px-6 text-center">
-                                        <button
-                                            onClick={() => confirmComplete(item)}
-                                            className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-all font-bold text-xs shadow-sm hover:shadow-md flex items-center gap-2 mx-auto"
-                                        >
-                                            <LuPlus className="w-3.5 h-3.5" />
-                                            Add to Stock
-                                        </button>
-                                    </td>
-                                </tr>
-                            )) : (
-                                <tr>
-                                    <td colSpan="7" className="text-center py-20">
-                                        <LuPackage className="w-16 h-16 text-gray-100 mx-auto mb-4" />
-                                        <p className="text-gray-400 font-medium">No items ready for stock addition.</p>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+            <div className="flex justify-between flex-wrap gap-4 mb-6">
+                <p className="text-gray-600">Transform packed items into available inventory.</p>
+                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                    <button
+                        onClick={() => setViewMode('OWN')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${viewMode === 'OWN' ? 'bg-white text-green-600 shadow' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        OWN Products
+                    </button>
+                    <button
+                        onClick={() => setViewMode('FINISHED')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${viewMode === 'FINISHED' ? 'bg-white text-green-600 shadow' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        Finished Products
+                    </button>
                 </div>
             </div>
 
-            {/* Detailed Stock Addition Modal */}
-            {showConfirmation && (
-                <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[98vh] overflow-y-auto transform transition-all p-8 animate-popup">
-                        <div className="flex justify-between items-start mb-6 pb-2 border-b-2 border-blue-50">
-                            <div>
-                                <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight">Confirm Stock Addition</h3>
-                            </div>
-                            <button onClick={handleCancelConfirm} className="text-gray-400 hover:text-red-500 transition-colors">
-                                <LuX className="w-6 h-6" />
-                            </button>
-                        </div>
+            {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
+            {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
 
-                        <div className="space-y-4">
-                            {/* Product Name */}
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">Product Name</label>
+            <div className="mb-4">
+                <input
+                    type="text"
+                    placeholder="Search products..."
+                    className="w-full md:w-1/3 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            <div className="overflow-x-auto">
+                <table className="min-w-full bg-white">
+                    <thead className="bg-light-gray">
+                        <tr>
+                            <th className="py-2 px-4 text-left">Batch ID</th>
+                            <th className="py-2 px-4 text-left">Product</th>
+                            <th className="py-2 px-4 text-left">Quantity</th>
+                            <th className="py-2 px-4 text-left">Unit</th>
+                            <th className="py-2 px-4 text-left">Produced On</th>
+                            <th className="py-2 px-4 text-left">Status</th>
+                            <th className="py-2 px-4 text-left">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredItems.length > 0 ? filteredItems.map((item) => (
+                            <tr key={item._id} className="border-b hover:bg-gray-50">
+                                <td className="border px-4 py-2 font-medium">{getBatchId(item.scheduleId, item.batchId)}</td>
+                                <td className="border px-4 py-2 font-medium">{item.productName || item.sweetName}</td>
+                                <td className="border px-4 py-2">
+                                    {item.quantity} {item.status === 'Partial' && `(of ${item.totalQuantity || item.quantity})`}
+                                </td>
+                                <td className="border px-4 py-2">{item.unit}</td>
+                                <td className="border px-4 py-2">
+                                    {formatDateWithTime(item.date)}
+                                </td>
+                                <td className="border px-4 py-2">
+                                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === 'Pending'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-orange-100 text-orange-800'
+                                        }`}>
+                                        {item.status}
+                                    </span>
+                                </td>
+                                <td className="border px-4 py-2">
+                                    <button
+                                        onClick={() => confirmComplete(item)}
+                                        className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center gap-1"
+                                    >
+                                        <LuPackage className="w-4 h-4" />
+                                        Add to Stock
+                                    </button>
+                                </td>
+                            </tr>
+                        )) : (
+                            <tr>
+                                <td colSpan="7" className="text-center py-4">No items ready for stock addition.</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Confirmation Modal */}
+            {showConfirmation && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+                        <h3 className="text-lg font-bold mb-4">Confirm Stock Addition</h3>
+                        <div className="mb-4 text-sm text-gray-600">
+                            <div className="mb-4 relative">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Product Name
+                                </label>
                                 <input
                                     type="text"
-                                    className="w-full px-0 py-1 bg-transparent border-none outline-none font-black text-blue-600 text-2xl uppercase focus:ring-0"
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500 text-gray-800 font-semibold"
                                     value={editedProductName}
                                     onChange={(e) => {
                                         setEditedProductName(e.target.value);
                                         setShowProductNameSuggestions(true);
                                     }}
                                     onFocus={() => setShowProductNameSuggestions(true)}
+                                    // Delay hide to allow clicks on suggestions
                                     onBlur={() => setTimeout(() => setShowProductNameSuggestions(false), 200)}
                                 />
-                                <div className="h-0.5 bg-blue-100 w-full mt-1"></div>
                                 {showProductNameSuggestions && (
-                                    <ul className="absolute z-20 w-full max-w-sm bg-white border border-gray-100 rounded-xl shadow-2xl max-h-48 overflow-auto mt-2 p-1">
-                                        {recentProductNames.filter(n => n.toLowerCase().includes(editedProductName.toLowerCase())).map((name, i) => (
-                                            <li key={i} onClick={() => setEditedProductName(name)} className="px-4 py-2 hover:bg-blue-50 rounded-lg cursor-pointer font-bold text-gray-700 uppercase text-sm">
-                                                {name}
-                                            </li>
-                                        ))}
+                                    (() => {
+                                        const matchingRecent = recentProductNames.filter(name => name.toLowerCase().includes(editedProductName.toLowerCase()));
+                                        const matchingProducts = [...new Set(products.map(p => p?.name).filter(Boolean))]
+                                            .filter(name => name.toLowerCase().includes(editedProductName.toLowerCase()) && !recentProductNames.includes(name));
+
+                                        if (matchingRecent.length === 0 && matchingProducts.length === 0) return null;
+
+                                        return (
+                                            <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto mt-1">
+                                                {matchingRecent.map((name, index) => (
+                                                    <li key={`recent-${index}`} className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center group">
+                                                        <span
+                                                            className="flex-grow font-medium text-gray-800"
+                                                            onClick={() => {
+                                                                setEditedProductName(name);
+                                                                setShowProductNameSuggestions(false);
+                                                            }}
+                                                        >
+                                                            {name}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            title="Remove from history"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const newRecent = recentProductNames.filter(n => n !== name);
+                                                                setRecentProductNames(newRecent);
+                                                                localStorage.setItem('recentProductNames', JSON.stringify(newRecent));
+                                                            }}
+                                                        >
+                                                            <LuX className="w-4 h-4" />
+                                                        </button>
+                                                    </li>
+                                                ))}
+
+                                                {matchingRecent.length > 0 && matchingProducts.length > 0 && (
+                                                    <li className="border-t border-gray-200 my-1"></li>
+                                                )}
+
+                                                {matchingProducts.map((name, index) => (
+                                                    <li key={`product-${index}`} className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center group">
+                                                        <span
+                                                            className="flex-grow text-gray-600 font-medium"
+                                                            onClick={() => {
+                                                                setEditedProductName(name);
+                                                                setShowProductNameSuggestions(false);
+                                                            }}
+                                                        >
+                                                            {name}
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        );
+                                    })()
+                                )}
+                            </div>
+                            <p>Total Original: {itemToComplete?.totalQuantity || itemToComplete?.quantity} {itemToComplete?.unit}</p>
+                            <p>Current Remaining: {itemToComplete?.quantity} {itemToComplete?.unit}</p>
+                            <p>Unit Price: ₹{itemToComplete?.price} / {itemToComplete?.unit}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Quantity
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    value={completedQty}
+                                    onChange={(e) => setCompletedQty(e.target.value)}
+                                    min="0"
+                                    step="any"
+                                />
+                            </div>
+                            <div className="relative">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Unit
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    value={selectedUnit}
+                                    onChange={(e) => {
+                                        setSelectedUnit(e.target.value);
+                                        setShowUnitSuggestions(true);
+                                    }}
+                                    onFocus={() => setShowUnitSuggestions(true)}
+                                    // Delay hide to allow clicks on suggestions
+                                    onBlur={() => setTimeout(() => setShowUnitSuggestions(false), 200)}
+                                />
+                                {showUnitSuggestions && recentUnits.length > 0 && (
+                                    <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-auto mt-1">
+                                        {recentUnits
+                                            .filter(u => u.toLowerCase().includes(selectedUnit.toLowerCase()))
+                                            .map((u, index) => (
+                                                <li key={index} className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center group">
+                                                    <span
+                                                        className="flex-grow"
+                                                        onClick={() => {
+                                                            setSelectedUnit(u);
+                                                            setShowUnitSuggestions(false);
+                                                        }}
+                                                    >
+                                                        {u}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        title="Remove unit"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const newRecent = recentUnits.filter(nu => nu !== u);
+                                                            setRecentUnits(newRecent);
+                                                            localStorage.setItem('recentUnits', JSON.stringify(newRecent));
+                                                        }}
+                                                    >
+                                                        <LuX className="w-4 h-4" />
+                                                    </button>
+                                                </li>
+                                            ))}
                                     </ul>
                                 )}
                             </div>
+                        </div>
 
-                            {/* Info Block */}
-                            <div className="space-y-1 text-sm font-medium">
-                                <p className="text-gray-600">Total Original: <span className="text-gray-900">{itemToComplete?.totalQuantity || itemToComplete?.quantity} {itemToComplete?.unit}</span></p>
-                                <p className="text-gray-600">Current Remaining: <span className="text-gray-900">{itemToComplete?.quantity} {itemToComplete?.unit}</span></p>
-                                <p className="text-gray-600">Unit Price: <span className="text-gray-900 font-bold">₹{itemToComplete?.price} / {itemToComplete?.unit}</span></p>
+                        <div className="grid grid-cols-2 gap-4 mb-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    SKU (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    value={sku}
+                                    onChange={(e) => setSku(e.target.value)}
+                                />
                             </div>
-
-                            {/* Main Inputs */}
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Quantity</label>
-                                    <input
-                                        type="number"
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-900"
-                                        value={completedQty}
-                                        onChange={(e) => setCompletedQty(e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="relative">
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Unit</label>
-                                    <input
-                                        type="text"
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-gray-900"
-                                        value={selectedUnit}
-                                        onChange={(e) => {
-                                            setSelectedUnit(e.target.value);
-                                            setShowUnitSuggestions(true);
-                                        }}
-                                        onFocus={() => setShowUnitSuggestions(true)}
-                                        onBlur={() => setTimeout(() => setShowUnitSuggestions(false), 200)}
-                                    />
-                                    {showUnitSuggestions && (
-                                        <ul className="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-32 overflow-auto mt-2 p-1">
-                                            {recentUnits.filter(u => u.toLowerCase().includes(selectedUnit.toLowerCase())).map((u, i) => (
-                                                <li key={i} onClick={() => setSelectedUnit(u)} className="px-4 py-2 hover:bg-blue-50 rounded-lg cursor-pointer font-bold text-gray-700 text-sm uppercase">{u}</li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">SKU (Optional)</label>
-                                    <input
-                                        type="text"
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-600"
-                                        value={sku}
-                                        onChange={(e) => setSku(e.target.value)}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Category (Optional)</label>
-                                    <select
-                                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-600"
-                                        value={selectedCategory}
-                                        onChange={(e) => setSelectedCategory(e.target.value)}
-                                    >
-                                        <option value="">None</option>
-                                        {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
-                                    </select>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Net Price (₹)</label>
-                                        <input
-                                            type="number"
-                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold"
-                                            value={netPrice}
-                                            onChange={(e) => setNetPrice(e.target.value)}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Sell Price (₹)</label>
-                                        <input
-                                            type="number"
-                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-600"
-                                            value={sellPrice}
-                                            onChange={(e) => setSellPrice(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Category (Optional)
+                                </label>
+                                <select
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    value={selectedCategory}
+                                    onChange={(e) => setSelectedCategory(e.target.value)}
+                                >
+                                    <option value="">Select Category</option>
+                                    {categories.map(cat => (
+                                        <option key={cat._id} value={cat._id}>{cat.name}</option>
+                                    ))}
+                                </select>
                             </div>
+                        </div>
 
-                            {/* Calculations */}
-                            <div className="pt-2 border-t border-gray-100">
-                                <p className="text-lg font-black text-gray-900">Total Value: ₹{(Number(completedQty || 0) * Number(netPrice || 0)).toFixed(2)}</p>
-                                <p className="text-sm text-gray-500 font-medium mt-1">
-                                    (Converted Quantity: {completedQty ? convertUnit(Number(completedQty), selectedUnit, itemToComplete?.unit).toFixed(3) : '0.000'} {itemToComplete?.unit})
+                        {completedQty && selectedUnit && itemToComplete && (
+                            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                <p className="text-xs text-blue-600 mt-1">
+                                    (Converted Quantity: {convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit).toFixed(3)} {itemToComplete.unit})
                                 </p>
                             </div>
+                        )}
 
-                            {/* Dates */}
-                            <div className="grid grid-cols-2 gap-4 pt-2">
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Expiry Date</label>
-                                    <input
-                                        type="date"
-                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold"
-                                        value={expiryDate}
-                                        onChange={(e) => setExpiryDate(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Used By Date</label>
-                                    <input
-                                        type="date"
-                                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold"
-                                        value={usedByDate}
-                                        onChange={(e) => setUsedByDate(e.target.value)}
-                                    />
-                                </div>
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Expiry Date
+                                </label>
+                                <input
+                                    type="date"
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                    value={expiryDate}
+                                    onChange={(e) => setExpiryDate(e.target.value)}
+                                />
                             </div>
-
-                            {/* Action Buttons */}
-                            <div className="flex gap-4 pt-6 border-t border-gray-100">
-                                <button
-                                    onClick={handleCancelConfirm}
-                                    className="px-8 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleConfirmComplete}
-                                    className="flex-grow py-3 bg-blue-600 text-white rounded-xl font-black shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-100"
-                                >
-                                    Confirm
-                                </button>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Used By Date
+                                </label>
+                                <input
+                                    type="date"
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                    value={usedByDate}
+                                    onChange={(e) => setUsedByDate(e.target.value)}
+                                />
                             </div>
+                        </div>
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                onClick={handleCancelConfirm}
+                                className="px-4 py-2 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmComplete}
+                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                            >
+                                Confirm
+                            </button>
                         </div>
                     </div>
                 </div>

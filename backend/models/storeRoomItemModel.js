@@ -5,6 +5,7 @@ const storeRoomItemSchema = new mongoose.Schema({
   quantity: { type: Number, required: true, default: 0 },
   unit: { type: String, required: true },
   price: { type: Number, required: true },
+  gstPercentage: { type: Number, default: 0 },
   vendor: { type: String },
   address: { type: String },
   stockAlertThreshold: { type: Number, default: 0 },

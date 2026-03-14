@@ -56,6 +56,11 @@ const afterPackingSchema = new mongoose.Schema({
     description: {
         type: String,
         default: ''
+    },
+    source: {
+        type: String,
+        enum: ['OWN', 'FINISHED PRODUCT'],
+        default: 'OWN'
     }
 });
 

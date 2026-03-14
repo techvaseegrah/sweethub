@@ -10,7 +10,8 @@ import {
     LuBox,
     LuIndianRupee,
     LuStore,
-    LuChevronDown
+    LuChevronDown,
+    LuLayoutGrid
 } from 'react-icons/lu';
 import axios from '../../../api/axios';
 import { AuthContext } from '../../../context/AuthContext';
@@ -37,6 +38,10 @@ const SalesReport = () => {
     const [shops, setShops] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [showFilters, setShowFilters] = useState(false);
+
+    const [categories, setCategories] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState('all');
 
     // Get role to determine API endpoint
     const { authState } = useContext(AuthContext);
@@ -73,17 +78,49 @@ const SalesReport = () => {
         }
     }, [dateRange, selectedShop, isShop, isAdmin]);
 
+    const fetchCategoriesAndProducts = useCallback(async () => {
+        try {
+            const endpointCategories = isShop ? '/shop/categories/all' : '/admin/categories';
+            const endpointProducts = isShop ? '/shop/products' : '/admin/products';
+
+            const [categoriesRes, productsRes] = await Promise.all([
+                axios.get(endpointCategories),
+                axios.get(endpointProducts)
+            ]);
+            setCategories(categoriesRes.data);
+            setProducts(productsRes.data);
+        } catch (error) {
+            console.error('Error fetching categories and products:', error);
+        }
+    }, [isShop]);
+
     useEffect(() => {
         fetchShops();
-    }, [fetchShops]);
+        fetchCategoriesAndProducts();
+    }, [fetchShops, fetchCategoriesAndProducts]);
 
     useEffect(() => {
         fetchReport();
     }, [fetchReport]);
 
-    const filteredProductSales = reportData.productSales.filter(p =>
-        p.productName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const productCategoryMap = {};
+    products.forEach(p => {
+        productCategoryMap[p.name] = p.category?._id || p.category;
+    });
+
+    const filteredProductSales = reportData.productSales.filter(p => {
+        const matchesSearch = p.productName.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedCategory === 'all' || productCategoryMap[p.productName] === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
+
+    const displayRevenue = selectedCategory === 'all' 
+        ? reportData.stats.totalRevenue 
+        : filteredProductSales.reduce((acc, item) => acc + item.totalRevenue, 0);
+
+    const displayItemsSold = selectedCategory === 'all'
+        ? reportData.stats.totalItemsSold
+        : filteredProductSales.reduce((acc, item) => acc + item.totalQuantity, 0);
 
     const handleExportExcel = () => {
         if (reportData.productSales.length === 0) {
@@ -100,9 +137,9 @@ const SalesReport = () => {
     };
 
     const stats = [
-        { label: 'Total Revenue', value: `₹${reportData.stats.totalRevenue.toLocaleString()}`, icon: LuIndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-100' },
+        { label: 'Total Revenue', value: `₹${displayRevenue.toLocaleString()}`, icon: LuIndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-100' },
         { label: 'Total Transactions', value: reportData.stats.totalTransactions, icon: LuTrendingUp, color: 'text-blue-600', bg: 'bg-blue-100' },
-        { label: 'Total Items Sold', value: reportData.stats.totalItemsSold, icon: LuBox, color: 'text-purple-600', bg: 'bg-purple-100' },
+        { label: 'Total Items Sold', value: displayItemsSold, icon: LuBox, color: 'text-purple-600', bg: 'bg-purple-100' },
         { label: 'Customers Served', value: reportData.customerSales.length, icon: LuUsers, color: 'text-orange-600', bg: 'bg-orange-100' },
     ];
 
@@ -234,6 +271,23 @@ const SalesReport = () => {
                                         onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
                                         className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
                                     />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Category</label>
+                                <div className="relative">
+                                    <LuLayoutGrid className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium appearance-none cursor-pointer"
+                                    >
+                                        <option value="all">All Categories</option>
+                                        {categories.map(c => (
+                                            <option key={c._id} value={c._id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                    <LuChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                                 </div>
                             </div>
                         </div>

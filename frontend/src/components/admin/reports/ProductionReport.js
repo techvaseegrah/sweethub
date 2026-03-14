@@ -9,7 +9,8 @@ import {
     LuChartBar,
     LuCircleCheck,
     LuChefHat,
-    LuChevronDown
+    LuChevronDown,
+    LuLayoutGrid
 } from 'react-icons/lu';
 import axios from '../../../api/axios';
 import { toast } from 'react-hot-toast';
@@ -38,6 +39,11 @@ const ProductionReport = () => {
     const [showFilters, setShowFilters] = useState(false);
     const [timeFilter, setTimeFilter] = useState('this-month');
 
+    // New states for Category Filter
+    const [categories, setCategories] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState('all');
+
     const fetchReport = useCallback(async () => {
         setLoading(true);
         try {
@@ -59,19 +65,62 @@ const ProductionReport = () => {
         }
     }, [dateRange, timeFilter]);
 
+    const fetchCategoriesAndProducts = useCallback(async () => {
+        try {
+            const [categoriesRes, productsRes] = await Promise.all([
+                axios.get('/admin/categories'),
+                axios.get('/admin/products')
+            ]);
+            setCategories(categoriesRes.data);
+            setProducts(productsRes.data);
+        } catch (error) {
+            console.error('Error fetching categories and products:', error);
+        }
+    }, []);
+
     useEffect(() => {
         fetchReport();
-    }, [fetchReport]);
+        fetchCategoriesAndProducts();
+    }, [fetchReport, fetchCategoriesAndProducts]);
 
-    const filteredProductionItems = reportData.productionItems.filter(p =>
-        (p.productName || 'Unknown Product').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const productCategoryMap = {};
+    products.forEach(p => {
+        productCategoryMap[p.name] = p.category?._id || p.category;
+    });
+
+    const filteredProductionItems = reportData.productionItems.filter(p => {
+        const matchesSearch = (p.productName || 'Unknown Product').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedCategory === 'all' || productCategoryMap[p.productName] === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
+
+    const filteredMaterialConsumption = reportData.materialConsumption.filter(m => {
+        const matchesSearch = (m.materialName || 'Unknown Material').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedCategory === 'all' || productCategoryMap[m.materialName] === selectedCategory;
+        return matchesSearch && matchesCategory;
+    });
+
+    const displayTotalOutput = selectedCategory === 'all'
+        ? reportData.stats.totalOutput
+        : filteredProductionItems.reduce((acc, item) => acc + item.totalQuantity, 0).toFixed(2);
+
+    const displayActiveProducts = selectedCategory === 'all'
+        ? reportData.stats.activeProducts
+        : filteredProductionItems.length;
+
+    const displayTotalBatches = selectedCategory === 'all'
+        ? reportData.stats.totalBatches
+        : filteredProductionItems.reduce((acc, item) => acc + item.batchCount, 0);
+
+    const displayMaterialCost = selectedCategory === 'all'
+        ? Number(reportData.stats.totalMaterialCost)
+        : filteredMaterialConsumption.reduce((acc, item) => acc + item.totalCost, 0);
 
     const stats = [
-        { label: 'Total Output', value: `${reportData.stats.totalOutput} units`, icon: LuPackage, color: 'text-indigo-600', bg: 'bg-indigo-100' },
-        { label: 'Active Products', value: reportData.stats.activeProducts, icon: LuChefHat, color: 'text-orange-600', bg: 'bg-orange-100' },
-        { label: 'Total Batches', value: reportData.stats.totalBatches, icon: LuChartBar, color: 'text-blue-600', bg: 'bg-blue-100' },
-        { label: 'Material Cost', value: `₹${Number(reportData.stats.totalMaterialCost).toLocaleString()}`, icon: LuCircleCheck, color: 'text-emerald-600', bg: 'bg-emerald-100' },
+        { label: 'Total Output', value: `${displayTotalOutput} units`, icon: LuPackage, color: 'text-indigo-600', bg: 'bg-indigo-100' },
+        { label: 'Active Products', value: displayActiveProducts, icon: LuChefHat, color: 'text-orange-600', bg: 'bg-orange-100' },
+        { label: 'Total Batches', value: displayTotalBatches, icon: LuChartBar, color: 'text-blue-600', bg: 'bg-blue-100' },
+        { label: 'Material Cost', value: `₹${displayMaterialCost.toLocaleString()}`, icon: LuCircleCheck, color: 'text-emerald-600', bg: 'bg-emerald-100' },
     ];
 
     return (
@@ -102,60 +151,97 @@ const ProductionReport = () => {
             </div>
 
             {/* Time Selector */}
-            <div className="mb-8 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-4">
-                <div className="flex items-center space-x-3 text-gray-700 min-w-max">
-                    <div className="p-2 bg-red-50 rounded-lg">
-                        <LuCalendar className="w-5 h-5 text-red-500" />
-                    </div>
-                    <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Time Period</span>
-                        <span className="text-sm font-bold text-gray-800 uppercase tracking-tight">Report Range</span>
-                    </div>
-                </div>
-
-                <div className="relative flex-1 w-full max-w-md">
-                    <select
-                        value={timeFilter}
-                        onChange={(e) => setTimeFilter(e.target.value)}
-                        className="w-full pl-5 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all text-sm font-bold text-gray-800 appearance-none cursor-pointer shadow-inner"
-                    >
-                        <option value="today">Today's Production</option>
-                        <option value="yesterday">Yesterday's Production</option>
-                        <option value="this-week">This Week</option>
-                        <option value="this-month">This Month</option>
-                        <option value="custom">Custom Date Range</option>
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <LuChevronDown className="w-4 h-4 text-gray-400" />
-                    </div>
-                </div>
-
-                {timeFilter === 'custom' && (
+            <AnimatePresence>
+                {showFilters && (
                     <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-3 w-full md:w-auto"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden mb-8"
                     >
-                        <div className="flex-1 md:w-40">
-                            <input
-                                type="date"
-                                value={dateRange.startDate}
-                                onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
-                            />
-                        </div>
-                        <span className="text-gray-400 font-bold">to</span>
-                        <div className="flex-1 md:w-40">
-                            <input
-                                type="date"
-                                value={dateRange.endDate}
-                                onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
-                            />
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-4">
+                            <div className="flex items-center space-x-3 text-gray-700 min-w-max">
+                                <div className="p-2 bg-red-50 rounded-lg">
+                                    <LuCalendar className="w-5 h-5 text-red-500" />
+                                </div>
+                                <div>
+                                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Time Period</span>
+                                    <span className="text-sm font-bold text-gray-800 uppercase tracking-tight">Report Range</span>
+                                </div>
+                            </div>
+
+                            <div className="relative flex-1 w-full max-w-md">
+                                <select
+                                    value={timeFilter}
+                                    onChange={(e) => setTimeFilter(e.target.value)}
+                                    className="w-full pl-5 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all text-sm font-bold text-gray-800 appearance-none cursor-pointer shadow-inner"
+                                >
+                                    <option value="today">Today's Production</option>
+                                    <option value="yesterday">Yesterday's Production</option>
+                                    <option value="this-week">This Week</option>
+                                    <option value="this-month">This Month</option>
+                                    <option value="custom">Custom Date Range</option>
+                                </select>
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                                    <LuChevronDown className="w-4 h-4 text-gray-400" />
+                                </div>
+                            </div>
+
+                            {timeFilter === 'custom' && (
+                                <motion.div
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    className="flex items-center gap-3 w-full md:w-auto"
+                                >
+                                    <div className="flex-1 md:w-40">
+                                        <input
+                                            type="date"
+                                            value={dateRange.startDate}
+                                            onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
+                                        />
+                                    </div>
+                                    <span className="text-gray-400 font-bold">to</span>
+                                    <div className="flex-1 md:w-40">
+                                        <input
+                                            type="date"
+                                            value={dateRange.endDate}
+                                            onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+                                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm"
+                                        />
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            <div className="hidden lg:block h-10 w-px bg-gray-100 mx-2" />
+
+                            <div className="flex items-center space-x-3 text-gray-700 min-w-max">
+                                <div className="p-2 bg-indigo-50 rounded-lg">
+                                    <LuLayoutGrid className="w-5 h-5 text-indigo-500" />
+                                </div>
+                                <div>
+                                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Filter</span>
+                                    <span className="text-sm font-bold text-gray-800 uppercase tracking-tight">Category</span>
+                                </div>
+                            </div>
+
+                            <div className="relative flex-1 w-full max-w-[200px]">
+                                <select
+                                    value={selectedCategory}
+                                    onChange={(e) => setSelectedCategory(e.target.value)}
+                                    className="w-full pl-5 pr-10 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all text-sm font-bold text-gray-800 appearance-none cursor-pointer shadow-inner"
+                                >
+                                    <option value="all">All Categories</option>
+                                    {categories.map(c => (
+                                        <option key={c._id} value={c._id}>{c.name}</option>
+                                    ))}
+                                </select>
+                                <LuChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                            </div>
                         </div>
                     </motion.div>
                 )}
-            </div>
+            </AnimatePresence>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -273,8 +359,8 @@ const ProductionReport = () => {
                                             <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-1/4 ml-auto" /></td>
                                         </tr>
                                     ))
-                                ) : reportData.materialConsumption.length > 0 ? (
-                                    reportData.materialConsumption.map((item, idx) => (
+                                ) : filteredMaterialConsumption.length > 0 ? (
+                                    filteredMaterialConsumption.map((item, idx) => (
                                         <tr key={idx} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4 font-bold text-gray-800 uppercase tracking-tight">{item.materialName || 'Unknown Material'}</td>
                                             <td className="px-6 py-4 text-center font-bold text-amber-600">

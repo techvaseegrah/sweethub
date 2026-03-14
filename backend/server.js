@@ -47,6 +47,7 @@ const adminRawMaterialOnlyUserRoutes = require('./routes/admin/rawMaterialOnlyUs
 const adminOrderRoutes = require('./routes/admin/orderRoutes');
 const productionReportRoutes = require('./routes/admin/productionReportRoutes');
 const stockReportRoutes = require('./routes/admin/stockReportRoutes');
+const gstReportRoutes = require('./routes/admin/gstReportRoutes');
 
 
 // SHOP ROUTES
@@ -94,6 +95,7 @@ app.use('/api/admin/raw-materials-only-users', adminRawMaterialOnlyUserRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/reports/production', productionReportRoutes);
 app.use('/api/admin/reports/stock', stockReportRoutes);
+app.use('/api/admin/reports/gst', gstReportRoutes);
 
 
 // SHOP

@@ -96,6 +96,12 @@ export const generateProductReportPdf = (products, categories, selectedCategory 
     const categoryName = Array.isArray(categories) ? categories.find(cat => cat._id === selectedCategory)?.name || selectedCategory : selectedCategory;
     filterInfo.push(`Category: ${categoryName}`);
   }
+  if (filters?.dateFrom) {
+    filterInfo.push(`From: ${new Date(filters.dateFrom).toLocaleDateString()}`);
+  }
+  if (filters?.dateTo) {
+    filterInfo.push(`To: ${new Date(filters.dateTo).toLocaleDateString()}`);
+  }
 
   const filterText = filterInfo.length > 0 ? 
     `<p style="margin: 8px 0; font-size: 16px;"><strong>Filters Applied:</strong> ${filterInfo.join(', ')}</p>` : 

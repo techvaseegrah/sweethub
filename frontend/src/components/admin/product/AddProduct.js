@@ -89,6 +89,31 @@ function AddProduct({ baseUrl = '/admin' }) {
   // Select a product from dropdown
   const selectProduct = (productName) => {
     setProductName(productName);
+    const selectedProduct = allProducts.find(p => p.name === productName);
+    
+    if (selectedProduct) {
+      if (selectedProduct.category) {
+        setCategory(selectedProduct.category._id || selectedProduct.category);
+      }
+      if (selectedProduct.sku) {
+        setSku(selectedProduct.sku);
+      }
+      if (selectedProduct.stockAlertThreshold !== undefined) {
+        setStockAlertThreshold(selectedProduct.stockAlertThreshold.toString());
+      }
+      // Keep stockLevel blank so the user can enter the quantity to add
+      setStockLevel('');
+      
+      if (selectedProduct.prices && selectedProduct.prices.length > 0) {
+        const formattedPrices = selectedProduct.prices.map(p => ({
+          unit: p.unit || 'piece',
+          netPrice: p.netPrice !== undefined ? p.netPrice.toString() : '',
+          sellingPrice: p.sellingPrice !== undefined ? p.sellingPrice.toString() : ''
+        }));
+        setProductUnits(formattedPrices);
+      }
+    }
+    
     setShowDropdown(false);
   };
 
@@ -320,6 +345,7 @@ function AddProduct({ baseUrl = '/admin' }) {
             onChange={(e) => setStockAlertThreshold(e.target.value)}
           />
         </div>
+
 
         {/* Unit Configuration Section */}
         <div className="rounded-lg p-4">

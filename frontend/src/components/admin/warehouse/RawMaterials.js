@@ -12,6 +12,7 @@ const RawMaterials = () => {
     const [price, setPrice] = useState('');
     const [vendor, setVendor] = useState('');
     const [address, setAddress] = useState('');
+    const [gstPercentage, setGstPercentage] = useState('5');
     const [expiryDate, setExpiryDate] = useState('');
     const [usedByDate, setUsedByDate] = useState('');
     const [message, setMessage] = useState('');
@@ -66,6 +67,7 @@ const RawMaterials = () => {
         setPrice(item.price.toString() || '');
         setVendor(item.vendor || '');
         setAddress(item.address || '');
+        setGstPercentage(item.gstPercentage?.toString() || '0');
         setQuantity('');
         setShowDropdown(false);
     };
@@ -170,6 +172,7 @@ const RawMaterials = () => {
                 price, 
                 vendor,
                 address,
+                gstPercentage,
                 expiryDate,
                 usedByDate 
             });
@@ -181,6 +184,7 @@ const RawMaterials = () => {
             setPrice('');
             setVendor('');
             setAddress('');
+            setGstPercentage('0');
             setExpiryDate('');
             setUsedByDate('');
             
@@ -223,7 +227,7 @@ const RawMaterials = () => {
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             
             <form onSubmit={handleSubmit} className="space-y-4">
-                 <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
                     <div className="md:col-span-2 relative" ref={dropdownRef}>
                         <label className="block text-sm font-medium">Ingredient Name</label>
                         <div className="relative">
@@ -273,7 +277,7 @@ const RawMaterials = () => {
                                                     e.preventDefault();
                                                     setShowAddForm(true);
                                                     setNewItemName('');
-                                                }}
+                                                 }}
                                                 className="text-blue-600 hover:text-blue-800 text-sm font-medium w-full text-left"
                                             >
                                                 + Add New Item
@@ -351,6 +355,17 @@ const RawMaterials = () => {
                         />
                     </div>
                     <div>
+                        <label className="block text-sm font-medium">GST %</label>
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={gstPercentage}
+                            onChange={(e) => setGstPercentage(e.target.value)}
+                            className="w-full mt-1 px-3 py-2 border rounded-md"
+                        />
+                    </div>
+                    <div>
                         <label className="block text-sm font-medium">Vendor</label>
                         <input
                             type="text"
@@ -366,7 +381,7 @@ const RawMaterials = () => {
                             value={address}
                             onChange={(e) => setAddress(e.target.value)}
                             className="w-full mt-1 px-3 py-2 border rounded-md"
-                            placeholder="Enter vendor address"
+                            placeholder="Address"
                         />
                     </div>
                 </div>

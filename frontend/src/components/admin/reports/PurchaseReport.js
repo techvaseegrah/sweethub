@@ -9,7 +9,8 @@ import {
     LuBox,
     LuTruck,
     LuChevronDown,
-    LuLayoutList
+    LuLayoutList,
+    LuLayoutGrid
 } from 'react-icons/lu';
 import axios from '../../../api/axios';
 import { toast } from 'react-hot-toast';
@@ -31,6 +32,10 @@ const PurchaseReport = () => {
     const [vendorSearch, setVendorSearch] = useState('');
     const [showFilters, setShowFilters] = useState(false);
 
+    const [categories, setCategories] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState('all');
+
     const fetchPurchaseHistory = useCallback(async () => {
         setLoading(true);
         try {
@@ -44,9 +49,23 @@ const PurchaseReport = () => {
         }
     }, []);
 
+    const fetchCategoriesAndProducts = useCallback(async () => {
+        try {
+            const [categoriesRes, productsRes] = await Promise.all([
+                axios.get('/admin/categories'),
+                axios.get('/admin/products')
+            ]);
+            setCategories(categoriesRes.data);
+            setProducts(productsRes.data);
+        } catch (error) {
+            console.error('Error fetching categories and products:', error);
+        }
+    }, []);
+
     useEffect(() => {
         fetchPurchaseHistory();
-    }, [fetchPurchaseHistory]);
+        fetchCategoriesAndProducts();
+    }, [fetchPurchaseHistory, fetchCategoriesAndProducts]);
 
     // Helper to get consistent data from records
     const getRecordDetails = (record) => {
@@ -61,6 +80,14 @@ const PurchaseReport = () => {
         };
     };
 
+    const productCategoryMap = useMemo(() => {
+        const map = {};
+        products.forEach(p => {
+            map[p.name] = p.category?._id || p.category;
+        });
+        return map;
+    }, [products]);
+
     // Filtering Logic
     const filteredRecords = useMemo(() => {
         return purchaseHistory.filter(record => {
@@ -72,10 +99,11 @@ const PurchaseReport = () => {
             const matchesDate = isWithinInterval(recordDate, { start, end });
             const matchesSearch = record.materialName?.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesVendor = (record.vendorName || record.vendor)?.toLowerCase().includes(vendorSearch.toLowerCase());
+            const matchesCategory = selectedCategory === 'all' || productCategoryMap[record.materialName] === selectedCategory;
 
-            return matchesDate && matchesSearch && matchesVendor;
+            return matchesDate && matchesSearch && matchesVendor && matchesCategory;
         });
-    }, [purchaseHistory, dateRange, searchTerm, vendorSearch]);
+    }, [purchaseHistory, dateRange, searchTerm, vendorSearch, selectedCategory, productCategoryMap]);
 
     // Statistics Calculation
     const stats = useMemo(() => {
@@ -234,7 +262,7 @@ const PurchaseReport = () => {
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden mb-8"
                     >
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                             <div>
                                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Start Date</label>
                                 <div className="relative">
@@ -283,6 +311,23 @@ const PurchaseReport = () => {
                                         onChange={(e) => setVendorSearch(e.target.value)}
                                         className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium"
                                     />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Category</label>
+                                <div className="relative">
+                                    <LuLayoutGrid className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <select
+                                        value={selectedCategory}
+                                        onChange={(e) => setSelectedCategory(e.target.value)}
+                                        className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm font-medium appearance-none cursor-pointer"
+                                    >
+                                        <option value="all">All Categories</option>
+                                        {categories.map(c => (
+                                            <option key={c._id} value={c._id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                    <LuChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
                                 </div>
                             </div>
                         </div>

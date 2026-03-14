@@ -39,7 +39,9 @@ const {
     // After Packing functions
     getAfterPackingItems,
     updateAfterPackingStatus,
-    addToStockFromAfterPacking
+    addToStockFromAfterPacking,
+    deleteAfterPackingItem,
+    deleteBeforePackingItem
 } = require('../../controllers/admin/warehouseController');
 const { adminAuth } = require('../../middleware/auth');
 
@@ -92,11 +94,13 @@ router.put('/daily-schedules/:id/status', updateDailyScheduleStatus);
 router.get('/before-packing', getBeforePackingItems);
 router.post('/before-packing', addToBeforePacking);
 router.put('/before-packing/:id/status', updateBeforePackingStatus);
+router.delete('/before-packing/:id', deleteBeforePackingItem);
 
 // After Packing
 router.get('/after-packing', getAfterPackingItems);
 router.put('/after-packing/:id/status', updateAfterPackingStatus);
 router.put('/after-packing/:id/add-to-stock', addToStockFromAfterPacking);
+router.delete('/after-packing/:id', deleteAfterPackingItem);
 
 // Material Stock Alerts
 router.get('/material-stock-alerts', getMaterialStockAlerts);

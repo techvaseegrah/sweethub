@@ -31,13 +31,10 @@ import LogoutConfirmationModal from '../LogoutConfirmationModal';
 const Sidebar = () => {
     const location = useLocation();
     const [totalStockAlerts, setTotalStockAlerts] = useState(0);
-    const [isProductMenuOpen, setIsProductMenuOpen] = useState(false);
-    const [isWarehouseMenuOpen, setIsWarehouseMenuOpen] = useState(false);
+    const [openMenu, setOpenMenu] = useState(null);
     const [isPackingMaterialsOpen, setIsPackingMaterialsOpen] = useState(false);
     const [isRawMaterialsOpen, setIsRawMaterialsOpen] = useState(false);
     const [isManufacturingOpen, setIsManufacturingOpen] = useState(false);
-    const [isBeforePackingOpen, setIsBeforePackingOpen] = useState(false);
-    const [isAfterPackingOpen, setIsAfterPackingOpen] = useState(false);
     const [materialStockAlerts, setMaterialStockAlerts] = useState(0);
     const [unviewedOrdersCount, setUnviewedOrdersCount] = useState(0);
 
@@ -92,12 +89,16 @@ const Sidebar = () => {
         return () => clearInterval(interval);
     }, [authState?.role]);
 
-    const toggleProductMenu = () => {
-        setIsProductMenuOpen(!isProductMenuOpen);
-    };
-
-    const toggleWarehouseMenu = () => {
-        setIsWarehouseMenuOpen(!isWarehouseMenuOpen);
+    const toggleMenu = (menuName) => {
+        if (openMenu === menuName) {
+            setOpenMenu(null);
+        } else {
+            setOpenMenu(menuName);
+            // Reset sub-menus when switching main menu
+            setIsPackingMaterialsOpen(false);
+            setIsRawMaterialsOpen(false);
+            setIsManufacturingOpen(false);
+        }
     };
 
     const togglePackingMaterials = () => {
@@ -122,21 +123,11 @@ const Sidebar = () => {
     };
 
     const toggleBeforePacking = () => {
-        // Close other toggles and open this one (accordion behavior)
-        setIsPackingMaterialsOpen(false);
-        setIsRawMaterialsOpen(false);
-        setIsManufacturingOpen(false);
-        setIsAfterPackingOpen(false);
-        setIsBeforePackingOpen(!isBeforePackingOpen);
+        toggleMenu('beforePacking');
     };
 
     const toggleAfterPacking = () => {
-        // Close other toggles and open this one (accordion behavior)
-        setIsPackingMaterialsOpen(false);
-        setIsRawMaterialsOpen(false);
-        setIsManufacturingOpen(false);
-        setIsBeforePackingOpen(false);
-        setIsAfterPackingOpen(!isAfterPackingOpen);
+        toggleMenu('afterPacking');
     };
 
     // Sweet Hub inspired color palette
@@ -239,6 +230,7 @@ const Sidebar = () => {
                             }`
                         }
                         onClick={() => {
+                            setOpenMenu(null);
                             // Close sidebar on mobile when link is clicked
                             if (window.innerWidth < 1024) {
                                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -420,13 +412,16 @@ const Sidebar = () => {
 
                 {/* Worker Management - Hide for packing-only users */}
                 {authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
-                    <details className="group">
+                    <details className="group" open={openMenu === 'workers'} onToggle={(e) => {
+                        if (e.target.open) toggleMenu('workers');
+                        else if (openMenu === 'workers') setOpenMenu(null);
+                    }}>
                         <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                             <div className="flex items-center">
                                 <LuUsers className={`mr-3 text-lg ${iconColor}`} />
                                 <span className="font-medium">Workers</span>
                             </div>
-                            <LuChevronRight className="w-4 h-4 text-gray-400" />
+                            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                         </summary>
                         <nav className="mt-1 ml-6 space-y-1">
                             {authState?.role !== 'attendance-only' && (
@@ -520,13 +515,16 @@ const Sidebar = () => {
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                     <>
                         {/* Department Management - Hide for packing-only users */}
-                        <details className="group">
+                        <details className="group" open={openMenu === 'departments'} onToggle={(e) => {
+                            if (e.target.open) toggleMenu('departments');
+                            else if (openMenu === 'departments') setOpenMenu(null);
+                        }}>
                             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                 <div className="flex items-center">
                                     <LuBuilding className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Departments</span>
                                 </div>
-                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'departments' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -567,19 +565,22 @@ const Sidebar = () => {
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                     <>
                         {/* Product Management - Hide for packing-only users */}
-                        <details className="group" open={isProductMenuOpen} onToggle={toggleProductMenu}>
+                        <details className="group" open={openMenu === 'products'} onToggle={(e) => {
+                            if (e.target.open) toggleMenu('products');
+                            else if (openMenu === 'products') setOpenMenu(null);
+                        }}>
                             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                 <div className="flex items-center">
                                     <LuBoxes className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Products</span>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    {!isProductMenuOpen && totalStockAlerts > 0 && (
+                                    {openMenu !== 'products' && totalStockAlerts > 0 && (
                                         <span className={`${alertBadge} text-xs font-bold px-1.5 py-0.5 rounded-full`}>
                                             {totalStockAlerts}
                                         </span>
                                     )}
-                                    <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'products' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                 </div>
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
@@ -672,7 +673,7 @@ const Sidebar = () => {
                                     }}
                                 >
                                     <span className="font-medium">Stock Alerts</span>
-                                    {isProductMenuOpen && totalStockAlerts > 0 && (
+                                    {openMenu === 'products' && totalStockAlerts > 0 && (
                                         <span className={`${alertBadge} text-xs font-bold px-1.5 py-0.5 rounded-full`}>
                                             {totalStockAlerts}
                                         </span>
@@ -687,19 +688,22 @@ const Sidebar = () => {
                     <>
                         {/* Warehouse Management - Hide for packing-only users (they see their specific modules below) */}
                         {(authState?.role === 'admin' || authState?.role === 'raw-materials-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
-                            <details className="group" open={isWarehouseMenuOpen} onToggle={toggleWarehouseMenu}>
+                            <details className="group" open={openMenu === 'warehouse'} onToggle={(e) => {
+                                if (e.target.open) toggleMenu('warehouse');
+                                else if (openMenu === 'warehouse') setOpenMenu(null);
+                            }}>
                                 <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                     <div className="flex items-center">
                                         <LuArchive className={`mr-3 text-lg ${iconColor}`} />
                                         <span className="font-medium">Warehouse</span>
                                     </div>
                                     <div className="flex items-center space-x-2">
-                                        {!isWarehouseMenuOpen && materialStockAlerts > 0 && (
+                                        {openMenu !== 'warehouse' && materialStockAlerts > 0 && (
                                             <span className={`${alertBadge} text-xs font-bold px-1.5 py-0.5 rounded-full`}>
                                                 {materialStockAlerts}
                                             </span>
                                         )}
-                                        <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                        <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'warehouse' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                     </div>
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
@@ -711,7 +715,7 @@ const Sidebar = () => {
                                                 onClick={togglePackingMaterials}
                                             >
                                                 <span className="font-medium">Packing Materials</span>
-                                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isPackingMaterialsOpen ? 'rotate-90' : ''}`} />
+                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isPackingMaterialsOpen ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                             </div>
                                             {isPackingMaterialsOpen && (
                                                 <nav className="mt-1 ml-4 space-y-1">
@@ -776,7 +780,7 @@ const Sidebar = () => {
                                                 onClick={toggleRawMaterials}
                                             >
                                                 <span className="font-medium">Raw Materials</span>
-                                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90' : ''}`} />
+                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                             </div>
                                             {isRawMaterialsOpen && (
                                                 <nav className="mt-1 ml-4 space-y-1">
@@ -873,7 +877,7 @@ const Sidebar = () => {
                                                 onClick={toggleManufacturing}
                                             >
                                                 <span className="font-medium">Manufacturing</span>
-                                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90' : ''}`} />
+                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                             </div>
                                             {isManufacturingOpen && (
                                                 <nav className="mt-1 ml-4 space-y-1">
@@ -941,13 +945,16 @@ const Sidebar = () => {
                     <>
                         {/* Before Packing Toggle - Only show for before-packing-only users and admin */}
                         {(authState?.role === 'admin' || authState?.role === 'before-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
-                            <details className="group">
+                            <details className="group" open={openMenu === 'beforePacking'} onToggle={(e) => {
+                                if (e.target.open) toggleMenu('beforePacking');
+                                else if (openMenu === 'beforePacking') setOpenMenu(null);
+                            }}>
                                 <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                     <div className="flex items-center">
                                         <LuPackage className={`mr-3 text-lg ${iconColor}`} />
                                         <span className="font-medium">Before Packing</span>
                                     </div>
-                                    <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'beforePacking' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
                                     <NavLink
@@ -1002,13 +1009,16 @@ const Sidebar = () => {
 
                         {/* After Packing Toggle - Only show for after-packing-only users and admin */}
                         {(authState?.role === 'admin' || authState?.role === 'after-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
-                            <details className="group">
+                            <details className="group" open={openMenu === 'afterPacking'} onToggle={(e) => {
+                                if (e.target.open) toggleMenu('afterPacking');
+                                else if (openMenu === 'afterPacking') setOpenMenu(null);
+                            }}>
                                 <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                     <div className="flex items-center">
                                         <LuPackage className={`mr-3 text-lg ${iconColor}`} />
                                         <span className="font-medium">After Packing</span>
                                     </div>
-                                    <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'afterPacking' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
                                     <NavLink
@@ -1078,13 +1088,16 @@ const Sidebar = () => {
 
                         {/* Shop Management - Hidden for packing-only users */}
                         {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
-                            <details className="group">
+                            <details className="group" open={openMenu === 'shops'} onToggle={(e) => {
+                                if (e.target.open) toggleMenu('shops');
+                                else if (openMenu === 'shops') setOpenMenu(null);
+                            }}>
                                 <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                     <div className="flex items-center">
                                         <LuStore className={`mr-3 text-lg ${iconColor}`} />
                                         <span className="font-medium">Shops</span>
                                     </div>
-                                    <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'shops' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
                                     <NavLink
@@ -1126,13 +1139,16 @@ const Sidebar = () => {
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                     <>
                         {/* Task Management */}
-                        <details className="group">
+                        <details className="group" open={openMenu === 'tasks'} onToggle={(e) => {
+                            if (e.target.open) toggleMenu('tasks');
+                            else if (openMenu === 'tasks') setOpenMenu(null);
+                        }}>
                             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                 <div className="flex items-center">
                                     <LuClipboardCheck className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Tasks</span>
                                 </div>
-                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'tasks' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1173,13 +1189,16 @@ const Sidebar = () => {
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                     <>
                         {/* Billing Management */}
-                        <details className="group">
+                        <details className="group" open={openMenu === 'billing'} onToggle={(e) => {
+                            if (e.target.open) toggleMenu('billing');
+                            else if (openMenu === 'billing') setOpenMenu(null);
+                        }}>
                             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                 <div className="flex items-center">
                                     <LuFileText className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Billing</span>
                                 </div>
-                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'billing' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1220,13 +1239,16 @@ const Sidebar = () => {
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                     <>
                         {/* Reports Management */}
-                        <details className="group">
+                        <details className="group" open={openMenu === 'reports'} onToggle={(e) => {
+                            if (e.target.open) toggleMenu('reports');
+                            else if (openMenu === 'reports') setOpenMenu(null);
+                        }}>
                             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                 <div className="flex items-center">
                                     <LuFileClock className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Reports</span>
                                 </div>
-                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reports' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1335,13 +1357,16 @@ const Sidebar = () => {
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
                     <>
                         {/* E-Way Bill Management */}
-                        <details className="group">
+                        <details className="group" open={openMenu === 'ewayBills'} onToggle={(e) => {
+                            if (e.target.open) toggleMenu('ewayBills');
+                            else if (openMenu === 'ewayBills') setOpenMenu(null);
+                        }}>
                             <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                                 <div className="flex items-center">
                                     <LuTruck className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">E-Way Bills</span>
                                 </div>
-                                <LuChevronRight className="w-4 h-4 text-gray-400" />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'ewayBills' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1389,6 +1414,7 @@ const Sidebar = () => {
                             }`
                         }
                         onClick={() => {
+                            setOpenMenu(null);
                             // Close sidebar on mobile when link is clicked
                             if (window.innerWidth < 1024) {
                                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -1414,6 +1440,7 @@ const Sidebar = () => {
                             }`
                         }
                         onClick={() => {
+                            setOpenMenu(null);
                             // Close sidebar on mobile when link is clicked
                             if (window.innerWidth < 1024) {
                                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -1446,6 +1473,7 @@ const Sidebar = () => {
                             }`
                         }
                         onClick={() => {
+                            setOpenMenu(null);
                             // Close sidebar on mobile when link is clicked
                             if (window.innerWidth < 1024) {
                                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -1471,6 +1499,7 @@ const Sidebar = () => {
                             }`
                         }
                         onClick={() => {
+                            setOpenMenu(null);
                             // Close sidebar on mobile when link is clicked
                             if (window.innerWidth < 1024) {
                                 window.dispatchEvent(new CustomEvent('close-sidebar'));
@@ -1488,13 +1517,16 @@ const Sidebar = () => {
 
                 {/* Reports Module */}
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
-                    <details className="group">
+                    <details className="group" open={openMenu === 'reportsDup'} onToggle={(e) => {
+                        if (e.target.open) toggleMenu('reportsDup');
+                        else if (openMenu === 'reportsDup') setOpenMenu(null);
+                    }}>
                         <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
                             <div className="flex items-center">
                                 <LuChartBar className={`mr-3 text-lg ${iconColor}`} />
                                 <span className="font-medium">Reports</span>
                             </div>
-                            <LuChevronRight className="w-4 h-4 text-gray-400" />
+                            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reportsDup' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
                         </summary>
                         <nav className="mt-1 ml-6 space-y-1">
                             <NavLink to="/admin/reports/sales" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
@@ -1533,6 +1565,7 @@ const Sidebar = () => {
                                 }`
                             }
                             onClick={() => {
+                                setOpenMenu(null);
                                 // Close sidebar on mobile when link is clicked
                                 if (window.innerWidth < 1024) {
                                     window.dispatchEvent(new CustomEvent('close-sidebar'));

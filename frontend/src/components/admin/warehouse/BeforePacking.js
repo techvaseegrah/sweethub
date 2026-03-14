@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
-import { LuCheck, LuDownload } from 'react-icons/lu';
+import { LuCheck, LuDownload, LuTrash2, LuTriangleAlert } from 'react-icons/lu';
 import CreateBeforePackingAccountModal from './CreateBeforePackingAccountModal';
+import AddFinishedProductModal from './AddFinishedProductModal';
 import CustomModal from '../../CustomModal';
 import { AuthContext } from '../../../context/AuthContext';
 import { formatDateWithTime, getBatchId } from '../../../utils/unitConversion';
@@ -18,6 +19,10 @@ const BeforePacking = () => {
     const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
     const [showManageMode, setShowManageMode] = useState(false);
+    const [viewMode, setViewMode] = useState('OWN'); // 'OWN' or 'FINISHED'
+    const [showAddFinishedProductModal, setShowAddFinishedProductModal] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
 
     const fetchItems = useCallback(async () => {
         setLoading(true);
@@ -40,6 +45,10 @@ const BeforePacking = () => {
         .filter(item => {
             const matchesSearch = (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase());
             if (!matchesSearch) return false;
+
+            const itemSource = item.source || 'OWN';
+            if (viewMode === 'OWN' && itemSource !== 'OWN') return false;
+            if (viewMode === 'FINISHED' && itemSource !== 'FINISHED PRODUCT') return false;
 
             if (timeFilter === 'all') return true;
 
@@ -101,6 +110,23 @@ const BeforePacking = () => {
         handleStatusChange(item._id, 'Completed', item.quantity);
     };
 
+    const confirmDelete = (item) => {
+        setItemToDelete(item);
+        setShowDeleteConfirm(true);
+    };
+
+    const handleDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const response = await axios.delete(`/admin/warehouse/before-packing/${itemToDelete._id}`);
+            setMessage(response.data.message);
+            setShowDeleteConfirm(false);
+            setItemToDelete(null);
+            fetchItems(); // Refresh the list
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to delete item.');
+        }
+    };
 
     if (loading) return (
         <div className="p-4 flex flex-col items-center justify-center">
@@ -159,7 +185,32 @@ const BeforePacking = () => {
                     )}
                 </div>
             </div>
-            <p className="text-gray-600 mb-6">Manage products that need pre-packing processing.</p>
+
+            <div className="flex justify-between flex-wrap gap-4 mb-6">
+                <p className="text-gray-600">Manage products that need pre-packing processing.</p>
+                <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                    <button
+                        onClick={() => setViewMode('OWN')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${viewMode === 'OWN' ? 'bg-white text-purple-600 shadow' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        OWN Products
+                    </button>
+                    <button
+                        onClick={() => setViewMode('FINISHED')}
+                        className={`px-4 py-2 rounded-md text-sm font-semibold transition-colors ${viewMode === 'FINISHED' ? 'bg-white text-purple-600 shadow' : 'text-gray-600 hover:text-gray-900'}`}
+                    >
+                        Finished Products
+                    </button>
+                    {viewMode === 'FINISHED' && (
+                        <button
+                            onClick={() => setShowAddFinishedProductModal(true)}
+                            className="ml-2 bg-purple-600 text-white font-semibold py-2 px-4 rounded-md shadow hover:bg-purple-700 transition-colors text-sm flex items-center"
+                        >
+                            + Add Finished Product
+                        </button>
+                    )}
+                </div>
+            </div>
 
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
@@ -210,20 +261,29 @@ const BeforePacking = () => {
                                     </span>
                                 </td>
                                 <td className="border px-4 py-2">
-                                    {item.status !== 'Completed' ? (
+                                    <div className="flex items-center gap-2">
+                                        {item.status !== 'Completed' ? (
+                                            <button
+                                                onClick={() => confirmComplete(item)}
+                                                className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center gap-1"
+                                            >
+                                                <LuCheck className="w-4 h-4" />
+                                                Complete {item.status === 'Partial' ? 'More' : ''}
+                                            </button>
+                                        ) : (
+                                            <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                <LuCheck className="w-4 h-4" />
+                                                Completed
+                                            </span>
+                                        )}
                                         <button
-                                            onClick={() => confirmComplete(item)}
-                                            className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm flex items-center gap-1"
+                                            onClick={() => confirmDelete(item)}
+                                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors flex items-center justify-center"
+                                            title="Delete Item"
                                         >
-                                            <LuCheck className="w-4 h-4" />
-                                            Complete {item.status === 'Partial' ? 'More' : ''}
+                                            <LuTrash2 className="w-5 h-5" />
                                         </button>
-                                    ) : (
-                                        <span className="text-gray-500 text-sm flex items-center gap-1">
-                                            <LuCheck className="w-4 h-4" />
-                                            Completed
-                                        </span>
-                                    )}
+                                    </div>
                                 </td>
                             </tr>
                         )) : (
@@ -235,6 +295,41 @@ const BeforePacking = () => {
                 </table>
             </div>
 
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full animate-fadeIn">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                <LuTriangleAlert className="w-10 h-10 text-red-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Item</h3>
+                            <p className="text-gray-600 mb-6">
+                                Are you sure you want to delete <span className="font-semibold">{itemToDelete?.productName || itemToDelete?.sweetName}</span>?
+                                This action will also automatically delete the corresponding item in After Packing. This action cannot be undone.
+                            </p>
+                            <div className="flex gap-4 w-full">
+                                <button
+                                    onClick={() => {
+                                        setShowDeleteConfirm(false);
+                                        setItemToDelete(null);
+                                    }}
+                                    className="flex-1 py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    className="flex-1 py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors flex justify-center items-center gap-2"
+                                >
+                                    <LuTrash2 className="w-5 h-5" />
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Create Account Modal */}
             {showCreateAccountModal && (
@@ -260,6 +355,24 @@ const BeforePacking = () => {
                         }}
                         editingAccount={editingAccount}
                         showManageAccountsInitial={showManageMode}
+                    />
+                </CustomModal>
+            )}
+
+            {/* Add Finished Product Modal */}
+            {showAddFinishedProductModal && (
+                <CustomModal
+                    isOpen={showAddFinishedProductModal}
+                    onClose={() => setShowAddFinishedProductModal(false)}
+                    title="Add Finished Product to Before Packing"
+                >
+                    <AddFinishedProductModal
+                        onClose={() => setShowAddFinishedProductModal(false)}
+                        onSuccess={() => {
+                            setShowAddFinishedProductModal(false);
+                            setMessage('Finished product added successfully');
+                            fetchItems();
+                        }}
                     />
                 </CustomModal>
             )}

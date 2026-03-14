@@ -227,7 +227,7 @@ const ReturnProductsHistory = ({ refresh }) => {
                         </tr>
                     </thead>
                     <tbody>
-    {returns.map(returnItem => (
+    {filteredReturns.map(returnItem => (
         <tr key={returnItem._id} className="border-b hover:bg-gray-50">
             <td className="border px-4 py-2">{returnItem.returnId}</td>
             <td className="border px-4 py-2">{returnItem.productName}</td>
