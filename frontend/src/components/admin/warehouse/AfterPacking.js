@@ -40,8 +40,6 @@ const AfterPacking = () => {
     const [products, setProducts] = useState([]);
     const [sku, setSku] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
-    const [netPrice, setNetPrice] = useState('');
-    const [sellPrice, setSellPrice] = useState('');
 
     useEffect(() => {
         const stored = localStorage.getItem('recentProductNames');
@@ -81,11 +79,6 @@ const AfterPacking = () => {
         if (matchingProduct) {
             setSku(matchingProduct.sku || '');
             setSelectedCategory(matchingProduct.category?._id || matchingProduct.category || '');
-            const priceObj = matchingProduct.prices?.find(p => p.unit === selectedUnit) || matchingProduct.prices?.[0];
-            if (priceObj) {
-                setNetPrice(priceObj.netPrice || '');
-                setSellPrice(priceObj.sellingPrice || '');
-            }
         }
     }, [editedProductName, selectedUnit, showConfirmation, products]);
 
@@ -106,37 +99,63 @@ const AfterPacking = () => {
         fetchItems();
     }, [fetchItems]);
 
+    // Filter states
+    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+
     const filteredItems = items
         .filter(item => {
-            const matchesSearch = (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const productName = (item.productName || item.sweetName || '').toLowerCase();
+            const matchesSearch = productName.includes(searchTerm.toLowerCase());
             if (!matchesSearch) return false;
 
             const itemSource = item.source || 'OWN';
             if (viewMode === 'OWN' && itemSource !== 'OWN') return false;
             if (viewMode === 'FINISHED' && itemSource !== 'FINISHED PRODUCT') return false;
 
-            if (timeFilter === 'all') return true;
+            // Category filter
+            if (selectedCategoryFilter) {
+                const product = products.find(p => p.name.toLowerCase() === productName);
+                const itemCategoryId = product?.category?._id || product?.category || '';
+                if (itemCategoryId !== selectedCategoryFilter) return false;
+            }
 
             const itemDate = new Date(item.date);
             const now = new Date();
 
-            if (timeFilter === 'hour') {
-                return (now - itemDate) <= 60 * 60 * 1000;
+            // Date Range filter
+            if (startDate || endDate) {
+                const itemDateOnly = new Date(item.date);
+                itemDateOnly.setHours(0, 0, 0, 0);
+
+                if (startDate) {
+                    const start = new Date(startDate);
+                    start.setHours(0, 0, 0, 0);
+                    if (itemDateOnly < start) return false;
+                }
+                if (endDate) {
+                    const end = new Date(endDate);
+                    end.setHours(0, 0, 0, 0);
+                    if (itemDateOnly > end) return false;
+                }
+            } else if (timeFilter !== 'all') {
+                // Preset time filters (only applied if custom date range is not set)
+                if (timeFilter === 'hour') {
+                    if ((now - itemDate) > 60 * 60 * 1000) return false;
+                } else if (timeFilter === 'today') {
+                    if (itemDate.toDateString() !== now.toDateString()) return false;
+                } else if (timeFilter === 'yesterday') {
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    if (itemDate.toDateString() !== yesterday.toDateString()) return false;
+                } else if (timeFilter === 'week') {
+                    if ((now - itemDate) > 7 * 24 * 60 * 60 * 1000) return false;
+                } else if (timeFilter === 'month') {
+                    if (itemDate.getMonth() !== now.getMonth() || itemDate.getFullYear() !== now.getFullYear()) return false;
+                }
             }
-            if (timeFilter === 'today') {
-                return itemDate.toDateString() === now.toDateString();
-            }
-            if (timeFilter === 'yesterday') {
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                return itemDate.toDateString() === yesterday.toDateString();
-            }
-            if (timeFilter === 'week') {
-                return (now - itemDate) <= 7 * 24 * 60 * 60 * 1000;
-            }
-            if (timeFilter === 'month') {
-                return itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
-            }
+
             return true;
         })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -178,7 +197,7 @@ const AfterPacking = () => {
         }
     };
 
-    const handleAddToStock = async (itemId, inputQty, userSelectedUnit, convertedQtyToDeduct, newProductName, customSku, customCategory, customNetPrice, customSellPrice) => {
+    const handleAddToStock = async (itemId, inputQty, userSelectedUnit, convertedQtyToDeduct, newProductName, customSku, customCategory) => {
         try {
             const response = await axios.put(`/admin/warehouse/after-packing/${itemId}/add-to-stock`, {
                 expiryDate,
@@ -189,8 +208,6 @@ const AfterPacking = () => {
                 editedProductName: newProductName,
                 sku: customSku,
                 category: customCategory,
-                netPrice: customNetPrice,
-                sellPrice: customSellPrice
             });
             setMessage(response.data.message);
             setExpiryDate('');
@@ -209,9 +226,6 @@ const AfterPacking = () => {
 
         setSku(`PROD-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
         setSelectedCategory('');
-        setNetPrice(item.price || '');
-        // Default sell price logic: 20% markup
-        setSellPrice(item.price ? (item.price * 1.2).toFixed(2) : '');
 
         setShowConfirmation(true);
     };
@@ -250,7 +264,7 @@ const AfterPacking = () => {
                     localStorage.setItem('recentUnits', JSON.stringify(newUnits));
                 }
 
-                handleAddToStock(itemToComplete._id, inputQty, selectedUnit, convertedQty, editedProductName, sku, selectedCategory, netPrice, sellPrice);
+                handleAddToStock(itemToComplete._id, inputQty, selectedUnit, convertedQty, editedProductName, sku, selectedCategory);
                 setShowConfirmation(false);
                 setItemToComplete(null);
                 setCompletedQty('');
@@ -260,8 +274,6 @@ const AfterPacking = () => {
                 setShowUnitSuggestions(false);
                 setSku('');
                 setSelectedCategory('');
-                setNetPrice('');
-                setSellPrice('');
             } catch (err) {
                 setError('Unit conversion error: ' + err.message);
             }
@@ -278,8 +290,6 @@ const AfterPacking = () => {
         setUsedByDate('');
         setSku('');
         setSelectedCategory('');
-        setNetPrice('');
-        setSellPrice('');
     };
 
     if (loading) return (
@@ -361,14 +371,48 @@ const AfterPacking = () => {
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
 
-            <div className="mb-4">
-                <input
-                    type="text"
-                    placeholder="Search items..."
-                    className="w-full md:w-1/3 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="flex flex-wrap gap-4 mb-6">
+                <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input
+                        type="text"
+                        placeholder="Search items..."
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={selectedCategoryFilter}
+                        onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                    >
+                        <option value="">All Categories</option>
+                        {categories.map(cat => (
+                            <option key={cat._id} value={cat._id}>{cat.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex-1 min-w-[150px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input
+                        type="date"
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                    />
+                </div>
+                <div className="flex-1 min-w-[150px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input
+                        type="date"
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                    />
+                </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -524,7 +568,6 @@ const AfterPacking = () => {
                             </div>
                             <p>Total Original: {itemToComplete?.totalQuantity || itemToComplete?.quantity} {itemToComplete?.unit}</p>
                             <p>Current Remaining: {itemToComplete?.quantity} {itemToComplete?.unit}</p>
-                            <p>Unit Price: ₹{itemToComplete?.price} / {itemToComplete?.unit}</p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 mb-4">

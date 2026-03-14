@@ -89,7 +89,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
     if (dateFrom) {
       tempProducts = tempProducts.filter(p => new Date(p.createdAt) >= new Date(dateFrom));
     }
-    
+
     if (dateTo) {
       const toDate = new Date(dateTo);
       toDate.setHours(23, 59, 59, 999);
@@ -361,7 +361,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
             </option>
           ))}
         </select>
-        
+
         <div className="flex items-center gap-2 w-full md:w-auto">
           <label className="text-sm text-gray-600 font-medium whitespace-nowrap">From:</label>
           <input
@@ -427,10 +427,10 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   </td>
                   <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.stockLevel <= (product.stockAlertThreshold || 0)
-                        ? 'bg-red-100 text-red-800'
-                        : product.stockLevel <= (product.stockAlertThreshold || 0) * 2
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-green-100 text-green-800'
+                      ? 'bg-red-100 text-red-800'
+                      : product.stockLevel <= (product.stockAlertThreshold || 0) * 2
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-green-100 text-green-800'
                       }`}>
                       {product.stockLevel}
                     </span>

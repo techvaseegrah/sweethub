@@ -355,7 +355,7 @@ function ShopSidebar() {
               <LuUsers className={`mr-3 text-lg ${iconColor}`} />
               <span className="font-medium">Workers</span>
             </div>
-            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
           </summary>
           <nav className="mt-1 ml-6 space-y-1">
             {authState?.role !== 'attendance-only' && (
@@ -399,7 +399,7 @@ function ShopSidebar() {
                 <LuBuilding className={`mr-3 text-lg ${iconColor}`} />
                 <span className="font-medium">Departments</span>
               </div>
-              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'departments' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'departments' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
               <NavLink to="/shop/departments/create" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
@@ -428,7 +428,7 @@ function ShopSidebar() {
                     {lowStockCount}
                   </span>
                 )}
-                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'products' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'products' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
               </div>
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
@@ -496,7 +496,7 @@ function ShopSidebar() {
                 <LuReceipt className={`mr-3 text-lg ${iconColor}`} />
                 <span className="font-medium">Billing & Invoices</span>
               </div>
-              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'billing' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'billing' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
               <NavLink to="/shop/billing/create" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
@@ -594,7 +594,7 @@ function ShopSidebar() {
                 <LuChartBar className={`mr-3 text-lg ${iconColor}`} />
                 <span className="font-medium">Reports</span>
               </div>
-              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reports' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reports' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
               <NavLink to="/shop/reports/sales" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>

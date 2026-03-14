@@ -11,6 +11,25 @@ const BeforePackingPendingItems = () => {
     const [message, setMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
 
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [categories, setCategories] = useState([]);
+    const [products, setProducts] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState('');
+
+    const fetchCategoriesAndProducts = async () => {
+        try {
+            const [catRes, prodRes] = await Promise.all([
+                axios.get('/admin/categories'),
+                axios.get('/admin/products')
+            ]);
+            setCategories(catRes.data);
+            setProducts(prodRes.data);
+        } catch (error) {
+            console.error("Failed to fetch auxiliary data", error);
+        }
+    };
+
     const fetchItems = useCallback(async () => {
         setLoading(true);
         try {
@@ -28,12 +47,41 @@ const BeforePackingPendingItems = () => {
 
     useEffect(() => {
         fetchItems();
+        fetchCategoriesAndProducts();
     }, [fetchItems]);
 
     const filteredItems = items
-        .filter(item =>
-            (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase())
-        )
+        .filter(item => {
+            const productName = (item.productName || item.sweetName || '').toLowerCase();
+            const matchesSearch = productName.includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
+
+            // Category filter
+            if (selectedCategory) {
+                const product = products.find(p => p.name.toLowerCase() === productName);
+                const itemCategoryId = product?.category?._id || product?.category || '';
+                if (itemCategoryId !== selectedCategory) return false;
+            }
+
+            // Date Range filter
+            if (startDate || endDate) {
+                const itemDateOnly = new Date(item.date);
+                itemDateOnly.setHours(0, 0, 0, 0);
+
+                if (startDate) {
+                    const start = new Date(startDate);
+                    start.setHours(0, 0, 0, 0);
+                    if (itemDateOnly < start) return false;
+                }
+                if (endDate) {
+                    const end = new Date(endDate);
+                    end.setHours(0, 0, 0, 0);
+                    if (itemDateOnly > end) return false;
+                }
+            }
+
+            return true;
+        })
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (loading) return (
@@ -59,14 +107,48 @@ const BeforePackingPendingItems = () => {
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
 
-            <div className="mb-4">
-                <input
-                    type="text"
-                    placeholder="Search items..."
-                    className="w-full md:w-1/3 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="flex flex-wrap gap-4 mb-6">
+                <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input
+                        type="text"
+                        placeholder="Search items..."
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                    >
+                        <option value="">All Categories</option>
+                        {categories.map(cat => (
+                            <option key={cat._id} value={cat._id}>{cat.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="flex-1 min-w-[150px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input
+                        type="date"
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                    />
+                </div>
+                <div className="flex-1 min-w-[150px]">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input
+                        type="date"
+                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                    />
+                </div>
             </div>
 
             <div className="overflow-x-auto">

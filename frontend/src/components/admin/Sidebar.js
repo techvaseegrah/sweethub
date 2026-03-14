@@ -256,7 +256,7 @@ const Sidebar = () => {
                                 onClick={toggleRawMaterials}
                             >
                                 <span className="font-medium">Raw Materials</span>
-                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90' : ''}`} />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                             </div>
                             {isRawMaterialsOpen && (
                                 <nav className="mt-1 ml-4 space-y-1">
@@ -351,7 +351,7 @@ const Sidebar = () => {
                                 onClick={toggleManufacturing}
                             >
                                 <span className="font-medium">Manufacturing</span>
-                                <LuChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90' : ''}`} />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                             </div>
                             {isManufacturingOpen && (
                                 <nav className="mt-1 ml-4 space-y-1">
@@ -421,7 +421,7 @@ const Sidebar = () => {
                                 <LuUsers className={`mr-3 text-lg ${iconColor}`} />
                                 <span className="font-medium">Workers</span>
                             </div>
-                            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                         </summary>
                         <nav className="mt-1 ml-6 space-y-1">
                             {authState?.role !== 'attendance-only' && (
@@ -524,7 +524,7 @@ const Sidebar = () => {
                                     <LuBuilding className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Departments</span>
                                 </div>
-                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'departments' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'departments' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -580,7 +580,7 @@ const Sidebar = () => {
                                             {totalStockAlerts}
                                         </span>
                                     )}
-                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'products' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'products' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                 </div>
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
@@ -703,7 +703,7 @@ const Sidebar = () => {
                                                 {materialStockAlerts}
                                             </span>
                                         )}
-                                        <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'warehouse' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                        <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'warehouse' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                     </div>
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
@@ -715,7 +715,7 @@ const Sidebar = () => {
                                                 onClick={togglePackingMaterials}
                                             >
                                                 <span className="font-medium">Packing Materials</span>
-                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isPackingMaterialsOpen ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isPackingMaterialsOpen ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                             </div>
                                             {isPackingMaterialsOpen && (
                                                 <nav className="mt-1 ml-4 space-y-1">
@@ -780,7 +780,7 @@ const Sidebar = () => {
                                                 onClick={toggleRawMaterials}
                                             >
                                                 <span className="font-medium">Raw Materials</span>
-                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isRawMaterialsOpen ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                             </div>
                                             {isRawMaterialsOpen && (
                                                 <nav className="mt-1 ml-4 space-y-1">
@@ -877,7 +877,7 @@ const Sidebar = () => {
                                                 onClick={toggleManufacturing}
                                             >
                                                 <span className="font-medium">Manufacturing</span>
-                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${isManufacturingOpen ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                             </div>
                                             {isManufacturingOpen && (
                                                 <nav className="mt-1 ml-4 space-y-1">
@@ -954,7 +954,7 @@ const Sidebar = () => {
                                         <LuPackage className={`mr-3 text-lg ${iconColor}`} />
                                         <span className="font-medium">Before Packing</span>
                                     </div>
-                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'beforePacking' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'beforePacking' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
                                     <NavLink
@@ -1018,7 +1018,7 @@ const Sidebar = () => {
                                         <LuPackage className={`mr-3 text-lg ${iconColor}`} />
                                         <span className="font-medium">After Packing</span>
                                     </div>
-                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'afterPacking' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'afterPacking' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
                                     <NavLink
@@ -1097,7 +1097,7 @@ const Sidebar = () => {
                                         <LuStore className={`mr-3 text-lg ${iconColor}`} />
                                         <span className="font-medium">Shops</span>
                                     </div>
-                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'shops' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                    <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'shops' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                                 </summary>
                                 <nav className="mt-1 ml-6 space-y-1">
                                     <NavLink
@@ -1148,7 +1148,7 @@ const Sidebar = () => {
                                     <LuClipboardCheck className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Tasks</span>
                                 </div>
-                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'tasks' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'tasks' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1198,7 +1198,7 @@ const Sidebar = () => {
                                     <LuFileText className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Billing</span>
                                 </div>
-                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'billing' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'billing' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1248,7 +1248,7 @@ const Sidebar = () => {
                                     <LuFileClock className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">Reports</span>
                                 </div>
-                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reports' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reports' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1366,7 +1366,7 @@ const Sidebar = () => {
                                     <LuTruck className={`mr-3 text-lg ${iconColor}`} />
                                     <span className="font-medium">E-Way Bills</span>
                                 </div>
-                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'ewayBills' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
+                                <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'ewayBills' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
                             </summary>
                             <nav className="mt-1 ml-6 space-y-1">
                                 <NavLink
@@ -1513,45 +1513,6 @@ const Sidebar = () => {
                             </>
                         )}
                     </NavLink>
-                )}
-
-                {/* Reports Module */}
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
-                    <details className="group" open={openMenu === 'reportsDup'} onToggle={(e) => {
-                        if (e.target.open) toggleMenu('reportsDup');
-                        else if (openMenu === 'reportsDup') setOpenMenu(null);
-                    }}>
-                        <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
-                            <div className="flex items-center">
-                                <LuChartBar className={`mr-3 text-lg ${iconColor}`} />
-                                <span className="font-medium">Reports</span>
-                            </div>
-                            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'reportsDup' ? 'rotate-90 text-gray-400' : 'text-red-500'}`} />
-                        </summary>
-                        <nav className="mt-1 ml-6 space-y-1">
-                            <NavLink to="/admin/reports/sales" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                                <span className="font-medium">Sales Report</span>
-                            </NavLink>
-                            <NavLink to="/admin/reports/purchase" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                                <span className="font-medium">Purchase Report</span>
-                            </NavLink>
-                            <NavLink to="/admin/reports/production" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                                <span className="font-medium">Production Report</span>
-                            </NavLink>
-                            <NavLink to="/admin/reports/stock" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                                <span className="font-medium">Stock Report</span>
-                            </NavLink>
-                            <NavLink to="/admin/reports/expiry-batch" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                                <span className="font-medium">Expiry/Batch Report</span>
-                            </NavLink>
-                            <NavLink to="/admin/reports/gst" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                                <span className="font-medium">GST Report</span>
-                            </NavLink>
-                            <NavLink to="/admin/reports/profit-loss" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                                <span className="font-medium">Profit & Loss</span>
-                            </NavLink>
-                        </nav>
-                    </details>
                 )}
 
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (

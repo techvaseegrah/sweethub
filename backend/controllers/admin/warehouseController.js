@@ -1115,7 +1115,7 @@ const deleteBeforePackingItem = async (req, res) => {
         if (!item) {
             return res.status(404).json({ message: 'Before Packing item not found' });
         }
-        
+
         // delete the corresponding item in after packing using batchId or scheduleId
         if (item.batchId && item.batchId !== 'N/A') {
             await AfterPacking.deleteMany({ batchId: item.batchId });
@@ -1224,25 +1224,6 @@ const addToStockFromAfterPacking = async (req, res) => {
         });
 
         if (product) {
-            // Find if there's already a price entry with the same unit
-            let priceObj = product.prices.find(p => p.unit.toLowerCase() === item.unit.toLowerCase());
-
-            if (!priceObj) {
-                // If unit doesn't exist, create a new price entry
-                priceObj = {
-                    unit: item.unit,
-                    netPrice: item.price,
-                    sellingPrice: item.price * 1.2 // Assuming 20% profit margin
-                };
-                product.prices.push(priceObj);
-            } else {
-                // If unit exists, update the price if it's different
-                if (priceObj.netPrice !== item.price) {
-                    priceObj.netPrice = item.price;
-                    priceObj.sellingPrice = item.price * 1.2;
-                }
-            }
-
             // Determine quantity to add to stock
             let qtyToAdd = Number(item.quantity);
             let unitToAdd = item.unit;
@@ -1263,13 +1244,13 @@ const addToStockFromAfterPacking = async (req, res) => {
             if (!targetPriceObj) {
                 targetPriceObj = {
                     unit: unitToAdd,
-                    netPrice: netPrice ? Number(netPrice) : item.price,
-                    sellingPrice: sellPrice ? Number(sellPrice) : item.price * 1.2
+                    netPrice: netPrice ? Number(netPrice) : 0,
+                    sellingPrice: sellPrice ? Number(sellPrice) : 0
                 };
                 product.prices.push(targetPriceObj);
             } else {
-                if (netPrice) targetPriceObj.netPrice = Number(netPrice);
-                if (sellPrice) targetPriceObj.sellingPrice = Number(sellPrice);
+                if (netPrice !== undefined && netPrice !== null && netPrice !== '') targetPriceObj.netPrice = Number(netPrice);
+                if (sellPrice !== undefined && sellPrice !== null && sellPrice !== '') targetPriceObj.sellingPrice = Number(sellPrice);
             }
 
             // Update the stock level by adding the packed quantity
@@ -1300,8 +1281,8 @@ const addToStockFromAfterPacking = async (req, res) => {
                 stockLevel: qtyToAdd,
                 prices: [{
                     unit: unitToAdd,
-                    netPrice: netPrice ? Number(netPrice) : item.price,
-                    sellingPrice: sellPrice ? Number(sellPrice) : item.price * 1.2
+                    netPrice: netPrice ? Number(netPrice) : 0,
+                    sellingPrice: sellPrice ? Number(sellPrice) : 0
                 }],
                 // Add expiry and use-by dates if available from manufacturing process
                 ...(expiryDate && { expiryDate }),
@@ -1366,7 +1347,7 @@ const deleteAfterPackingItem = async (req, res) => {
         if (!item) {
             return res.status(404).json({ message: 'After Packing item not found' });
         }
-        
+
         // delete the corresponding item in before packing using batchId or scheduleId
         if (item.batchId && item.batchId !== 'N/A') {
             await BeforePacking.deleteMany({ batchId: item.batchId });
