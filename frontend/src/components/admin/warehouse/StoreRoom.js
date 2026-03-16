@@ -368,7 +368,7 @@ const StoreRoom = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">Quantity</label>
-                                <input type="number" name="quantity" value={currentItem.quantity} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                                <input type="text" name="quantity" value={currentItem.quantity} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">Unit</label>
@@ -376,15 +376,15 @@ const StoreRoom = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">Price per Unit (₹)</label>
-                                <input type="number" name="price" value={currentItem.price} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                                <input type="text" name="price" value={currentItem.price} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">Alert Threshold</label>
-                                <input type="number" name="stockAlertThreshold" value={currentItem.stockAlertThreshold} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                                <input type="text" name="stockAlertThreshold" value={currentItem.stockAlertThreshold} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">GST %</label>
-                                <input type="number" name="gstPercentage" value={currentItem.gstPercentage || '0'} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                                <input type="text" name="gstPercentage" value={currentItem.gstPercentage || '0'} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-semibold text-gray-600 mb-1">Vendor Name</label>

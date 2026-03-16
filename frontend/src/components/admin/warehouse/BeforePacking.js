@@ -23,6 +23,8 @@ const BeforePacking = () => {
     const [showAddFinishedProductModal, setShowAddFinishedProductModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+    const [itemToComplete, setItemToComplete] = useState(null);
 
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -148,7 +150,15 @@ const BeforePacking = () => {
     };
 
     const confirmComplete = (item) => {
-        handleStatusChange(item._id, 'Completed', item.quantity);
+        setItemToComplete(item);
+        setShowCompleteConfirm(true);
+    };
+
+    const handleFinalComplete = async () => {
+        if (!itemToComplete) return;
+        await handleStatusChange(itemToComplete._id, 'Completed', itemToComplete.quantity);
+        setShowCompleteConfirm(false);
+        setItemToComplete(null);
     };
 
     const confirmDelete = (item) => {
@@ -399,6 +409,42 @@ const BeforePacking = () => {
                                 >
                                     <LuTrash2 className="w-5 h-5" />
                                     Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Complete Confirmation Modal */}
+            {showCompleteConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full animate-fadeIn">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                                <LuCheck className="w-10 h-10 text-blue-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Complete Processing</h3>
+                            <p className="text-gray-600 mb-6">
+                                Are you sure you want to mark <span className="font-semibold">{itemToComplete?.productName || itemToComplete?.sweetName}</span> as completed?
+                                This will move the quantity to the packing stage.
+                            </p>
+                            <div className="flex gap-4 w-full">
+                                <button
+                                    onClick={() => {
+                                        setShowCompleteConfirm(false);
+                                        setItemToComplete(null);
+                                    }}
+                                    className="flex-1 py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold rounded-lg transition-colors"
+                                >
+                                    No, Keep Pending
+                                </button>
+                                <button
+                                    onClick={handleFinalComplete}
+                                    className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex justify-center items-center gap-2"
+                                >
+                                    <LuCheck className="w-5 h-5" />
+                                    Yes, Complete
                                 </button>
                             </div>
                         </div>

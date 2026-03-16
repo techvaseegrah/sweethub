@@ -68,7 +68,7 @@ const AddFinishedProductModal = ({ onClose, onSuccess }) => {
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
                         <input
-                            type="number"
+                            type="text"
                             name="quantity"
                             value={formData.quantity}
                             onChange={handleChange}

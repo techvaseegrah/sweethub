@@ -489,7 +489,7 @@ const Manufacturing = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Overall Quantity</label>
                                     <input
-                                        type="number"
+                                        type="text"
                                         name="quantity"
                                         value={currentProcess.quantity}
                                         onChange={handleInputChange}
@@ -514,7 +514,7 @@ const Manufacturing = () => {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
                                     <input
-                                        type="number"
+                                        type="text"
                                         name="price"
                                         value={currentProcess.price}
                                         onChange={handleInputChange}
@@ -551,7 +551,7 @@ const Manufacturing = () => {
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
                                         <input
-                                            type="number"
+                                            type="text"
                                             value={ingredient.quantity}
                                             onChange={(e) => updateIngredient(index, 'quantity', e.target.value)}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
@@ -559,15 +559,7 @@ const Manufacturing = () => {
                                             min="0"
                                             step="0.01"
                                         />
-                                        {ingredientAlerts[index] && (
-                                            <div className={`text-xs mt-1 ${ingredientAlerts[index].isLow ? 'text-red-600' : 'text-green-600'
-                                                }`}>
-                                                {ingredientAlerts[index].isLow
-                                                    ? `Available: ${ingredientAlerts[index].available}`
-                                                    : `Available: ${ingredientAlerts[index].available}`
-                                                }
-                                            </div>
-                                        )}
+
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
@@ -583,7 +575,7 @@ const Manufacturing = () => {
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Price per Unit</label>
                                         <input
-                                            type="number"
+                                            type="text"
                                             value={ingredient.price}
                                             onChange={(e) => updateIngredient(index, 'price', e.target.value)}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"

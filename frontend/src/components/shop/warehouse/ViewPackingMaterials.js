@@ -131,7 +131,7 @@ const ViewPackingMaterials = () => {
                                                 <div className="flex items-center mt-2">
                                                     <span className="text-sm text-gray-600 mr-2">Threshold:</span>
                                                     <input
-                                                        type="number"
+                                                        type="text"
                                                         value={material.stockAlertThreshold || 0}
                                                         onChange={(e) => updateThreshold(material._id, parseInt(e.target.value) || 0)}
                                                         className="w-20 border rounded p-1 text-center"

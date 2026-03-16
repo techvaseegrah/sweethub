@@ -491,7 +491,7 @@ exports.getMonthlyAttendance = async (req, res) => {
         const endDate = new Date(year, month, 1);
 
         let workersQuery = { shop: shopId };
-        if (queryWorkerId) {
+        if (queryWorkerId && queryWorkerId !== 'undefined') {
             workersQuery._id = queryWorkerId;
         }
 
@@ -503,7 +503,7 @@ exports.getMonthlyAttendance = async (req, res) => {
             ]
         };
 
-        if (queryWorkerId) {
+        if (queryWorkerId && queryWorkerId !== 'undefined') {
             attendanceQuery.$and.push({ worker: queryWorkerId });
         } else {
             attendanceQuery.$and.push({ worker: { $in: await Worker.find({ shop: shopId }).distinct('_id') } });

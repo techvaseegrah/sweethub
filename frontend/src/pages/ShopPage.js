@@ -50,6 +50,7 @@ import ReturnProductsPage from '../components/shop/returnproducts/ReturnProducts
 // Import order management component
 import ShopOrderManagement from '../components/shop/OrderManagement';
 import SalesReport from '../components/admin/reports/SalesReport';
+import MixedSweets from '../components/shop/manufacturing/MixedSweets';
 
 import { useFullScreenBill } from '../context/FullScreenBillContext';
 
@@ -159,6 +160,7 @@ const ShopPage = () => {
 
                         {/* Return Products Routes */}
                         <Route path="return-products" element={<ReturnProductsPage />} />
+                        <Route path="manufacturing" element={<MixedSweets />} />
 
                         {/* Reports Routes */}
                         <Route path="reports/sales" element={<SalesReport />} />

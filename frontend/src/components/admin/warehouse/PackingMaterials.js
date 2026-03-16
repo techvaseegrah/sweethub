@@ -203,7 +203,7 @@ const PackingMaterials = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">GST %</label>
-                        <input type="number" name="gstPercentage" placeholder="GST %" value={newItem.gstPercentage} onChange={handleInputChange} className="border p-2 rounded-md w-full" />
+                        <input type="text" name="gstPercentage" placeholder="GST %" value={newItem.gstPercentage} onChange={handleInputChange} className="border p-2 rounded-md w-full" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Alert Threshold</label>
@@ -310,7 +310,7 @@ const PackingMaterials = () => {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">GST %</label>
-                                <input type="number" name="gstPercentage" value={currentItem.gstPercentage || '0'} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
+                                <input type="text" name="gstPercentage" value={currentItem.gstPercentage || '0'} onChange={handleModalChange} className="w-full px-3 py-2 border rounded-md" />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium">Stock Alert Threshold</label>

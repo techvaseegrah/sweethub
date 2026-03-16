@@ -93,7 +93,7 @@ exports.addProduct = async (req, res) => {
 exports.getProducts = async (req, res) => {
   try {
     // Fetch products that belong to the currently logged-in admin
-    const products = await Product.find({ admin: req.user.id }).populate('category', 'name').sort({ createdAt: -1 });
+    const products = await Product.find({ admin: req.user.id }).populate('category', 'name').sort({ updatedAt: -1 });
     res.json(products);
   } catch (error) {
     console.error("Error fetching products:", error);

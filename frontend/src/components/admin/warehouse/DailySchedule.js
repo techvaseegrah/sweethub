@@ -818,7 +818,7 @@ const DailySchedule = () => {
                                                 Quantity
                                             </label>
                                             <input
-                                                type="number"
+                                                type="text"
                                                 className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 ${sweet.manuallyModified.quantity ? 'bg-yellow-50 border-yellow-300' : ''}`}
                                                 placeholder="e.g., 100"
                                                 value={sweet.quantity}
@@ -847,7 +847,7 @@ const DailySchedule = () => {
                                                 Price per Unit
                                             </label>
                                             <input
-                                                type="number"
+                                                type="text"
                                                 className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-800 transition duration-200 ${sweet.manuallyModified.price ? 'bg-yellow-50 border-yellow-300' : ''}`}
                                                 value={sweet.price}
                                                 onChange={(e) => handleSweetChange(index, 'price', e.target.value)}
@@ -963,6 +963,12 @@ const DailySchedule = () => {
                             </div>
                         )}
                     </>
+                )}
+
+                {message && (
+                    <div className="mt-6">
+                        <MessageAlert message={message} type={messageType} />
+                    </div>
                 )}
             </form>
         </div>

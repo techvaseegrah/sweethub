@@ -91,7 +91,7 @@ const OutgoingPackingMaterials = () => {
                             ))}
                         </select>
                         <input
-                            type="number"
+                            type="text"
                             placeholder="Quantity to Use"
                             value={quantityUsed}
                             onChange={(e) => setQuantityUsed(e.target.value)}

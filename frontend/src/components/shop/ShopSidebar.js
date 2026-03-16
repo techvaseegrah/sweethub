@@ -461,6 +461,29 @@ function ShopSidebar() {
 
         {authState?.role !== 'attendance-only' && (
           <NavLink
+            to="/shop/manufacturing"
+            className={({ isActive }) =>
+              `flex items-center px-3 py-2.5 rounded-lg ${isActive ? activeRed : `${textPrimary} ${hoverBg}`
+              }`
+            }
+            onClick={() => {
+              setOpenMenu(null);
+              if (window.innerWidth < 1024) {
+                window.dispatchEvent(new CustomEvent('close-sidebar'));
+              }
+            }}
+          >
+            {({ isActive }) => (
+              <>
+                <LuBoxes className={`mr-3 text-lg ${isActive ? iconActive : iconColor}`} />
+                <span className="font-medium">Manufacturing</span>
+              </>
+            )}
+          </NavLink>
+        )}
+
+        {authState?.role !== 'attendance-only' && (
+          <NavLink
             to="/shop/invoice/view"
             className={({ isActive }) =>
               `flex items-center justify-between px-3 py-2.5 rounded-lg ${isActive ? activeRed : `${textPrimary} ${hoverBg}`

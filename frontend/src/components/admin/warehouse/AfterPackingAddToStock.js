@@ -478,6 +478,33 @@ const AfterPackingAddToStock = () => {
                             </div>
                         )}
 
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Net Price (₹)
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    value={netPrice}
+                                    onChange={(e) => setNetPrice(e.target.value)}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Selling Price (₹)
+                                </label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                    value={sellPrice}
+                                    onChange={(e) => setSellPrice(e.target.value)}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2">

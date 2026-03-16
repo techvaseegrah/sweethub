@@ -118,33 +118,40 @@ const SalaryReport = () => {
 
     // Handle Generate Report
     const handleGenerateReport = (worker) => {
+        const month = new Date().getMonth() + 1;
+        const year = new Date().getFullYear();
+
         setSelectedWorkerForReport(worker);
-        setReportMonth(new Date().getMonth() + 1);
-        setReportYear(new Date().getFullYear());
+        setReportMonth(month);
+        setReportYear(year);
         setGeneratedReport(null);
         setShowReportModal(true);
-        // Call generateSalaryReport to populate the report data
-        Promise.resolve().then(() => {
-            generateSalaryReport();
-        });
+
+        // Generate report immediately with the selected worker and dates
+        generateSalaryReport(worker, month, year);
     };
 
     // Generate Salary Report
-    const generateSalaryReport = async () => {
-        if (!selectedWorkerForReport) return;
+    const generateSalaryReport = async (workerOverride, monthOverride, yearOverride) => {
+        // If the first argument is an event or other non-worker object, ignore it
+        const worker = (workerOverride && workerOverride._id) ? workerOverride : selectedWorkerForReport;
+        const month = (typeof monthOverride === 'number') ? monthOverride : reportMonth;
+        const year = (typeof yearOverride === 'number') ? yearOverride : reportYear;
+
+        if (!worker) return;
 
         setGeneratingReport(true);
         setError('');
 
         try {
             // Fetch real attendance data for the selected worker and month
-            const attendanceResponse = await axios.get(`/shop/attendance/monthly/${reportYear}/${reportMonth}?workerId=${selectedWorkerForReport._id}`);
+            const attendanceResponse = await axios.get(`/shop/attendance/monthly/${year}/${month}?workerId=${worker._id}`);
 
             // Find the selected worker's data in the response
-            const workerData = attendanceResponse.data.find(w => w._id === selectedWorkerForReport._id);
+            const workerData = attendanceResponse.data.find(w => w._id === worker._id);
             const attendanceByDate = workerData?.attendanceRecordsGroupedByDate || [];
 
-            const daysInMonth = new Date(reportYear, reportMonth, 0).getDate();
+            const daysInMonth = new Date(year, month, 0).getDate();
 
             // Map attendance records to their respective days for easier access
             const attendanceMap = {};
@@ -164,11 +171,89 @@ const SalaryReport = () => {
             let totalPermissionMinutes = 0;
             let totalDelayDeductions = 0;
 
-            // Per day salary calculation (assuming 26 working days)
-            const baseSalary = parseFloat(selectedWorkerForReport.salary) || 0;
-            const workingDaysInMonth = 26;
+            // Per day salary calculation
+            const baseSalary = parseFloat(worker.salary) || 0;
+
+            // Calculate actual working days (excluding Sundays) in this month
+            let totalPossibleWorkingDays = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+                if (new Date(year, month - 1, d).getDay() !== 0) {
+                    totalPossibleWorkingDays++;
+                }
+            }
+            const workingDaysInMonth = totalPossibleWorkingDays || 26;
             const perDaySalary = baseSalary / workingDaysInMonth;
-            const perMinuteSalary = perDaySalary / 480; // Assuming 8 hours = 480 minutes
+
+            // Helper to calculate shift duration in minutes
+            // Helper to calculate shift duration and breaks in minutes
+            const getExpectedDetails = (w) => {
+                let from = "09:00 AM";
+                let to = "05:00 PM";
+                if (w.workingHours && w.workingHours.from && w.workingHours.to) {
+                    from = w.workingHours.from;
+                    to = w.workingHours.to;
+                } else if (w.shift && w.shift.startTime && w.shift.endTime) {
+                    from = w.shift.startTime;
+                    to = w.shift.endTime;
+                }
+
+                const parseTime = (timeStr) => {
+                    if (!timeStr) return 0;
+                    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+                    if (match) {
+                        let hours = parseInt(match[1]);
+                        const mins = parseInt(match[2]);
+                        const ampm = match[3].toUpperCase();
+                        if (ampm === 'PM' && hours < 12) hours += 12;
+                        if (ampm === 'AM' && hours === 12) hours = 0;
+                        return hours * 60 + mins;
+                    }
+                    const simpleMatch = timeStr.match(/(\d+):(\d+)/);
+                    if (simpleMatch) {
+                        return parseInt(simpleMatch[1]) * 60 + parseInt(simpleMatch[2]);
+                    }
+                    return 0;
+                };
+
+                const start = parseTime(from);
+                let end = parseTime(to);
+                if (end <= start && to !== from) end += 24 * 60; // Overnight
+
+                let totalMins = end - start;
+                let breakMins = 0;
+
+                const getOverlap = (s, e, bs, be) => Math.max(0, Math.min(e, be) - Math.max(s, bs));
+
+                const subtractBreak = (b) => {
+                    if (!b || !b.from || !b.to || b.from === b.to) return 0;
+                    let bStart = parseTime(b.from);
+                    let bEnd = parseTime(b.to);
+                    if (bEnd <= bStart) bEnd += 24 * 60;
+
+                    const overlap1 = getOverlap(start, end, bStart, bEnd);
+                    const overlap2 = getOverlap(start, end, bStart + 24 * 60, bEnd + 24 * 60);
+                    const overlap3 = getOverlap(start, end, bStart - 24 * 60, bEnd - 24 * 60);
+
+                    return overlap1 + overlap2 + overlap3;
+                };
+
+                const lunchOverlap = subtractBreak(w.lunchBreak);
+                const otherBreakOverlap = subtractBreak(w.breakTime);
+
+                breakMins = lunchOverlap + otherBreakOverlap;
+                const finalExpected = Math.max(0, totalMins - breakMins);
+
+                return {
+                    expectedDailyMins: finalExpected,
+                    breakMins,
+                    shiftSpan: totalMins,
+                    isOvernight: (end - start) > 720
+                };
+            };
+
+            const shiftInfo = getExpectedDetails(worker);
+            const expectedDailyMins = shiftInfo.expectedDailyMins;
+            const perMinuteSalary = expectedDailyMins > 0 ? perDaySalary / expectedDailyMins : 0;
 
             // Get current date for checking if a day is in the past or future
             const today = new Date();
@@ -178,20 +263,20 @@ const SalaryReport = () => {
 
             // Process each day of the month
             for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(reportYear, reportMonth - 1, day);
+                const date = new Date(year, month - 1, day);
                 const dayOfWeek = date.getDay();
                 const isSunday = dayOfWeek === 0;
 
                 // Check if this date is a holiday
                 const isHoliday = holidays.find(h => {
                     const hDate = new Date(h.date);
-                    return hDate.getDate() === day && hDate.getMonth() === (reportMonth - 1) && hDate.getFullYear() === reportYear;
+                    return hDate.getDate() === day && hDate.getMonth() === (month - 1) && hDate.getFullYear() === year;
                 });
 
                 const dayRecords = attendanceMap[day] || [];
-                const isFutureDate = (reportYear > currentYear) ||
-                    (reportYear === currentYear && reportMonth > currentMonth) ||
-                    (reportYear === currentYear && reportMonth === currentMonth && day > currentDay);
+                const isFutureDate = (year > currentYear) ||
+                    (year === currentYear && month > currentMonth) ||
+                    (year === currentYear && month === currentMonth && day > currentDay);
 
                 let status = 'Absent';
                 let inTime = '-';
@@ -220,11 +305,11 @@ const SalaryReport = () => {
 
                     // Format all punch times for display
                     const sortedRecords = [...dayRecords].sort((a, b) => new Date(a.checkIn) - new Date(b.checkIn));
-                    
+
                     const punchInTimes = sortedRecords
                         .filter(record => record.checkIn)
                         .map(record => new Date(record.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-                    
+
                     const punchOutTimes = sortedRecords
                         .filter(record => record.checkOut)
                         .map(record => new Date(record.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -237,11 +322,10 @@ const SalaryReport = () => {
                     if (dayPermissionMins > 0) {
                         dayDeduction = dayPermissionMins * perMinuteSalary;
                     }
-                    // Otherwise, if worked duration is less than standard 8 hours (480 mins), 
-                    // calculate deduction based on missing time. This serves as a fallback 
-                    // if shifts are not properly configured or for legacy records.
-                    else if (dayWorkingMins < 480) {
-                        dayDeduction = (480 - dayWorkingMins) * perMinuteSalary;
+                    // Otherwise, if worked duration is less than expected shift duration,
+                    // calculate deduction based on missing time.
+                    else if (dayWorkingMins < expectedDailyMins) {
+                        dayDeduction = (expectedDailyMins - dayWorkingMins) * perMinuteSalary;
                     }
 
                     totalWorkingMinutes += dayWorkingMins;
@@ -269,55 +353,68 @@ const SalaryReport = () => {
                     status,
                     inTime,
                     outTime,
-                    delayTime: status === 'Present' ? (dayPermissionMins > 0 ? `${dayPermissionMins.toFixed(2)} mins` : '-') : '-',
+                    expectedMins: (status === 'Sunday' || status === 'Holiday') ? 0 : expectedDailyMins,
+                    workedMins: dayWorkingMins,
+                    breakMins: shiftInfo.breakMins,
+                    shiftDetails: (status === 'Sunday' || status === 'Holiday') ? '-' : `${worker.workingHours?.from || worker.shift?.startTime || '9:00 AM'} - ${worker.workingHours?.to || worker.shift?.endTime || '5:00 PM'}${shiftInfo.isOvernight ? ' (Overnight)' : ''}`,
+                    delayTime: status === 'Present' ? (
+                        dayPermissionMins > 0
+                            ? `${dayPermissionMins.toFixed(2)} mins`
+                            : (dayWorkingMins < expectedDailyMins
+                                ? `${(expectedDailyMins - dayWorkingMins).toFixed(2)} mins (undertime)`
+                                : '-')
+                    ) : '-',
                     delayDeduction: dayDeduction > 0 ? `₹${dayDeduction.toFixed(2)}` : '₹0.00',
                     dayWorkingMins
                 });
             }
 
-            // Calculate final results
-            const absentDeduction = totalAbsentDays * perDaySalary;
-            const totalFinalDeductions = totalDelayDeductions + absentDeduction;
-            const actualEarnedSalary = Math.max(0, baseSalary - totalFinalDeductions);
-
-            // Add total daily salary to entries
+            // Add total daily salary to entries and calculate accumulated earned salary
+            let accumulatedEarnedSalary = 0;
             const dailyDataWithSalary = dailyData.map(entry => {
                 let totalSalaryForDay = 0;
                 if (entry.status === 'Present') {
                     const deduction = parseFloat(entry.delayDeduction.replace('₹', '')) || 0;
                     totalSalaryForDay = perDaySalary - deduction;
                 } else if (entry.status === 'Sunday' || entry.status === 'Holiday') {
-                    totalSalaryForDay = perDaySalary; // Paid days
+                    totalSalaryForDay = 0;
                 }
+
+                const earnedForDay = Math.max(0, totalSalaryForDay);
+                accumulatedEarnedSalary += earnedForDay;
 
                 return {
                     ...entry,
-                    totalSalaryForDay: `₹${Math.max(0, totalSalaryForDay).toFixed(2)}`
+                    totalSalaryForDay: `₹${earnedForDay.toFixed(2)}`
                 };
             });
 
+            const totalFinalDeductions = Math.max(0, baseSalary - accumulatedEarnedSalary);
+
             setGeneratedReport({
-                worker: selectedWorkerForReport,
-                month: reportMonth,
-                year: reportYear,
+                worker: worker,
+                month: month,
+                year: year,
                 summary: {
-                    employeeId: selectedWorkerForReport.rfid || 'N/A',
+                    workerName: worker.name,
+                    employeeId: worker.rfid || 'N/A',
                     originalSalary: `₹${baseSalary.toFixed(2)}`,
-                    actualEarnedSalary: `₹${actualEarnedSalary.toFixed(2)}`,
-                    totalFinalSalary: `₹${actualEarnedSalary.toFixed(2)}`,
+                    actualEarnedSalary: `₹${accumulatedEarnedSalary.toFixed(2)}`,
+                    totalFinalSalary: `₹${accumulatedEarnedSalary.toFixed(2)}`,
                     totalDaysInPeriod: daysInMonth,
-                    totalWorkingDays,
+                    totalWorkingDays: totalPossibleWorkingDays,
                     totalAbsentDays,
                     totalHolidays,
                     totalSundays,
                     actualWorkingDays: totalWorkingDays,
                     totalWorkingHours: (totalWorkingMinutes / 60).toFixed(2),
                     totalPermissionTime: totalPermissionMinutes.toFixed(2),
-                    absentDeduction: `₹${absentDeduction.toFixed(2)}`,
+                    absentDeduction: `₹${(totalAbsentDays * perDaySalary).toFixed(2)}`,
                     permissionDeduction: `₹${totalDelayDeductions.toFixed(2)}`,
                     totalDeductions: `₹${totalFinalDeductions.toFixed(2)}`,
                     attendanceRate: `${daysInMonth > 0 ? ((totalWorkingDays / (daysInMonth - totalSundays)) * 100).toFixed(2) : 0}%`,
-                    perMinuteSalary: `₹${perMinuteSalary.toFixed(4)}`
+                    perMinuteSalary: `₹${perMinuteSalary.toFixed(4)}`,
+                    expectedDailyMins: expectedDailyMins
                 },
                 dailyData: dailyDataWithSalary
             });
@@ -440,7 +537,7 @@ const SalaryReport = () => {
 
                         {selectedWorkerForReport && (
                             <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div>
                                         <p className="text-sm text-gray-600">Employee</p>
                                         <p className="font-medium">{selectedWorkerForReport.name}</p>
@@ -452,6 +549,10 @@ const SalaryReport = () => {
                                     <div>
                                         <p className="text-sm text-gray-600">Employee ID</p>
                                         <p className="font-medium">{generatedReport?.summary?.employeeId || 'N/A'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600">Original Salary</p>
+                                        <p className="font-bold text-blue-600">{generatedReport?.summary?.originalSalary || '₹0.00'}</p>
                                     </div>
                                 </div>
 
@@ -486,7 +587,7 @@ const SalaryReport = () => {
 
                                     <div className="self-end">
                                         <button
-                                            onClick={generateSalaryReport}
+                                            onClick={() => generateSalaryReport()}
                                             className="px-4 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none text-sm"
                                         >
                                             Generate
@@ -506,63 +607,95 @@ const SalaryReport = () => {
                         {generatedReport && !generatingReport && (
                             <div>
                                 {/* Summary Section */}
-                                <div className="mb-6">
-                                    <h4 className="text-md font-medium text-gray-900 mb-3">Salary Summary</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        <div className="p-3 bg-blue-50 rounded-lg">
-                                            <p className="text-sm text-gray-600">Original Salary</p>
-                                            <p className="text-lg font-bold text-blue-700">{generatedReport.summary.originalSalary}</p>
+                                <div className="mb-6 bg-white p-6 border rounded-lg shadow-sm">
+                                    <h4 className="text-xl font-bold text-gray-900 mb-6 border-b pb-2">Summary</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                                        <div className="space-y-3">
+                                            <div className="flex justify-between border-b border-gray-100 pb-2">
+                                                <span className="text-gray-700 font-semibold">Actual Earned Salary:</span>
+                                                <span className="font-bold text-green-600 text-lg">{generatedReport.summary.actualEarnedSalary}</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-gray-100 pb-2">
+                                                <span className="text-gray-700 font-semibold">Total Final Salary:</span>
+                                                <span className="font-extrabold text-green-700 text-xl">{generatedReport.summary.totalFinalSalary}</span>
+                                            </div>
+                                            <div className="pt-2">
+                                                <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                    <span className="text-gray-600 font-medium">Total Days in Period:</span>
+                                                    <span className="font-bold text-gray-900">{generatedReport.summary.totalDaysInPeriod}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                    <span className="text-gray-600 font-medium">Total Working Days (Excl. Sundays):</span>
+                                                    <span className="font-bold text-gray-900">{generatedReport.summary.totalWorkingDays}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                    <span className="text-gray-600 font-medium">Actual Working Days:</span>
+                                                    <span className="font-bold text-green-600">{generatedReport.summary.actualWorkingDays}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                    <span className="text-gray-600 font-medium">Total Absent Days:</span>
+                                                    <span className="font-bold text-red-600">{generatedReport.summary.totalAbsentDays}</span>
+                                                </div>
+                                                <div className="mt-4 pt-4 border-t border-gray-200">
+                                                    <h5 className="text-sm font-bold text-gray-900 mb-2">Batch Details</h5>
+                                                    <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                        <span className="text-gray-600 font-medium">Working Hours:</span>
+                                                        <span className="font-bold text-gray-900">{generatedReport.worker.workingHours?.from || '-'} - {generatedReport.worker.workingHours?.to || '-'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                        <span className="text-gray-600 font-medium">Lunch Break:</span>
+                                                        <span className="font-bold text-gray-900">{generatedReport.worker.lunchBreak?.from || '-'} - {generatedReport.worker.lunchBreak?.to || '-'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                        <span className="text-gray-600 font-medium">Break Time:</span>
+                                                        <span className="font-bold text-gray-900">{generatedReport.worker.breakTime?.from || '-'} - {generatedReport.worker.breakTime?.to || '-'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="p-3 bg-green-50 rounded-lg">
-                                            <p className="text-sm text-gray-600">Actual Earned</p>
-                                            <p className="text-lg font-bold text-green-700">{generatedReport.summary.actualEarnedSalary}</p>
-                                        </div>
-                                        <div className="p-3 bg-yellow-50 rounded-lg">
-                                            <p className="text-sm text-gray-600">Total Deductions</p>
-                                            <p className="text-lg font-bold text-yellow-700">{generatedReport.summary.totalDeductions}</p>
-                                        </div>
-                                        <div className="p-3 bg-purple-50 rounded-lg">
-                                            <p className="text-sm text-gray-600">Attendance Rate</p>
-                                            <p className="text-lg font-bold text-purple-700">{generatedReport.summary.attendanceRate}</p>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                {/* Detailed Summary */}
-                                <div className="mb-6">
-                                    <h4 className="text-md font-medium text-gray-900 mb-3">Detailed Summary</h4>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                        <div>
-                                            <p className="text-gray-600">Total Days</p>
-                                            <p className="font-medium">{generatedReport.summary.totalDaysInPeriod}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-600">Working Days</p>
-                                            <p className="font-medium">{generatedReport.summary.totalWorkingDays}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-600">Absent Days</p>
-                                            <p className="font-medium">{generatedReport.summary.totalAbsentDays}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-600">Holidays</p>
-                                            <p className="font-medium">{generatedReport.summary.totalHolidays}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-600">Sundays</p>
-                                            <p className="font-medium">{generatedReport.summary.totalSundays}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-600">Working Hours</p>
-                                            <p className="font-medium">{generatedReport.summary.totalWorkingHours}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-600">Permission Time (min)</p>
-                                            <p className="font-medium">{generatedReport.summary.totalPermissionTime}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-gray-600">Per Minute Salary</p>
-                                            <p className="font-medium">{generatedReport.summary.perMinuteSalary}</p>
+                                        <div className="space-y-3">
+                                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                                <div className="bg-blue-50 p-2 rounded-md text-center">
+                                                    <p className="text-xs text-blue-600 font-semibold uppercase">Holidays</p>
+                                                    <p className="text-xl font-bold text-blue-800">{generatedReport.summary.totalHolidays}</p>
+                                                </div>
+                                                <div className="bg-blue-50 p-2 rounded-md text-center">
+                                                    <p className="text-xs text-blue-600 font-semibold uppercase">Sundays</p>
+                                                    <p className="text-xl font-bold text-blue-800">{generatedReport.summary.totalSundays}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                <span className="text-gray-600 font-medium">Total Working Hours:</span>
+                                                <span className="font-bold text-gray-900">{generatedReport.summary.totalWorkingHours} hrs</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                <span className="text-gray-600 font-medium">Total Permission Time:</span>
+                                                <span className="font-bold text-gray-900">{generatedReport.summary.totalPermissionTime} mins</span>
+                                            </div>
+                                            <div className="pt-2">
+                                                <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                    <span className="text-gray-600 font-medium">Absent Deduction:</span>
+                                                    <span className="font-bold text-red-600">{generatedReport.summary.absentDeduction}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                    <span className="text-gray-600 font-medium">Permission Deduction:</span>
+                                                    <span className="font-bold text-red-600">{generatedReport.summary.permissionDeduction}</span>
+                                                </div>
+                                                <div className="flex justify-between border-b border-gray-100 pb-2 bg-red-50 p-1 rounded">
+                                                    <span className="text-red-700 font-bold">Total Deductions:</span>
+                                                    <span className="font-extrabold text-red-700">{generatedReport.summary.totalDeductions}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between border-b border-gray-50 pb-1 pt-2">
+                                                <span className="text-gray-600 font-medium">Attendance Rate:</span>
+                                                <span className="font-bold text-purple-600">{generatedReport.summary.attendanceRate}</span>
+                                            </div>
+                                            <div className="flex justify-between border-b border-gray-50 pb-1">
+                                                <span className="text-gray-600 font-medium">Per Minute Salary:</span>
+                                                <span className="font-bold text-gray-900">{generatedReport.summary.perMinuteSalary}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -588,15 +721,14 @@ const SalaryReport = () => {
                                                 <tr className="bg-gray-100">
                                                     <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                                     <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">In Time</th>
-                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Out Time</th>
-                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Delay</th>
-                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Deduction</th>
-                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Salary</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Shift / Punches</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Worked / Expected</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Delay / Deduction</th>
+                                                    <th className="px-4 py-2 border-b text-left text-xs font-medium text-gray-500 uppercase">Net Salary</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                 {generatedReport.dailyData.map((entry, index) => (
+                                                {generatedReport.dailyData.map((entry, index) => (
                                                     <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
                                                         <td className="px-4 py-3 text-sm text-gray-900">{entry.date}</td>
                                                         <td className={`px-4 py-3 text-sm font-medium ${entry.status === 'Present' ? 'text-green-600' :
@@ -606,23 +738,33 @@ const SalaryReport = () => {
                                                             }`}>
                                                             {entry.status}
                                                         </td>
-                                                        <td className="px-4 py-3 text-sm text-green-600 font-medium">
-                                                            {Array.isArray(entry.inTime) ? (
-                                                                <div className="flex flex-col">
-                                                                    {entry.inTime.map((time, i) => <span key={i}>{time}</span>)}
-                                                                </div>
-                                                            ) : entry.inTime}
+                                                        <td className="px-4 py-3 text-xs">
+                                                            <div className="flex flex-col gap-1">
+
+                                                                {Array.isArray(entry.inTime) && entry.inTime.map((inT, i) => (
+                                                                    <div key={i} className="flex gap-2">
+                                                                        <span className="text-green-600">IN: {inT}</span>
+                                                                        {entry.outTime && entry.outTime[i] && <span className="text-red-600">OUT: {entry.outTime[i]}</span>}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         </td>
-                                                        <td className="px-4 py-3 text-sm text-red-600 font-medium">
-                                                            {Array.isArray(entry.outTime) ? (
-                                                                <div className="flex flex-col">
-                                                                    {entry.outTime.map((time, i) => <span key={i}>{time}</span>)}
+                                                        <td className="px-4 py-3 text-xs text-gray-700">
+                                                            {entry.status === 'Present' ? (
+                                                                <div>
+                                                                    <p>Worked: <span className="font-bold">{(entry.workedMins / 60).toFixed(2)} hrs</span> ({entry.workedMins.toFixed(1)}m)</p>
+                                                                    <p>Expected: <span className="font-bold">{(entry.expectedMins / 60).toFixed(2)} hrs</span> ({entry.expectedMins.toFixed(1)}m)</p>
+                                                                    {entry.breakMins > 0 && <p className="text-blue-600 text-[10px]">Inc. {entry.breakMins}m break deduction</p>}
                                                                 </div>
-                                                            ) : entry.outTime}
+                                                            ) : '-'}
                                                         </td>
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{entry.delayTime}</td>
-                                                        <td className="px-4 py-3 text-sm text-gray-900">{entry.delayDeduction}</td>
-                                                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.totalSalaryForDay}</td>
+                                                        <td className="px-4 py-3 text-xs">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-red-700 font-bold">{entry.delayTime}</span>
+                                                                <span className="text-gray-500">Deduct: {entry.delayDeduction}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3 text-sm font-bold text-gray-900">{entry.totalSalaryForDay}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

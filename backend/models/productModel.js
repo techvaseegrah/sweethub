@@ -30,6 +30,10 @@ const productSchema = new mongoose.Schema({
     ref: 'Shop',
     required: false, // Set to false
   },
+  isMixedSweet: {
+    type: Boolean,
+    default: false
+  },
 }, {
   timestamps: true,
 });

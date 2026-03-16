@@ -330,7 +330,7 @@ const RawMaterials = () => {
                     <div>
                         <label className="block text-sm font-medium">Quantity</label>
                         <input
-                            type="number"
+                            type="text"
                             min="0"
                             value={quantity}
                             onChange={(e) => setQuantity(e.target.value)}
@@ -345,7 +345,7 @@ const RawMaterials = () => {
                     <div>
                         <label className="block text-sm font-medium">Price</label>
                         <input
-                            type="number"
+                            type="text"
                             min="0"
                             step="0.01"
                             value={price}
@@ -357,7 +357,7 @@ const RawMaterials = () => {
                     <div>
                         <label className="block text-sm font-medium">GST %</label>
                         <input
-                            type="number"
+                            type="text"
                             min="0"
                             max="100"
                             value={gstPercentage}

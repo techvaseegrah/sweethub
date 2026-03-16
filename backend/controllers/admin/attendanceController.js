@@ -515,14 +515,14 @@ const calculateAttendanceDetails = (checkIn, checkOut, worker) => {
             // Handle both "09:00" and "09:00 AM" formats
             const match = timeStr.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
             if (!match) return [0, 0];
-            
+
             let hours = parseInt(match[1], 10);
             let minutes = parseInt(match[2], 10);
             const modifier = match[3] ? match[3].toUpperCase() : null;
-            
+
             if (modifier === 'PM' && hours < 12) hours += 12;
             if (modifier === 'AM' && hours === 12) hours = 0;
-            
+
             return [hours, minutes];
         };
 
@@ -955,7 +955,7 @@ exports.getMonthlyAttendance = async (req, res) => {
         const endDate = new Date(year, month, 1);
 
         let workersQuery = { shop: { $exists: false } };
-        if (queryWorkerId) {
+        if (queryWorkerId && queryWorkerId !== 'undefined') {
             workersQuery._id = queryWorkerId;
         }
 
@@ -967,7 +967,7 @@ exports.getMonthlyAttendance = async (req, res) => {
             ]
         };
 
-        if (queryWorkerId) {
+        if (queryWorkerId && queryWorkerId !== 'undefined') {
             attendanceQuery.$and.push({ worker: queryWorkerId });
         } else {
             attendanceQuery.$and.push({ worker: { $in: await Worker.find({ shop: { $exists: false } }).distinct('_id') } });

@@ -66,6 +66,7 @@ const shopReturnProductRoutes = require('./routes/shop/shopReturnProductRoutes')
 const shopSettingsRoutes = require('./routes/shop/shopSettingsRoutes');
 const shopAttendanceOnlyUserRoutes = require('./routes/shop/shopAttendanceOnlyUserRoutes');
 const shopOrderRoutes = require('./routes/shop/orderRoutes');
+const shopMixedSweetRoutes = require('./routes/shop/mixedSweetRoutes');
 
 const PORT = process.env.PORT || 5000;
 
@@ -115,6 +116,7 @@ app.use('/api/shop/settings', shopSettingsRoutes);
 // Register shop attendance-only user routes
 app.use('/api/shop/attendance-only-users', shopAttendanceOnlyUserRoutes);
 app.use('/api/shop/orders', shopOrderRoutes);
+app.use('/api/shop/mixed-sweets', shopMixedSweetRoutes);
 
 // Add Before Packing and After Packing user routes after all other routes
 const User = require('./models/User');

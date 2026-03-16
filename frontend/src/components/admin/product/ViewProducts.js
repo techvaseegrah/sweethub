@@ -4,6 +4,7 @@ import CreateInvoice from './CreateInvoice';
 import InvoiceHistory from './InvoiceHistory';
 import ProductHistory from './ProductHistory'; // Add this import
 import { generateProductReportPdf } from '../../../utils/generateProductReportPdf';
+import { LuChevronDown, LuChevronUp, LuInfo, LuPlus, LuTrash2, LuSearch, LuLoaderCircle } from 'react-icons/lu';
 
 function ViewProducts({ baseUrl = '/admin' }) {
   const PRODUCT_URL = `${baseUrl}/products`;
@@ -18,6 +19,9 @@ function ViewProducts({ baseUrl = '/admin' }) {
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showMixedOnly, setShowMixedOnly] = useState(false);
+  const [expandedProducts, setExpandedProducts] = useState({});
+  const [mixedSweetDetails, setMixedSweetDetails] = useState({});
   const [editedProduct, setEditedProduct] = useState({});
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -27,6 +31,10 @@ function ViewProducts({ baseUrl = '/admin' }) {
   const [isUpdateConfirmationOpen, setIsUpdateConfirmationOpen] = useState(false);
   const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [compSearchTerm, setCompSearchTerm] = useState('');
+  const [showCompDropdown, setShowCompDropdown] = useState(false);
+  const compDropdownRef = React.useRef(null);
 
   const fetchProducts = async () => {
     try {
@@ -34,6 +42,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
       const response = await axios.get(PRODUCT_URL, { withCredentials: true });
       setProducts(response.data);
       setFilteredProducts(response.data);
+      setError(null);
     } catch (err) {
       setError('Failed to fetch products.');
       console.error(err);
@@ -63,6 +72,27 @@ function ViewProducts({ baseUrl = '/admin' }) {
   useEffect(() => {
     fetchProducts();
     fetchCategories();
+    // Fetch available products for components if in shop mode
+    if (baseUrl === '/shop') {
+      const fetchAvailableForMixed = async () => {
+        try {
+          const res = await axios.get('/shop/products', { withCredentials: true });
+          setAvailableProducts(res.data);
+        } catch (err) {
+          console.error('Failed to fetch available products for mixed sweets:', err);
+        }
+      };
+      fetchAvailableForMixed();
+    }
+
+    // Handle clicks outside component dropdown
+    const handleClickOutside = (event) => {
+      if (compDropdownRef.current && !compDropdownRef.current.contains(event.target)) {
+        setShowCompDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [baseUrl]);
 
   useEffect(() => {
@@ -96,8 +126,12 @@ function ViewProducts({ baseUrl = '/admin' }) {
       tempProducts = tempProducts.filter(p => new Date(p.createdAt) <= toDate);
     }
 
+    if (showMixedOnly) {
+      tempProducts = tempProducts.filter(product => product.isMixedSweet);
+    }
+
     setFilteredProducts(tempProducts);
-  }, [products, selectedCategory, searchTerm, dateFrom, dateTo]);
+  }, [products, selectedCategory, searchTerm, dateFrom, dateTo, showMixedOnly]);
 
   const openDeleteConfirmation = (id) => {
     setProductToDelete(id);
@@ -132,6 +166,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
   const handleCancelEdit = () => {
     setEditedProduct({});
     setIsEditModalOpen(false);
+    setError(null);
   };
 
   const handleInputChange = (e, field) => {
@@ -169,7 +204,8 @@ function ViewProducts({ baseUrl = '/admin' }) {
     setEditedProduct({ ...editedProduct, prices: updatedPrices });
   };
 
-  const openEditModal = (product) => {
+  const openEditModal = async (product) => {
+    setError(null); // Clear previous errors
     // Ensure prices array exists and has at least one entry
     const productWithPrices = { ...product };
     // Set category ID properly - handle both object and string cases
@@ -181,11 +217,31 @@ function ViewProducts({ baseUrl = '/admin' }) {
     if (!productWithPrices.prices || !Array.isArray(productWithPrices.prices) || productWithPrices.prices.length === 0) {
       productWithPrices.prices = [{ unit: 'piece', netPrice: '', sellingPrice: '' }];
     }
+
+    if (product.isMixedSweet) {
+      try {
+        const res = await axios.get(`/shop/mixed-sweets/product/${product._id}`);
+        productWithPrices.components = res.data.components.map(c => ({
+          product: c.product._id || c.product,
+          name: c.name,
+          quantityUsed: c.quantityUsed,
+          unit: c.unit,
+          availableStock: 0 // Will be updated if availableProducts is loaded
+        }));
+      } catch (err) {
+        console.error('Failed to fetch mixed sweet components:', err);
+        productWithPrices.components = [];
+      }
+    } else {
+      productWithPrices.components = [];
+    }
+
     setEditedProduct(productWithPrices);
     setIsEditModalOpen(true);
   };
 
   const handleModalUpdate = () => {
+    setError(null); // Clear any previous errors
     setIsUpdateConfirmationOpen(true);
   };
 
@@ -194,10 +250,10 @@ function ViewProducts({ baseUrl = '/admin' }) {
       // Prepare the update payload, ensuring prices are properly formatted as numbers and dates are properly handled
       const updatePayload = {
         ...editedProduct,
-        prices: editedProduct.prices.map(price => ({
+        prices: (editedProduct.prices || []).map(price => ({
           unit: price.unit,
-          netPrice: parseFloat(price.netPrice),
-          sellingPrice: parseFloat(price.sellingPrice)
+          netPrice: parseFloat(price.netPrice) || 0,
+          sellingPrice: parseFloat(price.sellingPrice) || 0
         })),
         expiryDate: editedProduct.expiryDate ? new Date(editedProduct.expiryDate).toISOString() : null,
         usedByDate: editedProduct.usedByDate ? new Date(editedProduct.usedByDate).toISOString() : null
@@ -230,17 +286,55 @@ function ViewProducts({ baseUrl = '/admin' }) {
       handleCancelEdit();
       setIsUpdateConfirmationOpen(false);
     } catch (err) {
-      if (editedProduct._id) {
-        setError('Failed to update product.');
-      } else {
-        setError('Failed to create product.');
-      }
-      console.error(err);
+      console.error('Final Update Error:', err);
+      const errorMsg = err.response?.data?.message || err.message || 'An unexpected error occurred.';
+      setError(errorMsg);
     }
   };
 
   const cancelUpdate = () => {
     setIsUpdateConfirmationOpen(false);
+  };
+
+  // Mixed Sweet Editing Helpers
+  const addComponent = (product) => {
+    if (editedProduct.components.find(c => c.product === product._id)) {
+      alert(`${product.name} is already added.`);
+      return;
+    }
+
+    const defaultUnit = product.prices?.[0]?.unit || 'kg';
+    const newComponents = [
+      ...editedProduct.components,
+      {
+        product: product._id,
+        name: product.name,
+        quantityUsed: '',
+        unit: defaultUnit,
+        availableStock: product.stockLevel
+      }
+    ];
+    setEditedProduct({ ...editedProduct, components: newComponents });
+    setCompSearchTerm('');
+    setShowCompDropdown(false);
+  };
+
+  const removeComponent = (index) => {
+    const newComponents = [...editedProduct.components];
+    newComponents.splice(index, 1);
+    setEditedProduct({ ...editedProduct, components: newComponents });
+  };
+
+  const handleComponentQtyChange = (index, value) => {
+    const newComponents = [...editedProduct.components];
+    newComponents[index].quantityUsed = value;
+    setEditedProduct({ ...editedProduct, components: newComponents });
+  };
+
+  const handleComponentUnitChange = (index, value) => {
+    const newComponents = [...editedProduct.components];
+    newComponents[index].unit = value;
+    setEditedProduct({ ...editedProduct, components: newComponents });
   };
 
   // Add this function to open product history modal
@@ -269,9 +363,13 @@ function ViewProducts({ baseUrl = '/admin' }) {
     );
   }
 
-  if (error) {
-    return <div className="p-6 text-center text-red-500">{error}</div>;
-  }
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 flex justify-between items-center rounded shadow-sm">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold">×</button>
+        </div>
+      )}
+
 
   // Flatten products with their units to create one row per unit
   const flattenedProducts = [];
@@ -380,6 +478,15 @@ function ViewProducts({ baseUrl = '/admin' }) {
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">Show Mixed Only:</label>
+          <button
+            onClick={() => setShowMixedOnly(!showMixedOnly)}
+            className={`px-4 py-2 rounded-lg transition-colors font-bold text-xs border border-slate-200 outline-none ${showMixedOnly ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+          >
+            {showMixedOnly ? 'MIXED SWEETS ON' : 'MIXED SWEETS OFF'}
+          </button>
+        </div>
       </div>
 
       {flattenedProducts.length === 0 ? (
@@ -412,77 +519,134 @@ function ViewProducts({ baseUrl = '/admin' }) {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {flattenedProducts.map((product) => (
-                <tr key={`${product._id}-${product.unit}`} className="hover:bg-gray-50">
-                  <td className="px-2 sm:px-6 py-4 text-sm font-semibold text-gray-900">
-                    {product.name}
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.sku}
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 uppercase">
-                      {product.unit}
-                    </span>
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.stockLevel <= (product.stockAlertThreshold || 0)
-                      ? 'bg-red-100 text-red-800'
-                      : product.stockLevel <= (product.stockAlertThreshold || 0) * 2
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-green-100 text-green-800'
-                      }`}>
-                      {product.stockLevel}
-                    </span>
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
-                    {Number(product.netPrice) === 0 ? (
-                      <span className="text-red-500 font-bold">(0)</span>
-                    ) : (
-                      <span className="text-gray-500">₹{product.netPrice}</span>
+              {flattenedProducts.map((product) => {
+                const isExpanded = expandedProducts[product._id];
+                const hasMixedDetails = product.isMixedSweet;
+
+                return (
+                  <React.Fragment key={`${product._id}-${product.unit}`}>
+                    <tr className="hover:bg-gray-50 border-b border-gray-100">
+                      <td className="px-2 sm:px-6 py-4 text-sm font-semibold text-gray-900">
+                        <div className="flex items-center gap-2">
+                          {hasMixedDetails && (
+                            <button
+                              onClick={async () => {
+                                const newExpanded = { ...expandedProducts };
+                                newExpanded[product._id] = !isExpanded;
+                                setExpandedProducts(newExpanded);
+
+                                if (!isExpanded && !mixedSweetDetails[product._id]) {
+                                  try {
+                                    const res = await axios.get(`/shop/mixed-sweets/product/${product._id}`);
+                                    setMixedSweetDetails(prev => ({
+                                      ...prev,
+                                      [product._id]: res.data
+                                    }));
+                                  } catch (err) {
+                                    console.error('Failed to fetch mixed sweet details:', err);
+                                  }
+                                }
+                              }}
+                              className="text-slate-400 hover:text-slate-900 transition-colors"
+                            >
+                              {isExpanded ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />}
+                            </button>
+                          )}
+                          {product.name}
+                          {product.isMixedSweet && (
+                            <span className="text-[8px] bg-slate-900 text-white px-1.5 py-0.5 rounded-full font-bold">MIX</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {product.sku}
+                      </td>
+                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 uppercase">
+                          {product.unit}
+                        </span>
+                      </td>
+                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.stockLevel <= (product.stockAlertThreshold || 0)
+                          ? 'bg-red-100 text-red-800'
+                          : product.stockLevel <= (product.stockAlertThreshold || 0) * 2
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                          }`}>
+                          {product.stockLevel}
+                        </span>
+                      </td>
+                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
+                        {Number(product.netPrice) === 0 ? (
+                          <span className="text-red-500 font-bold">(0)</span>
+                        ) : (
+                          <span className="text-gray-500">₹{product.netPrice}</span>
+                        )}
+                      </td>
+                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm font-semibold">
+                        {Number(product.sellingPrice) === 0 ? (
+                          <span className="text-red-500 font-bold">(0)</span>
+                        ) : (
+                          <span className="text-green-600">₹{product.sellingPrice}</span>
+                        )}
+                      </td>
+                      <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('en-GB') : 'N/A'}
+                      </td>
+                      <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {product.usedByDate ? new Date(product.usedByDate).toLocaleDateString('en-GB') : 'N/A'}
+                      </td>
+                      <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {product.category ? (typeof product.category === 'object' ? product.category.name :
+                          categories.find(cat => cat._id === product.category)?.name || 'N/A') : 'N/A'}
+                      </td>
+                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => openEditModal(product)}
+                          className="text-indigo-600 hover:text-indigo-900 mr-4 font-bold"
+                        >
+                          Edit
+                        </button>
+                        {baseUrl === '/admin' && (
+                          <button
+                            onClick={() => openProductHistoryModal(product._id)}
+                            className="text-green-600 hover:text-green-900 mr-4 font-bold"
+                          >
+                            History
+                          </button>
+                        )}
+                        <button
+                          onClick={() => openDeleteConfirmation(product._id)}
+                          className="text-red-600 hover:text-red-900 font-bold"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                    {isExpanded && mixedSweetDetails[product._id] && (
+                      <tr className="bg-slate-50/50">
+                        <td colSpan="10" className="px-12 py-4">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-2 text-slate-800 font-bold text-xs uppercase tracking-wider underline">
+                              <LuInfo size={14} className="text-slate-400" /> Mixed Sweet Composition
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {mixedSweetDetails[product._id].components.map((comp, idx) => (
+                                <div key={idx} className="flex items-center justify-between bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+                                  <span className="text-xs font-bold text-slate-600">{comp.name}</span>
+                                  <span className="text-[10px] font-heavy bg-slate-100 px-2 py-0.5 rounded text-slate-500">
+                                    {comp.quantityUsed} {comp.unit}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm font-semibold">
-                    {Number(product.sellingPrice) === 0 ? (
-                      <span className="text-red-500 font-bold">(0)</span>
-                    ) : (
-                      <span className="text-green-600">₹{product.sellingPrice}</span>
-                    )}
-                  </td>
-                  <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('en-GB') : 'N/A'}
-                  </td>
-                  <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.usedByDate ? new Date(product.usedByDate).toLocaleDateString('en-GB') : 'N/A'}
-                  </td>
-                  <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.category ? (typeof product.category === 'object' ? product.category.name :
-                      categories.find(cat => cat._id === product.category)?.name || 'N/A') : 'N/A'}
-                  </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => openEditModal(product)}
-                      className="text-indigo-600 hover:text-indigo-900 mr-4"
-                    >
-                      Edit
-                    </button>
-                    {baseUrl === '/admin' && (
-                      <button
-                        onClick={() => openProductHistoryModal(product._id)}
-                        className="text-green-600 hover:text-green-900 mr-4"
-                      >
-                        History
-                      </button>
-                    )}
-                    <button
-                      onClick={() => openDeleteConfirmation(product._id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -490,7 +654,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
       {/* Update Confirmation Modal */}
       {isUpdateConfirmationOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-[110] backdrop-blur-[2px]">
           <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
             <div className="text-center py-4">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-orange-100">
@@ -529,7 +693,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
       {/* Delete Confirmation Modal */}
       {isDeleteConfirmationOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-[110] backdrop-blur-[2px]">
           <div className="relative m-4 p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
             <div className="text-center py-4">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
@@ -567,10 +731,21 @@ function ViewProducts({ baseUrl = '/admin' }) {
       )}
 
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center">
-          <div className="relative m-4 p-4 sm:p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 mb-4">Edit Product</h3>
-            <div className="space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] overflow-y-auto flex items-start justify-center py-6 sm:py-10 px-4">
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-white">Edit Product</h3>
+              <button onClick={handleCancelEdit} className="text-slate-400 hover:text-white transition-colors text-2xl font-light">&times;</button>
+            </div>
+            
+            {error && (
+              <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium flex items-center gap-2">
+                <LuInfo size={16} /> {error}
+              </div>
+            )}
+
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Name</label>
                 <input
@@ -613,42 +788,40 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   readOnly={false}
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Expiry Date (dd-mm-yyyy)</label>
+                  <label className="block text-sm font-medium text-gray-700">Expiry Date</label>
                   <input
                     type="date"
                     value={editedProduct.expiryDate ? new Date(editedProduct.expiryDate).toISOString().split('T')[0] : ''}
                     onChange={(e) => handleInputChange(e, 'expiryDate')}
                     className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                    readOnly={false}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Used By Date (dd-mm-yyyy)</label>
+                  <label className="block text-sm font-medium text-gray-700">Used By Date</label>
                   <input
                     type="date"
                     value={editedProduct.usedByDate ? new Date(editedProduct.usedByDate).toISOString().split('T')[0] : ''}
                     onChange={(e) => handleInputChange(e, 'usedByDate')}
                     className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                    readOnly={false}
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Category</label>
-                <select
-                  value={editedProduct.category}
-                  onChange={(e) => setEditedProduct({ ...editedProduct, category: e.target.value })}
-                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  disabled={false}
-                >
-                  <option value="">Select Category</option>
-                  {Array.isArray(categories) && categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}</select>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Category</label>
+                  <select
+                    value={editedProduct.category}
+                    onChange={(e) => setEditedProduct({ ...editedProduct, category: e.target.value })}
+                    className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                    disabled={false}
+                  >
+                    <option value="">Select Category</option>
+                    {Array.isArray(categories) && categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+                  </select>
+                </div>
               </div>
 
               {/* Unit Configuration Section */}
-              <div className="mt-6">
+              <div className="mt-8 pt-6 border-t border-gray-100">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-lg font-medium text-gray-800">Unit Configuration</h4>
                   <button
@@ -716,10 +889,128 @@ function ViewProducts({ baseUrl = '/admin' }) {
                   </div>
                 ))}
               </div>
+
+              {/* Mixed Sweet Components Section */}
+              {editedProduct.isMixedSweet && (
+                <div className="mt-8 pt-6 border-t border-gray-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <span className="p-1.5 bg-slate-900 text-white rounded-lg"><LuPlus size={14} /></span>
+                      Mixed Sweet Composition
+                    </h4>
+                  </div>
+
+                  <div className="relative mb-4" ref={compDropdownRef}>
+                    <div className="relative">
+                      <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search ingredients to add..."
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                        value={compSearchTerm}
+                        onChange={(e) => {
+                          setCompSearchTerm(e.target.value);
+                          setShowCompDropdown(true);
+                        }}
+                        onFocus={() => setShowCompDropdown(true)}
+                      />
+                    </div>
+                    {showCompDropdown && compSearchTerm && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                        {availableProducts
+                          .filter(p => !p.isMixedSweet && (p.name.toLowerCase().includes(compSearchTerm.toLowerCase()) || p.sku.toLowerCase().includes(compSearchTerm.toLowerCase())))
+                          .map(p => (
+                            <div
+                              key={p._id}
+                              className="px-4 py-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center border-b last:border-0"
+                              onClick={() => addComponent(p)}
+                            >
+                              <div>
+                                <div className="text-sm font-bold text-gray-800">{p.name}</div>
+                                <div className="text-[10px] text-gray-500 uppercase font-medium">SKU: {p.sku} | Stock: {p.stockLevel}</div>
+                              </div>
+                              <LuPlus size={14} className="text-indigo-400" />
+                            </div>
+                          ))}
+                        {availableProducts.filter(p => !p.isMixedSweet && (p.name.toLowerCase().includes(compSearchTerm.toLowerCase()) || p.sku.toLowerCase().includes(compSearchTerm.toLowerCase()))).length === 0 && (
+                          <div className="p-4 text-center text-gray-400 text-xs italic">No matching ingredients found.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                    <table className="w-full text-left">
+                      <thead className="bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3">Ingredient</th>
+                          <th className="px-4 py-3">Qty</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {editedProduct.components && editedProduct.components.length > 0 ? (
+                          editedProduct.components.map((comp, index) => (
+                            <tr key={index} className="bg-white">
+                              <td className="px-4 py-3">
+                                <div className="text-xs font-bold text-slate-800">{comp.name}</div>
+                                <div className="text-[10px] text-slate-400">ID: {comp.product.substring(0, 8)}...</div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    className="w-16 px-2 py-1 text-xs border border-slate-300 rounded font-bold focus:ring-1 focus:ring-indigo-500"
+                                    value={comp.quantityUsed}
+                                    onChange={(e) => handleComponentQtyChange(index, e.target.value)}
+                                  />
+                                  <select
+                                    className="text-[10px] font-bold text-slate-500 bg-transparent outline-none uppercase"
+                                    value={comp.unit}
+                                    onChange={(e) => handleComponentUnitChange(index, e.target.value)}
+                                  >
+                                    <option value="kg">kg</option>
+                                    <option value="gm">gm</option>
+                                    <option value="box">box</option>
+                                    <option value="pcs">pcs</option>
+                                  </select>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => removeComponent(index)}
+                                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                >
+                                  <LuTrash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="3" className="px-4 py-8 text-center text-slate-400 text-xs italic">No components defined for this mixed sweet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="mt-6 flex justify-end space-x-3">
-              <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">Cancel</button>
-              <button onClick={handleModalUpdate} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Update</button>
+            <div className="p-6 bg-slate-50 border-t flex justify-end gap-3 rounded-b-2xl">
+              <button 
+                onClick={handleCancelEdit} 
+                className="px-6 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all font-semibold shadow-sm"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleModalUpdate} 
+                className="px-8 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all font-semibold shadow-lg shadow-slate-200"
+              >
+                Update Product
+              </button>
             </div>
           </div>
         </div>
