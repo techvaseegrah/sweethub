@@ -185,7 +185,7 @@ const PurchaseReport = () => {
         const dataToExport = filteredRecords.map(record => {
             const details = getRecordDetails(record);
             return {
-                'Date': format(parseISO(details.date), 'dd-MM-yyyy HH:mm'),
+                'Date': format(parseISO(details.date), 'dd/MM/yy HH:mm'),
                 'Type': record.materialType || 'Raw Material',
                 'Material Name': record.materialName,
                 'Supplier': record.vendorName || record.vendor,
@@ -396,8 +396,8 @@ const PurchaseReport = () => {
                                         return (
                                             <tr key={idx} className="hover:bg-gray-50 lg:transition-colors group">
                                                 <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
-                                                    {format(parseISO(details.date), 'dd MMM yyyy')}
-                                                    <div className="text-[10px] text-gray-300">{details.date ? format(new Date(details.date), 'hh:mm a') : ''}</div>
+                                                    {format(parseISO(details.date), 'dd/MM/yy')}
+                                                    <div className="text-[10px] text-gray-300">{details.date ? format(new Date(details.date), 'HH:mm') : ''}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tighter ${record.materialType === 'Packing Material' ? 'bg-purple-50 text-purple-600 border border-purple-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
@@ -544,7 +544,7 @@ const PurchaseReport = () => {
                                 <div className="flex items-center justify-between text-[11px] font-bold text-gray-400">
                                     <span className="flex items-center gap-1 uppercase tracking-tighter">
                                         <LuCalendar className="w-3 h-3" />
-                                        Last: {vendor.lastPurchase ? format(new Date(vendor.lastPurchase), 'dd MMM yy') : 'N/A'}
+                                        Last: {vendor.lastPurchase ? format(new Date(vendor.lastPurchase), 'dd/MM/yy') : 'N/A'}
                                     </span>
                                     <span className="flex items-center gap-1 uppercase tracking-tighter text-blue-500 hover:bg-blue-50 rounded px-2 py-1 cursor-pointer">
                                         View All

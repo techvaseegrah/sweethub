@@ -363,12 +363,14 @@ function ViewProducts({ baseUrl = '/admin' }) {
     );
   }
 
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 flex justify-between items-center rounded shadow-sm">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold">×</button>
-        </div>
-      )}
+  {
+    error && (
+      <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 flex justify-between items-center rounded shadow-sm">
+        <span>{error}</span>
+        <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700 font-bold">×</button>
+      </div>
+    )
+  }
 
 
   // Flatten products with their units to create one row per unit
@@ -478,14 +480,24 @@ function ViewProducts({ baseUrl = '/admin' }) {
             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">Show Mixed Only:</label>
-          <button
-            onClick={() => setShowMixedOnly(!showMixedOnly)}
-            className={`px-4 py-2 rounded-lg transition-colors font-bold text-xs border border-slate-200 outline-none ${showMixedOnly ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-          >
-            {showMixedOnly ? 'MIXED SWEETS ON' : 'MIXED SWEETS OFF'}
-          </button>
+        <div
+          className="flex items-center gap-3 w-full md:w-auto px-4 py-2 border-2 border-slate-100 rounded-xl hover:border-slate-200 hover:bg-slate-50 transition-all cursor-pointer group"
+          onClick={() => setShowMixedOnly(!showMixedOnly)}
+        >
+          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-200 ${showMixedOnly ? 'bg-slate-900 border-slate-900 scale-110 shadow-sm' : 'bg-white border-slate-300 group-hover:border-slate-400'}`}>
+            {showMixedOnly && (
+              <svg className="w-3.5 h-3.5 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.5" viewBox="0 0 24 24" stroke="currentColor">
+                <path d="M5 13l4 4L19 7"></path>
+              </svg>
+            )}
+          </div>
+          <label className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+            Show Mixed Only
+          </label>
+          <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
+          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md transition-all duration-300 ${showMixedOnly ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>
+            {showMixedOnly ? 'MIXED ONLY' : 'ALL SWEETS'}
+          </span>
         </div>
       </div>
 
@@ -737,7 +749,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
               <h3 className="text-xl font-bold text-white">Edit Product</h3>
               <button onClick={handleCancelEdit} className="text-slate-400 hover:text-white transition-colors text-2xl font-light">&times;</button>
             </div>
-            
+
             {error && (
               <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium flex items-center gap-2">
                 <LuInfo size={16} /> {error}
@@ -746,48 +758,48 @@ function ViewProducts({ baseUrl = '/admin' }) {
 
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input
-                  type="text"
-                  value={editedProduct.name}
-                  onChange={(e) => handleInputChange(e, 'name')}
-                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={false}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">SKU</label>
-                <input
-                  type="text"
-                  value={editedProduct.sku}
-                  onChange={(e) => handleInputChange(e, 'sku')}
-                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={false}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Stock</label>
-                <input
-                  type="text"
-                  step="0.01"
-                  value={editedProduct.stockLevel}
-                  onChange={(e) => handleInputChange(e, 'stockLevel')}
-                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={false}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Stock Alert Threshold</label>
-                <input
-                  type="text"
-                  step="0.01"
-                  value={editedProduct.stockAlertThreshold || ''}
-                  onChange={(e) => handleInputChange(e, 'stockAlertThreshold')}
-                  className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  readOnly={false}
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Name</label>
+                  <input
+                    type="text"
+                    value={editedProduct.name}
+                    onChange={(e) => handleInputChange(e, 'name')}
+                    className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                    readOnly={false}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">SKU</label>
+                  <input
+                    type="text"
+                    value={editedProduct.sku}
+                    onChange={(e) => handleInputChange(e, 'sku')}
+                    className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                    readOnly={false}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Stock</label>
+                  <input
+                    type="text"
+                    step="0.01"
+                    value={editedProduct.stockLevel}
+                    onChange={(e) => handleInputChange(e, 'stockLevel')}
+                    className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                    readOnly={false}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Stock Alert Threshold</label>
+                  <input
+                    type="text"
+                    step="0.01"
+                    value={editedProduct.stockAlertThreshold || ''}
+                    onChange={(e) => handleInputChange(e, 'stockAlertThreshold')}
+                    className={`mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                    readOnly={false}
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Expiry Date</label>
                   <input
@@ -999,14 +1011,14 @@ function ViewProducts({ baseUrl = '/admin' }) {
               )}
             </div>
             <div className="p-6 bg-slate-50 border-t flex justify-end gap-3 rounded-b-2xl">
-              <button 
-                onClick={handleCancelEdit} 
+              <button
+                onClick={handleCancelEdit}
                 className="px-6 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all font-semibold shadow-sm"
               >
                 Cancel
               </button>
-              <button 
-                onClick={handleModalUpdate} 
+              <button
+                onClick={handleModalUpdate}
                 className="px-8 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all font-semibold shadow-lg shadow-slate-200"
               >
                 Update Product

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuCalendar, LuPackage, LuRefreshCw } from 'react-icons/lu';
+import { format } from 'date-fns';
 
 const ExpiredMaterials = () => {
     const [items, setItems] = useState([]);
@@ -54,9 +55,8 @@ const ExpiredMaterials = () => {
 
     // Format date for display
     const formatDate = (dateString) => {
-        if (!dateString) return 'No expiry date';
-        const date = new Date(dateString);
-        return date.toLocaleDateString();
+        if (!dateString) return '-';
+        return format(new Date(dateString), 'dd/MM/yy');
     };
 
     // Get status color based on expiry
@@ -73,9 +73,9 @@ const ExpiredMaterials = () => {
         <div className="p-4 flex flex-col items-center justify-center">
             <div className="relative flex justify-center items-center mb-4">
                 <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-                <img 
-                    src="/sweethub-logo.png" 
-                    alt="Sweet Hub Logo" 
+                <img
+                    src="/sweethub-logo.png"
+                    alt="Sweet Hub Logo"
                     className="absolute w-8 h-8"
                 />
             </div>
@@ -90,7 +90,7 @@ const ExpiredMaterials = () => {
                     <LuPackage className="text-red-500 text-2xl mr-3" />
                     <h1 className="text-2xl font-bold text-gray-800">All Store Room Materials</h1>
                 </div>
-                <button 
+                <button
                     onClick={fetchItems}
                     className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                 >
@@ -98,7 +98,7 @@ const ExpiredMaterials = () => {
                     Refresh
                 </button>
             </div>
-            
+
             {error && <div className="text-red-500 mb-4 bg-red-50 p-3 rounded-md">{error}</div>}
 
             <div className="overflow-x-auto">
@@ -109,7 +109,8 @@ const ExpiredMaterials = () => {
                             <th className="py-3 px-4 text-left">Quantity</th>
                             <th className="py-3 px-4 text-left">Unit</th>
                             <th className="py-3 px-4 text-left">Current Price</th>
-                            <th className="py-3 px-4 text-left">Expiry Date</th>
+                            <th className="py-3 px-4 text-left">MFG Date</th>
+                            <th className="py-3 px-4 text-left">Used By Date</th>
                             <th className="py-3 px-4 text-left">Status</th>
                             <th className="py-3 px-4 text-left">Days Remaining</th>
                         </tr>
@@ -117,27 +118,33 @@ const ExpiredMaterials = () => {
                     <tbody>
                         {items.length > 0 ? (
                             items.map((item, index) => (
-                                <tr 
-                                    key={item._id} 
-                                    className={`border-b border-gray-200 hover:bg-gray-50 ${isExpired(item.expiryDate) ? 'bg-red-50' : isNearExpiry(item.expiryDate) ? 'bg-orange-50' : ''}`}
+                                <tr
+                                    key={item._id}
+                                    className={`border-b border-gray-200 hover:bg-gray-50 ${isExpired(item.usedByDate) ? 'bg-red-50' : isNearExpiry(item.usedByDate) ? 'bg-orange-50' : ''}`}
                                 >
                                     <td className="py-3 px-4 font-medium">{item.name}</td>
                                     <td className="py-3 px-4">{item.quantity}</td>
                                     <td className="py-3 px-4">{item.unit}</td>
                                     <td className="py-3 px-4">₹{item.price}</td>
                                     <td className="py-3 px-4">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.expiryDate)}`}>
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-600`}>
                                             <LuCalendar className="mr-1" />
                                             {formatDate(item.expiryDate)}
                                         </span>
                                     </td>
                                     <td className="py-3 px-4">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.expiryDate)}`}>
-                                            {isExpired(item.expiryDate) ? (
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.usedByDate)}`}>
+                                            <LuCalendar className="mr-1" />
+                                            {formatDate(item.usedByDate)}
+                                        </span>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.usedByDate)}`}>
+                                            {isExpired(item.usedByDate) ? (
                                                 <>
                                                     Expired
                                                 </>
-                                            ) : isNearExpiry(item.expiryDate) ? (
+                                            ) : isNearExpiry(item.usedByDate) ? (
                                                 <>
                                                     Near Expiry
                                                 </>
@@ -147,12 +154,12 @@ const ExpiredMaterials = () => {
                                         </span>
                                     </td>
                                     <td className="py-3 px-4">
-                                        {hasExpiryDate(item.expiryDate) ? (
-                                            <span className={`font-semibold ${isExpired(item.expiryDate) ? 'text-red-600' : isNearExpiry(item.expiryDate) ? 'text-orange-600' : 'text-green-600'}`}>
-                                                {calculateDaysRemaining(item.expiryDate)} days
+                                        {item.usedByDate ? (
+                                            <span className={`font-semibold ${isExpired(item.usedByDate) ? 'text-red-600' : isNearExpiry(item.usedByDate) ? 'text-orange-600' : 'text-green-600'}`}>
+                                                {calculateDaysRemaining(item.usedByDate)} days
                                             </span>
                                         ) : (
-                                            <span className="font-semibold text-gray-500">No expiry date</span>
+                                            <span className="font-semibold text-gray-500">No used by date</span>
                                         )}
                                     </td>
                                 </tr>
@@ -170,7 +177,7 @@ const ExpiredMaterials = () => {
                     </tbody>
                 </table>
             </div>
-            
+
             <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                 <h3 className="font-semibold text-blue-800 mb-2 flex items-center">
                     Legend & Sorting Information
@@ -183,7 +190,7 @@ const ExpiredMaterials = () => {
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-red-600 bg-red-50 mr-2">
                                     Expired
                                 </span>
-                                <span>Items that have passed expiry date</span>
+                                <span>Items that have passed "Used By Date"</span>
                             </div>
                             <div className="flex items-center">
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-orange-600 bg-orange-50 mr-2">

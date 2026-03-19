@@ -30,6 +30,12 @@ const MixedSweets = () => {
         id: null
     });
 
+    // Re-add Confirmation State
+    const [reAddModal, setReAddModal] = useState({
+        show: false,
+        record: null
+    });
+
     // Component Search State
     const [searchTerm, setSearchTerm] = useState('');
     const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -200,6 +206,83 @@ const MixedSweets = () => {
         } finally {
             setActionLoading(false);
             setDeleteModal({ show: false, id: null });
+        }
+    };
+
+    const handleReAddProduction = (record) => {
+        // Find current stock for each component to show in modal
+        const componentsWithStock = record.components.map(comp => {
+            const productId = comp.product?._id || comp.product;
+            const currentItem = availableProducts.find(p => p._id === productId);
+            return {
+                ...comp,
+                product: productId, // Ensure it's the ID
+                availableStock: currentItem ? currentItem.stockLevel : 0,
+                stockUnit: currentItem?.prices?.[0]?.unit || comp.unit
+            };
+        });
+
+        setReAddModal({
+            show: true,
+            record: {
+                ...record,
+                components: componentsWithStock
+            }
+        });
+    };
+
+    const handleReAddQtyChange = (value) => {
+        setReAddModal(prev => ({
+            ...prev,
+            record: { ...prev.record, quantityProduced: value }
+        }));
+    };
+
+    const handleReAddComponentQtyChange = (index, value) => {
+        const newComponents = [...reAddModal.record.components];
+        newComponents[index].quantityUsed = value;
+        setReAddModal(prev => ({
+            ...prev,
+            record: { ...prev.record, components: newComponents }
+        }));
+    };
+
+    const confirmReAdd = async () => {
+        const record = reAddModal.record;
+        setActionLoading(true);
+        setMessage('');
+        setError('');
+
+        try {
+            // Prepare data from record - ensure components use product ID
+            const reAddData = {
+                name: record.name,
+                sku: record.sku,
+                quantityProduced: record.quantityProduced,
+                unit: record.unit,
+                expiryDate: record.expiryDate,
+                usedByDate: record.usedByDate,
+                category: record.category?._id || record.category,
+                components: record.components.map(comp => ({
+                    product: comp.product,
+                    name: comp.name,
+                    quantityUsed: comp.quantityUsed,
+                    unit: comp.unit
+                }))
+            };
+
+            await axios.post('/shop/mixed-sweets', reAddData);
+            setMessage(`${record.name} added again successfully!`);
+            fetchHistory();
+            // Refresh available products stock
+            const prodRes = await axios.get('/shop/products');
+            setAvailableProducts(Array.isArray(prodRes.data) ? prodRes.data : []);
+        } catch (err) {
+            setError(err.response?.data?.error || err.response?.data?.message || 'Failed to re-add production.');
+            console.error(err);
+        } finally {
+            setActionLoading(false);
+            setReAddModal({ show: false, record: null });
         }
     };
 
@@ -411,7 +494,7 @@ const MixedSweets = () => {
                                                                     value={comp.quantityUsed}
                                                                     onChange={(e) => handleComponentQtyChange(index, e.target.value)}
                                                                 />
-                                                                 <select
+                                                                <select
                                                                     className="bg-transparent border-none text-[10px] font-heavy text-slate-500 uppercase outline-none cursor-pointer hover:text-slate-900 transition-colors"
                                                                     value={comp.unit}
                                                                     onChange={(e) => handleComponentUnitChange(index, e.target.value)}
@@ -578,12 +661,22 @@ const MixedSweets = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5 text-right">
-                                                    <button
-                                                        onClick={() => handleDeleteProduction(record._id)}
-                                                        className="p-2 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-                                                    >
-                                                        <LuTrash2 size={16} />
-                                                    </button>
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            onClick={() => handleReAddProduction(record)}
+                                                            className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all group/btn"
+                                                            title="Add Again"
+                                                        >
+                                                            <LuPackagePlus size={18} className="group-hover/btn:scale-110 transition-transform" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteProduction(record._id)}
+                                                            className="p-2 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all group/btn"
+                                                            title="Delete Record"
+                                                        >
+                                                            <LuTrash2 size={16} className="group-hover/btn:scale-110 transition-transform" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
@@ -606,7 +699,7 @@ const MixedSweets = () => {
                                 <p className="text-slate-500 text-sm leading-relaxed mb-8">
                                     Are you sure you want to delete this production record? This action <span className="text-rose-600 font-bold uppercase">cannot be undone</span> and will <span className="font-bold underline">not</span> revert the stock levels.
                                 </p>
-                                
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <button
                                         onClick={() => setDeleteModal({ show: false, id: null })}
@@ -630,6 +723,114 @@ const MixedSweets = () => {
                             <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-center gap-2">
                                 <div className="w-1.5 h-1.5 bg-rose-400 rounded-full animate-pulse"></div>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Permanent Action</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Re-add Confirmation Modal */}
+                {reAddModal.show && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+                        <div className="bg-white rounded-[2rem] shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden animate-zoomIn">
+                            <div className="p-8">
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 border border-emerald-100 shadow-sm shrink-0">
+                                        <LuPackagePlus size={28} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-slate-800 leading-tight">Confirm Production</h3>
+                                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-0.5">Repeat Mixed Collection</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 mb-8">
+                                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="text-[10px] font-heavy text-slate-400 uppercase tracking-wider">Product Name</span>
+                                            <span className="text-[10px] font-heavy bg-slate-200 text-slate-600 px-2 py-0.5 rounded uppercase">{reAddModal.record?.sku}</span>
+                                        </div>
+                                        <div className="text-lg font-bold text-slate-800 uppercase mb-3">{reAddModal.record?.name}</div>
+
+                                        <div className="pt-3 border-t border-slate-200/50">
+                                            <label className="text-[10px] font-heavy text-slate-400 uppercase tracking-wider block mb-1.5">Output Quantity</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-bold text-slate-900"
+                                                    value={reAddModal.record.quantityProduced}
+                                                    onChange={(e) => handleReAddQtyChange(e.target.value)}
+                                                />
+                                                <span className="text-xs font-bold text-slate-500 uppercase px-3 py-2 bg-slate-100 rounded-xl border border-slate-200">{reAddModal.record.unit}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="px-1">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1 h-3 bg-emerald-500 rounded-full"></div>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Ingredient Breakdown</span>
+                                            </div>
+                                            <span className="text-[9px] font-bold text-slate-300 uppercase">Availability</span>
+                                        </div>
+                                        <div className="space-y-3 max-h-60 overflow-y-auto px-1 custom-scrollbar">
+                                            {reAddModal.record?.components.map((c, i) => (
+                                                <div key={i} className="flex flex-col p-3 bg-slate-50/50 rounded-xl border border-slate-100 group/item hover:border-emerald-200 transition-colors">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-xs font-bold text-slate-600 uppercase flex items-center">
+                                                            <span className="w-1.5 h-1.5 bg-slate-300 rounded-full mr-2"></span>
+                                                            {c.name}
+                                                        </span>
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${c.availableStock < parseFloat(c.quantityUsed) ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                            {c.availableStock} {c.stockUnit || c.unit}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="relative flex-1">
+                                                            <input
+                                                                type="text"
+                                                                className={`w-full pl-3 pr-8 py-1.5 bg-white border rounded-lg focus:ring-1 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-xs font-bold ${c.availableStock < parseFloat(c.quantityUsed) ? 'border-rose-300' : 'border-slate-200'}`}
+                                                                value={c.quantityUsed}
+                                                                onChange={(e) => handleReAddComponentQtyChange(i, e.target.value)}
+                                                            />
+                                                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 uppercase">{c.unit}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => setReAddModal({ show: false, record: null })}
+                                        className="px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-bold text-sm transition-all active:scale-95"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={confirmReAdd}
+                                        disabled={actionLoading || reAddModal.record.components.some(c => c.availableStock < parseFloat(c.quantityUsed))}
+                                        className="px-6 py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-bold text-sm shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed group"
+                                    >
+                                        {actionLoading ? (
+                                            <LuLoaderCircle className="animate-spin" size={20} />
+                                        ) : (
+                                            <>
+                                                <span>Confirm & Add</span>
+                                                <LuPackagePlus size={18} className="transition-transform group-hover:translate-x-0.5" />
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="px-8 py-3 bg-emerald-50 border-t border-emerald-100 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+                                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Inventory will be updated</span>
+                                </div>
+                                <span className="text-[10px] font-heavy text-emerald-400/80 uppercase tracking-tighter italic">Manual Edit Enabled</span>
                             </div>
                         </div>
                     </div>

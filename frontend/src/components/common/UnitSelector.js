@@ -23,11 +23,11 @@ const UnitSelector = ({ value, onChange, className = '', showAddUnitOption = tru
         setNewUnitName('');
         setError('');
       }
-      
+
       // Close delete confirmation when clicking outside
-      if (showDeleteConfirm && 
-          confirmModalRef.current && 
-          !confirmModalRef.current.contains(event.target)) {
+      if (showDeleteConfirm &&
+        confirmModalRef.current &&
+        !confirmModalRef.current.contains(event.target)) {
         setShowDeleteConfirm(false);
         setUnitToDelete(null);
       }
@@ -48,7 +48,7 @@ const UnitSelector = ({ value, onChange, className = '', showAddUnitOption = tru
   // Function to actually remove a unit
   const handleRemoveUnit = async () => {
     if (!unitToDelete) return;
-    
+
     try {
       // Check if unit is in use
       const inUse = await isUnitInUse(unitToDelete);
@@ -58,7 +58,7 @@ const UnitSelector = ({ value, onChange, className = '', showAddUnitOption = tru
         setUnitToDelete(null);
         return;
       }
-      
+
       // Remove the unit
       await deleteUnit(unitToDelete);
     } catch (error) {
@@ -76,10 +76,10 @@ const UnitSelector = ({ value, onChange, className = '', showAddUnitOption = tru
       setError('Unit name cannot be empty');
       return;
     }
-    
+
     setAddingUnit(true);
     setError('');
-    
+
     try {
       const addedUnit = await addUnit(newUnitName);
       setNewUnitName('');
@@ -126,27 +126,27 @@ const UnitSelector = ({ value, onChange, className = '', showAddUnitOption = tru
           </div>
         </div>
       )}
-      
+
       {/* Unit Selector Display */}
-      <div 
+      <div
         className={`shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-sm flex justify-between items-center cursor-pointer bg-white ${className}`}
         onClick={() => setOpen(!open)}
         {...props}
       >
         <span>{value || 'Select unit'}</span>
         <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
         </svg>
       </div>
-      
+
       {/* Dropdown List */}
       {open && (
         <div className="absolute z-10 mt-1 w-full bg-white shadow-lg rounded-md border border-gray-200 max-h-60 overflow-auto">
           {units.map((unit) => {
             const isCustomUnit = !defaultUnits.includes(unit);
             return (
-              <div 
-                key={unit} 
+              <div
+                key={unit}
                 className="flex justify-between items-center px-4 py-2 hover:bg-gray-100 cursor-pointer"
                 onClick={() => {
                   onChange(unit);
@@ -170,7 +170,7 @@ const UnitSelector = ({ value, onChange, className = '', showAddUnitOption = tru
               </div>
             );
           })}
-          
+
           {/* Add New Unit Option */}
           {showAddUnitOption && (
             <>
@@ -216,7 +216,7 @@ const UnitSelector = ({ value, onChange, className = '', showAddUnitOption = tru
                   </div>
                 </div>
               ) : (
-                <div 
+                <div
                   className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-blue-600 flex items-center"
                   onClick={(e) => {
                     e.stopPropagation();

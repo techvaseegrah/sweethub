@@ -10,7 +10,8 @@ const storeRoomItemSchema = new mongoose.Schema({
   address: { type: String },
   stockAlertThreshold: { type: Number, default: 0 },
   expiryDate: { type: Date },
-  usedByDate: { type: Date }
+  usedByDate: { type: Date },
+  purchaseDate: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('StoreRoomItem', storeRoomItemSchema);

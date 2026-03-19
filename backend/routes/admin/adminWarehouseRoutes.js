@@ -41,7 +41,8 @@ const {
     updateAfterPackingStatus,
     addToStockFromAfterPacking,
     deleteAfterPackingItem,
-    deleteBeforePackingItem
+    deleteBeforePackingItem,
+    deleteOutgoingMaterial
 } = require('../../controllers/admin/warehouseController');
 const { adminAuth } = require('../../middleware/auth');
 
@@ -83,6 +84,7 @@ router.delete('/manufacturing/:id', deleteManufacturingProcess);
 router.put('/outgoing-materials/bulk-update', bulkUpdateOutgoingMaterials);
 
 router.put('/outgoing-materials/:id', updateOutgoingMaterial);
+router.delete('/outgoing-materials/:id', deleteOutgoingMaterial);
 
 // Daily Schedules
 router.get('/daily-schedules', getDailySchedules);

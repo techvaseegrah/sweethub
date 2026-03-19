@@ -61,10 +61,10 @@ const ExpiryBatchReport = () => {
     }, [fetchShopsAndCategories]);
 
     const handleExportExcel = () => {
-        const viewName = selectedShop === 'all' ? 'Global' : 
-                        selectedShop === 'admin' ? 'Admin Side' : 
-                        shops.find(s => s._id === selectedShop)?.name || 'Shop';
-        
+        const viewName = selectedShop === 'all' ? 'Global' :
+            selectedShop === 'admin' ? 'Admin Side' :
+                shops.find(s => s._id === selectedShop)?.name || 'Shop';
+
         generateExpiryBatchReportExcel(stockData, viewName);
         toast.success('Excel report generated');
     };
@@ -94,7 +94,7 @@ const ExpiryBatchReport = () => {
         if (diffDays < 0) return { status: 'Expired', days: diffDays, color: 'text-red-600', bg: 'bg-red-100', border: 'border-red-200', isExpired: true, icon: LuOctagonAlert };
         if (diffDays <= 7) return { status: 'Expiring \u2264 7 Days', days: diffDays, color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200', isExpiring7: true, icon: LuTriangleAlert };
         if (diffDays <= 30) return { status: 'Expiring \u2264 30 Days', days: diffDays, color: 'text-yellow-600', bg: 'bg-yellow-100', border: 'border-yellow-200', isExpiring30: true, icon: LuClock };
-        
+
         return { status: 'Valid', days: diffDays, color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200', icon: LuCircleCheck };
     };
 
@@ -167,7 +167,7 @@ const ExpiryBatchReport = () => {
                                         <expiryInfo.icon className={`w-5 h-5 ${expiryInfo.color}`} />
                                     </div>
                                 </div>
-                                
+
                                 <div className="flex items-center justify-between mt-4 pb-4 border-b border-gray-50">
                                     <div>
                                         <p className="text-[10px] font-black text-gray-400 uppercase leading-none mb-1">Current Stock</p>
@@ -182,7 +182,7 @@ const ExpiryBatchReport = () => {
                                     <div>
                                         <p className="text-[10px] font-black text-gray-400 uppercase leading-none mb-1">Expiry Date</p>
                                         <p className={`text-sm font-bold tracking-tighter ${(item.expiryDate || item.usedByDate) ? 'text-gray-800' : 'text-gray-400'}`}>
-                                            {(item.expiryDate || item.usedByDate) ? new Date(item.expiryDate || item.usedByDate).toLocaleDateString() : 'N/A'}
+                                            {(item.expiryDate || item.usedByDate) ? format(new Date(item.expiryDate || item.usedByDate), 'dd/MM/yy') : 'N/A'}
                                         </p>
                                     </div>
                                     <div className="text-right">
@@ -223,7 +223,7 @@ const ExpiryBatchReport = () => {
                             className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-4 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all text-sm w-full md:w-64 shadow-sm font-semibold"
                         />
                     </div>
-                    <button 
+                    <button
                         onClick={handleExportExcel}
                         className="flex items-center space-x-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20 font-bold text-sm"
                     >
@@ -334,7 +334,7 @@ const ExpiryBatchReport = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {stats.map((stat, idx) => (
-                    <motion.div 
+                    <motion.div
                         key={idx}
                         whileHover={{ y: -4 }}
                         className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center space-x-4"

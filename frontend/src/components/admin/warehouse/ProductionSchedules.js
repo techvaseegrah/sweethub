@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
-// import { LuPlus, LuTrash2 } from 'react-icons/lu';
+import { LuPlus, LuTrash2, LuDownload, LuFileText } from 'react-icons/lu';
 import { formatDateWithTime, getBatchId } from '../../../utils/unitConversion';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const ProductionSchedules = () => {
     const [schedules, setSchedules] = useState([]);
@@ -9,6 +12,10 @@ const ProductionSchedules = () => {
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('all');
+    const [categories, setCategories] = useState([]);
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [predefinedFilter, setPredefinedFilter] = useState('all');
     const [showConfirmation, setShowConfirmation] = useState(false);
     const [scheduleToComplete, setScheduleToComplete] = useState(null);
 
@@ -18,6 +25,10 @@ const ProductionSchedules = () => {
             // Fetch daily schedules with status
             const response = await axios.get('/admin/warehouse/daily-schedules');
             setSchedules(response.data);
+
+            // Fetch categories for filtering
+            const catResponse = await axios.get('/admin/categories');
+            setCategories(catResponse.data);
         } catch (err) {
             setError('Failed to fetch production schedules.');
         } finally {
@@ -29,10 +40,98 @@ const ProductionSchedules = () => {
         fetchSchedules();
     }, [fetchSchedules]);
 
+    const handlePredefinedFilter = (filter) => {
+        setPredefinedFilter(filter);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        if (filter === 'today') {
+            const end = new Date();
+            end.setHours(23, 59, 59, 999);
+            setDateRange({
+                start: today.toISOString().split('T')[0],
+                end: end.toISOString().split('T')[0]
+            });
+        } else if (filter === 'week') {
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay());
+            setDateRange({
+                start: startOfWeek.toISOString().split('T')[0],
+                end: new Date().toISOString().split('T')[0]
+            });
+        } else if (filter === 'month') {
+            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            setDateRange({
+                start: startOfMonth.toISOString().split('T')[0],
+                end: new Date().toISOString().split('T')[0]
+            });
+        } else {
+            setDateRange({ start: '', end: '' });
+        }
+    };
+
+    const downloadExcel = () => {
+        const data = filteredSchedules.map(item => ({
+            'Batch ID': getBatchId(item._id, item.batchId),
+            'Product Name': item.productName || item.sweetName,
+            'Category': item.category?.name || 'N/A',
+            'Quantity': item.quantity,
+            'Unit': item.unit,
+            'Date': formatDateWithTime(item.date),
+            'Status': item.status
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Production Schedules');
+        XLSX.writeFile(wb, `Production_Schedules_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    const downloadPDF = () => {
+        const doc = new jsPDF();
+        doc.text('Production Schedules Report', 14, 15);
+
+        const tableColumn = ["Batch ID", "Product Name", "Category", "Qty", "Unit", "Date", "Status"];
+        const tableRows = filteredSchedules.map(item => [
+            getBatchId(item._id, item.batchId),
+            item.productName || item.sweetName,
+            item.category?.name || 'N/A',
+            item.quantity,
+            item.unit,
+            formatDateWithTime(item.date),
+            item.status
+        ]);
+
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 20,
+        });
+        doc.save(`Production_Schedules_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     const filteredSchedules = schedules
-        .filter(item =>
-            (item.productName || item.sweetName) && (item.productName || item.sweetName).toLowerCase().includes(searchTerm.toLowerCase())
-        )
+        .filter(item => {
+            const matchesSearch = (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+            const matchesCategory = categoryFilter === 'all' ||
+                (item.category && (item.category._id === categoryFilter || item.category === categoryFilter));
+
+            const itemDate = new Date(item.date);
+            let matchesDate = true;
+            if (dateRange.start) {
+                const startDate = new Date(dateRange.start);
+                startDate.setHours(0, 0, 0, 0);
+                matchesDate = matchesDate && itemDate >= startDate;
+            }
+            if (dateRange.end) {
+                const endDate = new Date(dateRange.end);
+                endDate.setHours(23, 59, 59, 999);
+                matchesDate = matchesDate && itemDate <= endDate;
+            }
+
+            return matchesSearch && matchesCategory && matchesDate;
+        })
         .sort((a, b) => {
             const dateDiff = new Date(b.date) - new Date(a.date);
             if (dateDiff !== 0) return dateDiff;
@@ -104,16 +203,109 @@ const ProductionSchedules = () => {
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-md">
-            <h1 className="text-2xl font-bold mb-4">Production Schedules</h1>
-            <p className="text-gray-600 mb-6">Track and manage your daily production schedules with status updates.</p>
+            <div className="flex justify-between items-center mb-4">
+                <div>
+                    <h1 className="text-2xl font-bold">Production Schedules</h1>
+                    <p className="text-gray-600">Track and manage your daily production schedules with status updates.</p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={downloadExcel}
+                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                    >
+                        <LuDownload size={18} />
+                        Excel
+                    </button>
+                    <button
+                        onClick={downloadPDF}
+                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                    >
+                        <LuFileText size={18} />
+                        PDF
+                    </button>
+                </div>
+            </div>
 
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
 
+            {/* Filters Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Search Range</label>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => handlePredefinedFilter('today')}
+                            className={`px-3 py-1 text-xs rounded-full border ${predefinedFilter === 'today' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-300'}`}
+                        >
+                            Today
+                        </button>
+                        <button
+                            onClick={() => handlePredefinedFilter('week')}
+                            className={`px-3 py-1 text-xs rounded-full border ${predefinedFilter === 'week' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-300'}`}
+                        >
+                            Week
+                        </button>
+                        <button
+                            onClick={() => handlePredefinedFilter('month')}
+                            className={`px-3 py-1 text-xs rounded-full border ${predefinedFilter === 'month' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-300'}`}
+                        >
+                            Month
+                        </button>
+                        <button
+                            onClick={() => handlePredefinedFilter('all')}
+                            className={`px-3 py-1 text-xs rounded-full border ${predefinedFilter === 'all' ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-300'}`}
+                        >
+                            All
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    >
+                        <option value="all">All Categories</option>
+                        {categories.map(cat => (
+                            <option key={cat._id} value={cat._id || cat.name}>{cat.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                    <input
+                        type="date"
+                        value={dateRange.start}
+                        onChange={(e) => {
+                            setDateRange({ ...dateRange, start: e.target.value });
+                            setPredefinedFilter('custom');
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                    <input
+                        type="date"
+                        value={dateRange.end}
+                        onChange={(e) => {
+                            setDateRange({ ...dateRange, end: e.target.value });
+                            setPredefinedFilter('custom');
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                </div>
+            </div>
+
             <div className="mb-4">
                 <input
                     type="text"
-                    placeholder="Search schedules..."
+                    placeholder="Search by product name..."
                     className="w-full md:w-1/3 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}

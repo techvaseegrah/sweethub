@@ -15,6 +15,9 @@ const AfterPackingAddToStock = () => {
     const [itemToComplete, setItemToComplete] = useState(null);
     const [completedQty, setCompletedQty] = useState('');
     const [selectedUnit, setSelectedUnit] = useState('');
+    const [weightPerPacket, setWeightPerPacket] = useState('');
+    const [numberOfPackets, setNumberOfPackets] = useState('');
+    const [packetWeightUnit, setPacketWeightUnit] = useState('gram');
     const [editedProductName, setEditedProductName] = useState('');
     const [expiryDate, setExpiryDate] = useState('');
     const [usedByDate, setUsedByDate] = useState('');
@@ -31,7 +34,7 @@ const AfterPackingAddToStock = () => {
     // Suggestions
     const [recentProductNames, setRecentProductNames] = useState([]);
     const [showProductNameSuggestions, setShowProductNameSuggestions] = useState(false);
-    const [recentUnits, setRecentUnits] = useState(['kg', 'gram', 'piece', 'box', 'liter', 'ml']);
+    const [recentUnits, setRecentUnits] = useState(['kg', 'gram', 'piece', 'packet', 'box', 'liter', 'ml']);
     const [showUnitSuggestions, setShowUnitSuggestions] = useState(false);
 
     useEffect(() => {
@@ -116,22 +119,37 @@ const AfterPackingAddToStock = () => {
         setSelectedCategory('');
         setNetPrice(item.price || '');
         setSellPrice(item.price ? (item.price * 1.2).toFixed(2) : '');
+        
+        setWeightPerPacket('');
+        setNumberOfPackets('');
+        setPacketWeightUnit('gram');
+
         setShowConfirmation(true);
     };
 
     const handleConfirmComplete = async () => {
         if (itemToComplete && completedQty && selectedUnit) {
             try {
-                const inputQty = Number(completedQty);
-                if (inputQty <= 0) {
+                let inputQty = Number(completedQty);
+                if (inputQty <= 0 && !(selectedUnit.toLowerCase().includes('packet') && Number(numberOfPackets) > 0)) {
                     setError('Please enter a valid quantity.');
                     return;
                 }
 
-                const convertedQty = convertUnit(inputQty, selectedUnit, itemToComplete.unit);
+                let convertedQty;
+                const isPacket = selectedUnit.toLowerCase().includes('packet') || selectedUnit === '1';
+                
+                if (isPacket && weightPerPacket && numberOfPackets) {
+                    const weightFactor = packetWeightUnit === 'gram' ? 0.001 : 1;
+                    const totalWeightInKg = Number(weightPerPacket) * Number(numberOfPackets) * weightFactor;
+                    convertedQty = convertUnit(totalWeightInKg, 'kg', itemToComplete.unit);
+                    inputQty = Number(numberOfPackets);
+                } else {
+                    convertedQty = convertUnit(inputQty, selectedUnit, itemToComplete.unit);
+                }
 
                 if (convertedQty > itemToComplete.quantity + 0.0001) {
-                    setError(`Quantity cannot exceed remaining amount (${itemToComplete.quantity} ${itemToComplete.unit}).`);
+                    setError(`Insufficient bulk stock to fulfill this amount. You need ${convertedQty.toFixed(3)} ${itemToComplete.unit}, but only ${itemToComplete.quantity} ${itemToComplete.unit} is available.`);
                     return;
                 }
 
@@ -371,25 +389,79 @@ const AfterPackingAddToStock = () => {
                                     })()
                                 )}
                             </div>
-                            <p>Total Original: {itemToComplete?.totalQuantity || itemToComplete?.quantity} {itemToComplete?.unit}</p>
-                            <p>Current Remaining: {itemToComplete?.quantity} {itemToComplete?.unit}</p>
-                            <p>Unit Price: ₹{itemToComplete?.price} / {itemToComplete?.unit}</p>
+                            <div className="flex justify-between items-center bg-gray-50 p-3 rounded-md mb-2 border border-gray-100">
+                                <div>
+                                    <p className="text-xs uppercase text-gray-500 font-semibold">Total Original</p>
+                                    <p className="text-sm font-bold text-gray-800">{itemToComplete?.totalQuantity || itemToComplete?.quantity} {itemToComplete?.unit}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs uppercase text-gray-500 font-semibold">Available Bulk Stock</p>
+                                    <p className="text-sm font-bold text-green-600">Available: {itemToComplete?.quantity} {itemToComplete?.unit}</p>
+                                </div>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1 pl-1">
+                                Unit Price: ₹{itemToComplete?.price} / {itemToComplete?.unit}
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Quantity
-                                </label>
-                                <input
-                                    type="text"
-                                    className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
-                                    value={completedQty}
-                                    onChange={(e) => setCompletedQty(e.target.value)}
-                                    min="0"
-                                    step="any"
-                                />
-                            </div>
+                            {(selectedUnit.toLowerCase().includes('packet') || selectedUnit === '1') ? (
+                                <>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Weight per Packet
+                                        </label>
+                                        <div className="flex gap-1">
+                                            <input
+                                                type="number"
+                                                className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                                value={weightPerPacket}
+                                                onChange={(e) => setWeightPerPacket(e.target.value)}
+                                                placeholder="e.g. 250"
+                                                min="0"
+                                            />
+                                            <select
+                                                className="px-2 py-1 border rounded-md bg-gray-50 text-xs outline-none"
+                                                value={packetWeightUnit}
+                                                onChange={(e) => setPacketWeightUnit(e.target.value)}
+                                            >
+                                                <option value="gram">g</option>
+                                                <option value="kg">kg</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Number of Packets
+                                        </label>
+                                        <input
+                                            type="number"
+                                            className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                            value={numberOfPackets}
+                                            onChange={(e) => {
+                                                setNumberOfPackets(e.target.value);
+                                                setCompletedQty(e.target.value);
+                                            }}
+                                            placeholder="e.g. 10"
+                                            min="0"
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Stock to Add
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-3 py-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                                        value={completedQty}
+                                        onChange={(e) => setCompletedQty(e.target.value)}
+                                        min="0"
+                                        step="any"
+                                    />
+                                </div>
+                            )}
                             <div className="relative">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Unit
@@ -471,9 +543,61 @@ const AfterPackingAddToStock = () => {
                         </div>
 
                         {completedQty && selectedUnit && itemToComplete && (
-                            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <p className="text-xs text-blue-600 mt-1">
-                                    (Converted Quantity: {convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit).toFixed(3)} {itemToComplete.unit})
+                            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100 shadow-sm">
+                                {(selectedUnit.toLowerCase().includes('packet') || selectedUnit === '1') && weightPerPacket && numberOfPackets ? (
+                                    <>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs font-semibold text-blue-700">Stock Update:</span>
+                                            <span className="text-xs font-bold text-blue-800">+{numberOfPackets} {selectedUnit === '1' ? 'Units' : 'Packets'} to inventory</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-semibold text-orange-700">Total weight used:</span>
+                                            <span className="text-xs font-bold text-orange-800">
+                                                {(Number(weightPerPacket) * Number(numberOfPackets) * (packetWeightUnit === 'gram' ? 0.001 : 1)).toFixed(3)} kg
+                                            </span>
+                                        </div>
+                                        {(() => {
+                                            const weightFactor = packetWeightUnit === 'gram' ? 0.001 : 1;
+                                            const totalWeightInKg = Number(weightPerPacket) * Number(numberOfPackets) * weightFactor;
+                                            const deductionInItemUnit = convertUnit(totalWeightInKg, 'kg', itemToComplete.unit);
+                                            const isOverBulk = deductionInItemUnit > itemToComplete.quantity + 0.0001;
+                                            return (
+                                                <>
+                                                    <div className="flex justify-between items-center mt-1 pt-1 border-t border-blue-100">
+                                                        <span className="text-xs font-semibold text-gray-600">Bulk Deduction:</span>
+                                                        <span className={`text-xs font-bold ${isOverBulk ? 'text-red-600 animate-pulse' : 'text-gray-800'}`}>
+                                                            -{deductionInItemUnit.toFixed(3)} {itemToComplete.unit}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center mt-1">
+                                                        <span className="text-xs font-semibold text-gray-600">Remaining Bulk:</span>
+                                                        <span className={`text-xs font-bold ${(itemToComplete.quantity - deductionInItemUnit) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                            {(itemToComplete.quantity - deductionInItemUnit).toFixed(3)} {itemToComplete.unit}
+                                                        </span>
+                                                    </div>
+                                                    {isOverBulk && (
+                                                        <p className="text-[10px] text-red-600 font-bold mt-2 bg-red-50 p-1 rounded border border-red-100">
+                                                            ⚠️ Warning: Total weight exceeds available bulk stock!
+                                                        </p>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs font-semibold text-blue-700">Stock Update:</span>
+                                            <span className="text-xs font-bold text-blue-800">+{completedQty} {selectedUnit} to inventory</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-xs font-semibold text-orange-700">Bulk Deduction:</span>
+                                            <span className="text-xs font-bold text-orange-800">-{convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit).toFixed(3)} {itemToComplete.unit} from bulk</span>
+                                        </div>
+                                    </>
+                                )}
+                                <p className="text-[10px] text-gray-500 mt-2 italic border-t border-blue-100 pt-1">
+                                    The system will increment the product's stock count and deduct the corresponding weight from available bulk.
                                 </p>
                             </div>
                         )}
@@ -538,7 +662,35 @@ const AfterPackingAddToStock = () => {
                             </button>
                             <button
                                 onClick={handleConfirmComplete}
-                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                                disabled={(() => {
+                                    if (!selectedUnit) return true;
+                                    const isPacket = selectedUnit.toLowerCase().includes('packet') || selectedUnit === '1';
+                                    if (isPacket) {
+                                        if (!weightPerPacket || !numberOfPackets) return true;
+                                        const weightFactor = packetWeightUnit === 'gram' ? 0.001 : 1;
+                                        const totalWeightInKg = Number(weightPerPacket) * Number(numberOfPackets) * weightFactor;
+                                        const deduction = convertUnit(totalWeightInKg, 'kg', itemToComplete.unit);
+                                        if (deduction > itemToComplete.quantity + 0.0001) return true;
+                                    } else {
+                                        if (!completedQty) return true;
+                                        const deduction = convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit);
+                                        if (deduction > itemToComplete.quantity + 0.0001) return true;
+                                    }
+                                    return false;
+                                })()}
+                                className={`px-4 py-2 rounded-md transition-colors font-semibold ${((() => {
+                                    const isPacket = selectedUnit.toLowerCase().includes('packet') || selectedUnit === '1';
+                                    let deduction;
+                                    if (isPacket && weightPerPacket && numberOfPackets) {
+                                        const weightFactor = packetWeightUnit === 'gram' ? 0.001 : 1;
+                                        deduction = convertUnit(Number(weightPerPacket) * Number(numberOfPackets) * weightFactor, 'kg', itemToComplete.unit);
+                                    } else if (!isPacket && completedQty) {
+                                        deduction = convertUnit(Number(completedQty), selectedUnit, itemToComplete.unit);
+                                    } else {
+                                        return false;
+                                    }
+                                    return deduction > itemToComplete.quantity + 0.0001;
+                                })()) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
                             >
                                 Confirm
                             </button>

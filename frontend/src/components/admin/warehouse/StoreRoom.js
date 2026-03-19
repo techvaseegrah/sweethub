@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from '../../../api/axios';
-import { LuPencil, LuTrash2, LuHistory, LuDownload, LuBox, LuFileText, LuSearch } from 'react-icons/lu';
+import { LuPencil, LuTrash2, LuDownload, LuBox, LuFileText, LuSearch, LuHistory } from 'react-icons/lu';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 const StoreRoom = () => {
@@ -11,14 +12,20 @@ const StoreRoom = () => {
     const [error, setError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [vendorSearch, setVendorSearch] = useState('');
-    const [timeFilter, setTimeFilter] = useState('all'); // all, hour, today, yesterday, week, month
+    const [timeFilter, setTimeFilter] = useState('all'); // all, hour, today, yesterday, week, month, custom
+    const [fromDate, setFromDate] = useState('');
+    const [toDate, setToDate] = useState('');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentItem, setCurrentItem] = useState(null);
 
+
     // Delete confirmation modal state
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [selectedMaterialHistory, setSelectedMaterialHistory] = useState([]);
+    const [historyMaterialName, setHistoryMaterialName] = useState('');
 
     const fetchItems = useCallback(async () => {
         setLoading(true);
@@ -65,6 +72,15 @@ const StoreRoom = () => {
         setIsModalOpen(true);
     };
 
+    const openHistoryModal = (materialName) => {
+        const history = vendorHistory
+            .filter(record => record.materialName.toLowerCase() === materialName.toLowerCase())
+            .sort((a, b) => new Date(b.receivedDate || b.createdAt) - new Date(a.receivedDate || a.createdAt));
+        setSelectedMaterialHistory(history);
+        setHistoryMaterialName(materialName);
+        setIsHistoryModalOpen(true);
+    };
+
     const handleModalChange = (e) => {
         const { name, value } = e.target;
         setCurrentItem(prev => ({ ...prev, [name]: value }));
@@ -82,13 +98,51 @@ const StoreRoom = () => {
         }
     };
 
+
     // Filter Logic
     const filteredStock = useMemo(() => {
-        return items.filter(item =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-            (vendorSearch === '' || (item.vendor && item.vendor.toLowerCase().includes(vendorSearch.toLowerCase())))
-        );
-    }, [items, searchTerm, vendorSearch]);
+        const now = new Date();
+        return items.filter(item => {
+            const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesVendor = (vendorSearch === '' || (item.vendor && item.vendor.toLowerCase().includes(vendorSearch.toLowerCase())));
+
+            // Time Filter for Stock
+            let matchesTime = true;
+            if (timeFilter !== 'all') {
+                const itemDate = new Date(item.purchaseDate || item.createdAt);
+                if (timeFilter === 'hour') {
+                    const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000));
+                    matchesTime = itemDate >= oneHourAgo;
+                } else if (timeFilter === 'today') {
+                    matchesTime = itemDate.toDateString() === now.toDateString();
+                } else if (timeFilter === 'yesterday') {
+                    const yesterday = new Date(now);
+                    yesterday.setDate(now.getDate() - 1);
+                    matchesTime = itemDate.toDateString() === yesterday.toDateString();
+                } else if (timeFilter === 'week') {
+                    const oneWeekAgo = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+                    matchesTime = itemDate >= oneWeekAgo;
+                } else if (timeFilter === 'month') {
+                    matchesTime = itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear();
+                } else if (timeFilter === 'custom') {
+                    const start = fromDate ? new Date(fromDate) : null;
+                    const end = toDate ? new Date(toDate) : null;
+                    if (start) {
+                        start.setHours(0, 0, 0, 0);
+                        matchesTime = itemDate >= start;
+                    }
+                    if (end && matchesTime) {
+                        end.setHours(23, 59, 59, 999);
+                        matchesTime = itemDate <= end;
+                    }
+                    // If custom is selected but no dates provided, show all
+                    if (!start && !end) matchesTime = true;
+                }
+            }
+
+            return matchesSearch && matchesVendor && matchesTime;
+        });
+    }, [items, searchTerm, vendorSearch, timeFilter, fromDate, toDate]);
 
     const filteredRecords = useMemo(() => {
         const now = new Date();
@@ -111,6 +165,19 @@ const StoreRoom = () => {
                 matchesTime = recordDate >= oneWeekAgo;
             } else if (timeFilter === 'month') {
                 matchesTime = recordDate.getMonth() === now.getMonth() && recordDate.getFullYear() === now.getFullYear();
+            } else if (timeFilter === 'custom') {
+                const start = fromDate ? new Date(fromDate) : null;
+                const end = toDate ? new Date(toDate) : null;
+                if (start) {
+                    start.setHours(0, 0, 0, 0);
+                    matchesTime = recordDate >= start;
+                }
+                if (end && matchesTime) {
+                    end.setHours(23, 59, 59, 999);
+                    matchesTime = recordDate <= end;
+                }
+                // If custom is selected but no dates provided, show all
+                if (!start && !end) matchesTime = true;
             }
 
             // Vendor Filter
@@ -123,7 +190,7 @@ const StoreRoom = () => {
 
             return matchesTime && matchesVendor && matchesSearch;
         });
-    }, [vendorHistory, timeFilter, vendorSearch, searchTerm]);
+    }, [vendorHistory, timeFilter, vendorSearch, searchTerm, fromDate, toDate]);
 
     const totalPurchaseValue = useMemo(() => {
         return filteredRecords.reduce((sum, record) => sum + ((record.quantityReceived || 0) * (record.pricePerUnit || 0)), 0);
@@ -137,7 +204,7 @@ const StoreRoom = () => {
             'Unit': record.unit,
             'Price Per Unit': record.pricePerUnit || 0,
             'Total Value': (record.quantityReceived * (record.pricePerUnit || 0)).toFixed(2),
-            'Date': new Date(record.receivedDate).toLocaleString()
+            'Date': format(new Date(record.receivedDate), 'dd/MM/yy HH:mm')
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -162,19 +229,21 @@ const StoreRoom = () => {
                         <p className="text-gray-500 mt-1">Manage inventory and track purchase records</p>
                     </div>
 
-                    <div className="flex bg-white rounded-lg p-1 shadow-sm border">
-                        <button
-                            onClick={() => setView('stock')}
-                            className={`flex items-center px-4 py-2 rounded-md transition-all ${view === 'stock' ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-                        >
-                            <LuBox className="mr-2" /> Stock Inventory
-                        </button>
-                        <button
-                            onClick={() => setView('records')}
-                            className={`flex items-center px-4 py-2 rounded-md transition-all ${view === 'records' ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
-                        >
-                            <LuFileText className="mr-2" /> Purchase Records
-                        </button>
+                    <div className="flex items-center gap-4">
+                        <div className="flex bg-white rounded-lg p-1 shadow-sm border">
+                            <button
+                                onClick={() => setView('stock')}
+                                className={`flex items-center px-4 py-2 rounded-md transition-all ${view === 'stock' ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                            >
+                                <LuBox className="mr-2" /> Stock Inventory
+                            </button>
+                            <button
+                                onClick={() => setView('records')}
+                                className={`flex items-center px-4 py-2 rounded-md transition-all ${view === 'records' ? 'bg-primary text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}`}
+                            >
+                                <LuFileText className="mr-2" /> Purchase Records
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -182,7 +251,7 @@ const StoreRoom = () => {
 
                 {/* Filters Section */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border mb-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         <div className="relative">
                             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Search Material</label>
                             <div className="relative">
@@ -190,7 +259,7 @@ const StoreRoom = () => {
                                 <input
                                     type="text"
                                     placeholder="e.g. Sugar, Milk..."
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -204,7 +273,7 @@ const StoreRoom = () => {
                                 <input
                                     type="text"
                                     placeholder="Vendor name..."
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                                     value={vendorSearch}
                                     onChange={(e) => setVendorSearch(e.target.value)}
                                 />
@@ -214,7 +283,7 @@ const StoreRoom = () => {
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Time Period</label>
                             <select
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 bg-white"
                                 value={timeFilter}
                                 onChange={(e) => setTimeFilter(e.target.value)}
                             >
@@ -224,35 +293,64 @@ const StoreRoom = () => {
                                 <option value="yesterday">Yesterday</option>
                                 <option value="week">This Week</option>
                                 <option value="month">This Month</option>
+                                <option value="custom">Custom Range</option>
                             </select>
-                        </div>
-
-                        <div className="flex items-end">
-                            <button
-                                onClick={downloadReport}
-                                className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center transition-colors shadow-sm"
-                            >
-                                <LuDownload className="mr-2" /> Download Report
-                            </button>
                         </div>
                     </div>
 
-                    {view === 'records' && (
-                        <div className="mt-6 pt-6 border-t flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-primary/10 rounded-full text-primary">
-                                    <LuFileText size={24} />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500 font-medium">Filtered Purchase Value</p>
-                                    <p className="text-2xl font-bold text-gray-800">₹{totalPurchaseValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
-                                </div>
+                    {/* Custom Range Selection */}
+                    {timeFilter === 'custom' && (
+                        <div className="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">From Date</label>
+                                <input
+                                    type="date"
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 shadow-sm bg-white"
+                                    value={fromDate}
+                                    onChange={(e) => setFromDate(e.target.value)}
+                                />
                             </div>
-                            <div className="text-sm text-gray-500">
-                                Showing <span className="font-bold text-gray-800">{filteredRecords.length}</span> transaction(s)
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 ml-1">To Date</label>
+                                <input
+                                    type="date"
+                                    className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-primary/20 shadow-sm bg-white"
+                                    value={toDate}
+                                    onChange={(e) => setToDate(e.target.value)}
+                                />
                             </div>
                         </div>
                     )}
+
+                    {/* Action Bar: Stats and Download */}
+                    <div className="mt-6 pt-6 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="flex flex-wrap items-center gap-6">
+                            {view === 'records' && (
+                                <div className="flex items-center gap-3">
+                                    <div className="p-3 bg-primary/10 rounded-full text-primary">
+                                        <LuFileText size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Purchase Value</p>
+                                        <p className="text-2xl font-black text-gray-800">₹{totalPurchaseValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex flex-col">
+                                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Results</p>
+                                <p className="text-sm text-gray-600">
+                                    Showing <span className="font-bold text-gray-800">{view === 'stock' ? filteredStock.length : filteredRecords.length}</span> items
+                                </p>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={downloadReport}
+                            className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl flex items-center justify-center transition-all shadow-lg hover:shadow-green-200 active:scale-95"
+                        >
+                            <LuDownload className="mr-2 text-xl" /> Download Report
+                        </button>
+                    </div>
                 </div>
 
                 {/* Data Table */}
@@ -267,7 +365,7 @@ const StoreRoom = () => {
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Unit</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price (Unit)</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendor</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Expiry / Used By</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">MFG / Used By Date</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 ) : (
@@ -301,14 +399,24 @@ const StoreRoom = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="text-xs">
-                                                    <span className="text-gray-400">EXP:</span> {item.expiryDate ? new Date(item.expiryDate).toLocaleDateString() : '-'}
+                                                    <span className="text-gray-400">PUR:</span> {item.purchaseDate ? format(new Date(item.purchaseDate), 'dd/MM/yy') : '-'}
                                                 </div>
                                                 <div className="text-xs">
-                                                    <span className="text-gray-400">USE:</span> {item.usedByDate ? new Date(item.usedByDate).toLocaleDateString() : '-'}
+                                                    <span className="text-gray-400">MFG:</span> {item.expiryDate ? format(new Date(item.expiryDate), 'dd/MM/yy') : '-'}
+                                                </div>
+                                                <div className="text-xs">
+                                                    <span className="text-gray-400">USED BY:</span> {item.usedByDate ? format(new Date(item.usedByDate), 'dd/MM/yy') : '-'}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => openHistoryModal(item.name)}
+                                                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                        title="View Purchase History"
+                                                    >
+                                                        <LuHistory />
+                                                    </button>
                                                     <button onClick={() => openEditModal(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                                                         <LuPencil />
                                                     </button>
@@ -327,7 +435,7 @@ const StoreRoom = () => {
                                     filteredRecords.length > 0 ? filteredRecords.map((record, index) => (
                                         <tr key={index} className="hover:bg-gray-50/50 transition-colors">
                                             <td className="px-6 py-4 text-sm text-gray-500">
-                                                {new Date(record.receivedDate || record.createdAt).toLocaleString()}
+                                                {format(new Date(record.receivedDate || record.createdAt), 'dd/MM/yy HH:mm')}
                                             </td>
                                             <td className="px-6 py-4 font-medium text-gray-800">{record.materialName}</td>
                                             <td className="px-6 py-4 text-gray-600">{record.vendorName}</td>
@@ -338,7 +446,7 @@ const StoreRoom = () => {
                                             <td className="px-6 py-4 text-gray-600">{record.gstPercentage || 0}%</td>
                                             <td className="px-6 py-4 text-emerald-600 font-medium">₹{(record.gstAmount || 0).toFixed(2)}</td>
                                             <td className="px-6 py-4 font-bold text-gray-800">
-                                                ₹{((record.quantityReceived * (record.pricePerUnit || 0)) + (record.gstAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                ₹{(record.quantityReceived * (record.pricePerUnit || 0) + (record.gstAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                             </td>
                                         </tr>
                                     )) : (
@@ -395,7 +503,17 @@ const StoreRoom = () => {
                                 <input type="text" name="address" value={currentItem.address || ''} onChange={handleModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-gray-600 mb-1">Expiry Date</label>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Purchase Date</label>
+                                <input
+                                    type="date"
+                                    name="purchaseDate"
+                                    value={currentItem.purchaseDate ? new Date(currentItem.purchaseDate).toISOString().split('T')[0] : ''}
+                                    onChange={handleModalChange}
+                                    className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Manufacturing/Packing Date</label>
                                 <input
                                     type="date"
                                     name="expiryDate"
@@ -418,6 +536,62 @@ const StoreRoom = () => {
                         <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
                             <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
                             <button onClick={handleUpdate} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark shadow-md transition-all">Update Stock</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* History Modal */}
+            {isHistoryModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800">Purchase History</h2>
+                                <p className="text-sm text-gray-500 font-medium">{historyMaterialName}</p>
+                            </div>
+                            <button onClick={() => setIsHistoryModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl transition-colors">&times;</button>
+                        </div>
+                        <div className="p-6 overflow-hidden">
+                            <div className="overflow-x-auto max-h-[60vh]">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gray-50 border-b border-gray-100 sticky top-0">
+                                        <tr>
+                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Vendor</th>
+                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Quantity</th>
+                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price/Unit</th>
+                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GST (%)</th>
+                                            <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {selectedMaterialHistory.length > 0 ? selectedMaterialHistory.map((record, index) => (
+                                            <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                                <td className="px-6 py-4 text-sm text-gray-500">
+                                                    {format(new Date(record.receivedDate || record.createdAt), 'dd/MM/yy HH:mm')}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-800 font-medium">{record.vendorName}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className="font-bold text-gray-900">{record.quantityReceived}</span> {record.unit}
+                                                </td>
+                                                <td className="px-6 py-4 text-gray-600 font-semibold">₹{record.pricePerUnit || 0}</td>
+                                                <td className="px-6 py-4 text-gray-500">{record.gstPercentage || 0}%</td>
+                                                <td className="px-6 py-4 font-bold text-emerald-600">
+                                                    ₹{(record.quantityReceived * (record.pricePerUnit || 0) + (record.gstAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                </td>
+                                            </tr>
+                                        )) : (
+                                            <tr>
+                                                <td colSpan="6" className="px-6 py-12 text-center text-gray-500">No purchase history found for this material.</td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 px-6 py-4 flex justify-end">
+                            <button onClick={() => setIsHistoryModalOpen(false)} className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 shadow-md transition-all font-bold">Close History</button>
                         </div>
                     </div>
                 </div>
@@ -454,6 +628,7 @@ const StoreRoom = () => {
                     </div>
                 </div>
             )}
+
         </div>
     );
 };

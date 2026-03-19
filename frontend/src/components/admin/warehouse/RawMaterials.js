@@ -15,6 +15,7 @@ const RawMaterials = () => {
     const [gstPercentage, setGstPercentage] = useState('5');
     const [expiryDate, setExpiryDate] = useState('');
     const [usedByDate, setUsedByDate] = useState('');
+    const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
     const [storeRoomItems, setStoreRoomItems] = useState([]);
@@ -47,12 +48,12 @@ const RawMaterials = () => {
     const handleNameChange = (e) => {
         const value = e.target.value;
         setName(value);
-        
+
         if (value.trim() === '') {
             setFilteredItems(storeRoomItems);
             setShowDropdown(false);
         } else {
-            const filtered = storeRoomItems.filter(item => 
+            const filtered = storeRoomItems.filter(item =>
                 item.name.toLowerCase().includes(value.toLowerCase())
             );
             setFilteredItems(filtered);
@@ -69,20 +70,25 @@ const RawMaterials = () => {
         setAddress(item.address || '');
         setGstPercentage(item.gstPercentage?.toString() || '0');
         setQuantity('');
+        if (item.purchaseDate) {
+            setPurchaseDate(new Date(item.purchaseDate).toISOString().split('T')[0]);
+        } else {
+            setPurchaseDate(new Date().toISOString().split('T')[0]);
+        }
         setShowDropdown(false);
     };
 
     // Add a new item to the dropdown
     const handleAddNew = async (e) => {
         e.preventDefault();
-        
+
         if (!newItemName.trim()) {
             setError('Please enter a name for the new item');
             return;
         }
 
         // Check if item already exists
-        const existingItem = storeRoomItems.find(item => 
+        const existingItem = storeRoomItems.find(item =>
             item.name.toLowerCase() === newItemName.trim().toLowerCase()
         );
 
@@ -101,25 +107,26 @@ const RawMaterials = () => {
                 vendor: '',
                 address: '',
                 expiryDate: '',
-                usedByDate: ''
+                usedByDate: '',
+                purchaseDate: new Date().toISOString().split('T')[0]
             });
 
             // Update local state
             const newItem = response.data;
             setStoreRoomItems(prev => [...prev, newItem]);
             setFilteredItems(prev => [...prev, newItem]);
-            
+
             // Select the newly added item
             setName(newItem.name);
             setUnit(newItem.unit);
             setPrice(newItem.price.toString());
-            
+
             // Reset form
             setNewItemName('');
             setShowAddForm(false);
             setShowDropdown(false);
             setMessage(`Successfully added "${newItem.name}" to the list`);
-            
+
             // Clear message after 3 seconds
             setTimeout(() => setMessage(''), 3000);
         } catch (err) {
@@ -137,10 +144,10 @@ const RawMaterials = () => {
             const itemToRemove = storeRoomItems.find(item => item.name === itemName);
             if (itemToRemove) {
                 await axios.delete(`/admin/warehouse/store-room/${itemToRemove._id}`);
-                
+
                 setStoreRoomItems(prev => prev.filter(item => item.name !== itemName));
                 setFilteredItems(prev => prev.filter(item => item.name !== itemName));
-                
+
                 // If we removed the currently selected item, clear the form
                 if (itemName === name) {
                     setName('');
@@ -149,9 +156,9 @@ const RawMaterials = () => {
                     setPrice('');
                     setVendor('');
                 }
-                
+
                 setMessage(`"${itemName}" has been removed from the list`);
-                
+
                 // Clear message after 3 seconds
                 setTimeout(() => setMessage(''), 3000);
             }
@@ -165,16 +172,17 @@ const RawMaterials = () => {
         setError('');
         setMessage('');
         try {
-            const response = await axios.post('/admin/warehouse/raw-materials', { 
-                name, 
-                quantity, 
-                unit, 
-                price, 
+            const response = await axios.post('/admin/warehouse/raw-materials', {
+                name,
+                quantity,
+                unit,
+                price,
                 vendor,
                 address,
                 gstPercentage,
                 expiryDate,
-                usedByDate 
+                usedByDate,
+                purchaseDate
             });
             setMessage(`Successfully added/updated "${response.data.name}".`);
             // Clear the form for the next entry
@@ -187,7 +195,8 @@ const RawMaterials = () => {
             setGstPercentage('0');
             setExpiryDate('');
             setUsedByDate('');
-            
+            setPurchaseDate(new Date().toISOString().split('T')[0]);
+
             // Refresh store room items to include the new item
             try {
                 const response = await axios.get('/admin/warehouse/store-room');
@@ -206,7 +215,7 @@ const RawMaterials = () => {
                 <h1 className="text-2xl font-bold">Add Raw Material</h1>
                 {/* Show Create Account button only for admin users (not for raw-materials-only users) */}
                 {authState?.isAuthenticated && authState?.role === 'admin' && (
-                    <button 
+                    <button
                         onClick={() => {
                             setEditingAccount(null);  // Ensure we're in create mode
                             setShowManageMode(false);  // Set to open modal in create mode
@@ -222,12 +231,12 @@ const RawMaterials = () => {
                 )}
             </div>
             <p className="text-gray-600 mb-6">Use this form to add new raw materials or increase the quantity of existing ones. All materials can be managed in the "Store Room".</p>
-            
+
             {message && <div className="text-green-700 bg-green-100 p-3 rounded mb-4">{message}</div>}
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
-            
+
             <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-end">
                     <div className="md:col-span-2 relative" ref={dropdownRef}>
                         <label className="block text-sm font-medium">Ingredient Name</label>
                         <div className="relative">
@@ -243,8 +252,8 @@ const RawMaterials = () => {
                                 <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
                                     {filteredItems.map((item, index) => (
                                         <div key={index} className="p-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center">
-                                            <span 
-                                                onClick={() => selectItem(item)} 
+                                            <span
+                                                onClick={() => selectItem(item)}
                                                 className="flex-1"
                                             >
                                                 {item.name}
@@ -277,7 +286,7 @@ const RawMaterials = () => {
                                                     e.preventDefault();
                                                     setShowAddForm(true);
                                                     setNewItemName('');
-                                                 }}
+                                                }}
                                                 className="text-blue-600 hover:text-blue-800 text-sm font-medium w-full text-left"
                                             >
                                                 + Add New Item
@@ -385,11 +394,20 @@ const RawMaterials = () => {
                         />
                     </div>
                 </div>
-                
-                {/* Expiry and Used By Date fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* Purchase, Expiry and Used By Date fields */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <label className="block text-sm font-medium">Expiry Date</label>
+                        <label className="block text-sm font-medium">Purchase Date</label>
+                        <input
+                            type="date"
+                            value={purchaseDate}
+                            onChange={(e) => setPurchaseDate(e.target.value)}
+                            className="w-full mt-1 px-3 py-2 border rounded-md"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium">Manufacturing/Packing Date</label>
                         <input
                             type="date"
                             value={expiryDate}
@@ -407,7 +425,7 @@ const RawMaterials = () => {
                         />
                     </div>
                 </div>
-                
+
                 <button type="submit" className="w-full md:w-auto bg-primary text-white py-2 px-6 rounded-md hover:bg-primary-dark">Add Material to Store Room</button>
             </form>
 
@@ -421,7 +439,7 @@ const RawMaterials = () => {
                     }}
                     title={editingAccount ? "Edit Raw Materials Account" : "Create Raw Materials Account"}
                 >
-                    <CreateRawMaterialAccountModal 
+                    <CreateRawMaterialAccountModal
                         onClose={() => {
                             setShowCreateAccountModal(false);
                             setEditingAccount(null);  // Reset editing state when modal is closed

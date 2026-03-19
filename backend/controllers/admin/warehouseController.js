@@ -15,7 +15,7 @@ const { generateBatchId } = require('../../utils/billIdGenerator');
 // Raw Materials / Store Room
 const addRawMaterial = async (req, res) => {
     try {
-        const { name, quantity, unit, price, gstPercentage, vendor, address, expiryDate, usedByDate } = req.body;
+        const { name, quantity, unit, price, gstPercentage, vendor, address, expiryDate, usedByDate, purchaseDate } = req.body;
         // Find item case-insensitively and trim whitespace
         let item = await StoreRoomItem.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } });
 
@@ -34,7 +34,8 @@ const addRawMaterial = async (req, res) => {
                 pricePerUnit: basePrice,
                 gstPercentage: gst,
                 gstAmount: calculatedGstAmount,
-                materialType: 'Raw Material'
+                materialType: 'Raw Material',
+                receivedDate: purchaseDate ? new Date(purchaseDate) : new Date()
             });
             await vendorHistory.save();
         }
@@ -52,9 +53,21 @@ const addRawMaterial = async (req, res) => {
             // Update expiry and used by dates if provided
             if (expiryDate) item.expiryDate = new Date(expiryDate);
             if (usedByDate) item.usedByDate = new Date(usedByDate);
+            if (purchaseDate) item.purchaseDate = new Date(purchaseDate);
         } else {
             // Otherwise, create a new item
-            item = new StoreRoomItem({ name, quantity: qty, unit, price: basePrice, gstPercentage: gst, vendor, address, expiryDate: expiryDate ? new Date(expiryDate) : undefined, usedByDate: usedByDate ? new Date(usedByDate) : undefined });
+            item = new StoreRoomItem({
+                name,
+                quantity: qty,
+                unit,
+                price: basePrice,
+                gstPercentage: gst,
+                vendor,
+                address,
+                expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+                usedByDate: usedByDate ? new Date(usedByDate) : undefined,
+                purchaseDate: purchaseDate ? new Date(purchaseDate) : undefined
+            });
         }
         await item.save();
         res.status(201).json(item);
@@ -238,6 +251,9 @@ const updateStoreRoomItem = async (req, res) => {
         }
         if (updateData.usedByDate) {
             updateData.usedByDate = new Date(updateData.usedByDate);
+        }
+        if (updateData.purchaseDate) {
+            updateData.purchaseDate = new Date(updateData.purchaseDate);
         }
 
         const updatedItem = await StoreRoomItem.findByIdAndUpdate(id, updateData, { new: true });
@@ -855,7 +871,7 @@ const createOutgoingMaterial = async (req, res) => {
 // Get daily schedules with status
 const getDailySchedules = async (req, res) => {
     try {
-        const schedules = await DailySchedule.find().sort({ date: -1, createdAt: -1 });
+        const schedules = await DailySchedule.find().populate('category', 'name').sort({ date: -1, createdAt: -1 });
         res.json(schedules);
     } catch (error) {
         res.status(500).json({ message: 'Server Error', error: error.message });
@@ -1362,6 +1378,32 @@ const deleteAfterPackingItem = async (req, res) => {
     }
 };
 
+const deleteOutgoingMaterial = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const outgoingMaterial = await OutgoingMaterial.findById(id);
+
+        if (!outgoingMaterial) {
+            return res.status(404).json({ message: 'Outgoing material record not found' });
+        }
+
+        // Add quantity back to store room
+        const storeItem = await StoreRoomItem.findOne({
+            name: { $regex: new RegExp(`^${outgoingMaterial.materialName.trim()}$`, 'i') }
+        });
+
+        if (storeItem) {
+            storeItem.quantity += outgoingMaterial.quantityUsed;
+            await storeItem.save();
+        }
+
+        await OutgoingMaterial.findByIdAndDelete(id);
+        res.json({ message: 'Outgoing material record deleted and stock reverted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
 module.exports = {
     addRawMaterial,
     getStoreRoomItems,
@@ -1402,5 +1444,6 @@ module.exports = {
     getAfterPackingItems,
     updateAfterPackingStatus,
     addToStockFromAfterPacking,
-    deleteAfterPackingItem
+    deleteAfterPackingItem,
+    deleteOutgoingMaterial
 };

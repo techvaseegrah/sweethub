@@ -62,9 +62,35 @@ export const convertUnit = (quantity, fromUnit, toUnit) => {
     return quantity;
   }
 
-  // Default to 1 if unit is unknown
-  const fromFactor = UNIT_CONVERSION_FACTORS[normalizedFromUnit] !== undefined ? UNIT_CONVERSION_FACTORS[normalizedFromUnit] : 1;
-  const toFactor = UNIT_CONVERSION_FACTORS[normalizedToUnit] !== undefined ? UNIT_CONVERSION_FACTORS[normalizedToUnit] : 1;
+  // Improved factor retrieval that handles numeric prefixes like "250g"
+  const getFactor = (unit) => {
+    if (!unit) return 1;
+
+    // Check direct match
+    if (UNIT_CONVERSION_FACTORS[unit] !== undefined) {
+      return UNIT_CONVERSION_FACTORS[unit];
+    }
+
+    // Attempt to parse units like "250g", "500ml", "1kg", "250g packets"
+    // Regex: look for a number optionally followed by a unit at the start
+    const match = unit.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)/);
+    if (match) {
+      const value = parseFloat(match[1]);
+      const baseUnit = match[2];
+
+      // Get sub-factor for the base unit (e.g., "g" -> 0.001)
+      const subFactor = UNIT_CONVERSION_FACTORS[baseUnit] !== undefined
+        ? UNIT_CONVERSION_FACTORS[baseUnit]
+        : 1;
+
+      return value * subFactor;
+    }
+
+    return 1;
+  };
+
+  const fromFactor = getFactor(normalizedFromUnit);
+  const toFactor = getFactor(normalizedToUnit);
 
   // Convert to base unit (kg), then to target unit
   const quantityInBaseUnit = quantity * fromFactor;

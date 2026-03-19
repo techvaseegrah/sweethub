@@ -90,7 +90,7 @@ function AddProduct({ baseUrl = '/admin' }) {
   const selectProduct = (productName) => {
     setProductName(productName);
     const selectedProduct = allProducts.find(p => p.name === productName);
-    
+
     if (selectedProduct) {
       if (selectedProduct.category) {
         setCategory(selectedProduct.category._id || selectedProduct.category);
@@ -103,7 +103,7 @@ function AddProduct({ baseUrl = '/admin' }) {
       }
       // Keep stockLevel blank so the user can enter the quantity to add
       setStockLevel('');
-      
+
       if (selectedProduct.prices && selectedProduct.prices.length > 0) {
         const formattedPrices = selectedProduct.prices.map(p => ({
           unit: p.unit || 'piece',
@@ -113,7 +113,7 @@ function AddProduct({ baseUrl = '/admin' }) {
         setProductUnits(formattedPrices);
       }
     }
-    
+
     setShowDropdown(false);
   };
 
