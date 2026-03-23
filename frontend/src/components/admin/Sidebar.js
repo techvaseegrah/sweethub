@@ -40,6 +40,7 @@ const Sidebar = () => {
 
     const { authState, logout } = useContext(AuthContext);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
+    const isProductBilling = authState?.role === 'product-billing-admin';
 
     useEffect(() => {
         const fetchTotalStockAlerts = async () => {
@@ -220,7 +221,7 @@ const Sidebar = () => {
 
             <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
                 {/* Dashboard - Hide for packing-only and raw-materials-only users */}
-                {authState?.role !== 'attendance-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'warehouse-only' && authState?.role !== 'raw-materials' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'warehouse-only' && authState?.role !== 'raw-materials' && !isProductBilling && (
                     <NavLink
                         to="/admin/dashboard"
                         className={({ isActive }) =>
@@ -410,8 +411,8 @@ const Sidebar = () => {
                 )}
                 {/* End of Raw Materials and Manufacturing for raw-materials-only users */}
 
-                {/* Worker Management - Hide for packing-only users */}
-                {authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {/* Worker Management - Hide for packing-only and product-billing users */}
+                {authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <details className="group" open={openMenu === 'workers'} onToggle={(e) => {
                         if (e.target.open) toggleMenu('workers');
                         else if (openMenu === 'workers') setOpenMenu(null);
@@ -512,7 +513,8 @@ const Sidebar = () => {
                     </details>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {/* Department Management - Hide for packing-only and product-billing users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <>
                         {/* Department Management - Hide for packing-only users */}
                         <details className="group" open={openMenu === 'departments'} onToggle={(e) => {
@@ -684,7 +686,8 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'warehouse-only' && authState?.role !== 'raw-materials' && (
+                {/* Warehouse Management - Hide for product-billing users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'warehouse-only' && authState?.role !== 'raw-materials' && !isProductBilling && (
                     <>
                         {/* Warehouse Management - Hide for packing-only users (they see their specific modules below) */}
                         {(authState?.role === 'admin' || authState?.role === 'raw-materials-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
@@ -943,8 +946,8 @@ const Sidebar = () => {
 
                 {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && (
                     <>
-                        {/* Before Packing Toggle - Only show for before-packing-only users and admin */}
-                        {(authState?.role === 'admin' || authState?.role === 'before-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
+                        {/* Before Packing Toggle - Hide for product-billing users */}
+                        {(authState?.role === 'admin' || authState?.role === 'before-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && !isProductBilling && (
                             <details className="group" open={openMenu === 'beforePacking'} onToggle={(e) => {
                                 if (e.target.open) toggleMenu('beforePacking');
                                 else if (openMenu === 'beforePacking') setOpenMenu(null);
@@ -1007,8 +1010,8 @@ const Sidebar = () => {
                             </details>
                         )}
 
-                        {/* After Packing Toggle - Only show for after-packing-only users and admin */}
-                        {(authState?.role === 'admin' || authState?.role === 'after-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && (
+                        {/* After Packing Toggle - Hide for product-billing users */}
+                        {(authState?.role === 'admin' || authState?.role === 'after-packing-only' || authState?.role === 'warehouse-only' || authState?.role === 'raw-materials') && !isProductBilling && (
                             <details className="group" open={openMenu === 'afterPacking'} onToggle={(e) => {
                                 if (e.target.open) toggleMenu('afterPacking');
                                 else if (openMenu === 'afterPacking') setOpenMenu(null);
@@ -1086,8 +1089,8 @@ const Sidebar = () => {
                             </details>
                         )}
 
-                        {/* Shop Management - Hidden for packing-only users */}
-                        {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                        {/* Shop Management - Hide for product-billing users */}
+                        {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                             <details className="group" open={openMenu === 'shops'} onToggle={(e) => {
                                 if (e.target.open) toggleMenu('shops');
                                 else if (openMenu === 'shops') setOpenMenu(null);
@@ -1136,7 +1139,7 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <>
                         {/* Task Management */}
                         <details className="group" open={openMenu === 'tasks'} onToggle={(e) => {
@@ -1236,7 +1239,7 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <>
                         {/* Reports Management */}
                         <details className="group" open={openMenu === 'reports'} onToggle={(e) => {
@@ -1354,7 +1357,7 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <>
                         {/* E-Way Bill Management */}
                         <details className="group" open={openMenu === 'ewayBills'} onToggle={(e) => {
@@ -1404,7 +1407,8 @@ const Sidebar = () => {
                     </>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {/* Invoice History - Hide for product-billing users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <NavLink
                         to="/admin/invoices/history"
                         className={({ isActive }) =>
@@ -1463,7 +1467,8 @@ const Sidebar = () => {
                     </NavLink>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {/* Return Products - Hide for product-billing users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <NavLink
                         to="/admin/warehouse/return-products"
                         className={({ isActive }) =>
@@ -1489,7 +1494,8 @@ const Sidebar = () => {
                     </NavLink>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {/* Expenses Module - Hide for product-billing users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <NavLink
                         to="/admin/expenses"
                         className={({ isActive }) =>
@@ -1515,7 +1521,8 @@ const Sidebar = () => {
                     </NavLink>
                 )}
 
-                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && (
+                {/* Settings Module - Hide for product-billing users */}
+                {authState?.role !== 'attendance-only' && authState?.role !== 'raw-materials-only' && authState?.role !== 'before-packing-only' && authState?.role !== 'after-packing-only' && !isProductBilling && (
                     <>
                         <NavLink
                             to="/admin/settings"

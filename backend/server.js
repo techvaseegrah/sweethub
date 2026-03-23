@@ -48,6 +48,7 @@ const adminOrderRoutes = require('./routes/admin/orderRoutes');
 const productionReportRoutes = require('./routes/admin/productionReportRoutes');
 const stockReportRoutes = require('./routes/admin/stockReportRoutes');
 const gstReportRoutes = require('./routes/admin/gstReportRoutes');
+const adminProductBillingUserRoutes = require('./routes/admin/productBillingUserRoutes');
 
 
 // SHOP ROUTES
@@ -67,6 +68,7 @@ const shopSettingsRoutes = require('./routes/shop/shopSettingsRoutes');
 const shopAttendanceOnlyUserRoutes = require('./routes/shop/shopAttendanceOnlyUserRoutes');
 const shopOrderRoutes = require('./routes/shop/orderRoutes');
 const shopMixedSweetRoutes = require('./routes/shop/mixedSweetRoutes');
+const shopProductBillingUserRoutes = require('./routes/shop/shopProductBillingUserRoutes');
 
 const PORT = process.env.PORT || 5000;
 
@@ -97,6 +99,7 @@ app.use('/api/admin/orders', adminOrderRoutes);
 app.use('/api/admin/reports/production', productionReportRoutes);
 app.use('/api/admin/reports/stock', stockReportRoutes);
 app.use('/api/admin/reports/gst', gstReportRoutes);
+app.use('/api/admin/product-billing-users', adminProductBillingUserRoutes);
 
 
 // SHOP
@@ -117,6 +120,7 @@ app.use('/api/shop/settings', shopSettingsRoutes);
 app.use('/api/shop/attendance-only-users', shopAttendanceOnlyUserRoutes);
 app.use('/api/shop/orders', shopOrderRoutes);
 app.use('/api/shop/mixed-sweets', shopMixedSweetRoutes);
+app.use('/api/shop/product-billing-users', shopProductBillingUserRoutes);
 
 // Add Before Packing and After Packing user routes after all other routes
 const User = require('./models/User');

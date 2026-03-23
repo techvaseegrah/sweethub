@@ -40,6 +40,12 @@ function CreateBill({ baseUrl = '/admin' }) {
   const [modalSearchTerm, setModalSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
+  // Customer Suggestions States
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(-1);
+  const [activeCustomerField, setActiveCustomerField] = useState(null); // 'mobile', 'name', or 'address'
+
   // Bill Info States
   const [billDate, setBillDate] = useState(() => {
     const now = new Date();
@@ -273,6 +279,45 @@ function CreateBill({ baseUrl = '/admin' }) {
   useEffect(() => {
     fetchProductsAndShops();
   }, [fetchProductsAndShops]);
+
+  const fetchCustomerSuggestions = useCallback(async (query, field) => {
+    if (!query || query.length < 3) {
+      setCustomerSuggestions([]);
+      setShowCustomerDropdown(false);
+      return;
+    }
+    try {
+      // For admin, use the bills/search-customers endpoint
+      const response = await axios.get(`${baseUrl}/bills/search-customers?query=${query}`);
+      setCustomerSuggestions(response.data);
+      setShowCustomerDropdown(response.data.length > 0);
+      setActiveCustomerField(field);
+      setSelectedCustomerIndex(0);
+    } catch (err) {
+      console.error('Error fetching customer suggestions:', err);
+    }
+  }, [baseUrl]);
+
+  const handleSelectCustomer = (customer) => {
+    setCustomerMobileNumber(customer.mobile);
+    setToInfo(prev => ({
+      ...prev,
+      name: customer.name || prev.name,
+      address: customer.address || prev.address
+    }));
+    setShowCustomerDropdown(false);
+  };
+
+  const handleDeleteCustomerSelection = async (e, mobile) => {
+    e.stopPropagation(); // Prevent selection
+    try {
+      await axios.post(`${baseUrl}/bills/hide-customer-suggestions`, { mobile });
+      setCustomerSuggestions(prev => prev.filter(c => c.mobile !== mobile));
+      if (customerSuggestions.length <= 1) setShowCustomerDropdown(false);
+    } catch (err) {
+      console.error('Error hiding customer suggestions:', err);
+    }
+  };
 
   useEffect(() => {
     if (selectedShop && selectedShop !== 'admin' && shops.length > 0) {
@@ -730,13 +775,31 @@ function CreateBill({ baseUrl = '/admin' }) {
           setShowWorkerDropdown(false);
           setSelectedWorkerIndex(-1);
         }
+      } else if (showCustomerDropdown) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedCustomerIndex(prev => prev < customerSuggestions.length - 1 ? prev + 1 : 0);
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedCustomerIndex(prev => prev > 0 ? prev - 1 : customerSuggestions.length - 1);
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (customerSuggestions[selectedCustomerIndex]) {
+            handleSelectCustomer(customerSuggestions[selectedCustomerIndex]);
+          }
+        }
+        if (e.key === 'Escape') {
+          setShowCustomerDropdown(false);
+        }
       } else if (e.key === 'Enter' && currentItem.product && document.activeElement === quantityRef.current) {
         handleAddItem();
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [showDropdown, filteredProducts, selectedProductIndex, currentItem, baseUrl, showWorkerDropdown, workers, workerSearchTerm, handleSubmit]); // Added handleSubmit to dependencies
+  }, [showDropdown, filteredProducts, selectedProductIndex, currentItem, baseUrl, showWorkerDropdown, workers, workerSearchTerm, handleSubmit, showCustomerDropdown, customerSuggestions, selectedCustomerIndex, handleSelectCustomer]);
 
 
   if (loading) return <div className="p-10 text-center">Loading...</div>;
@@ -823,23 +886,89 @@ function CreateBill({ baseUrl = '/admin' }) {
           <div className="col-span-8 flex flex-col gap-2">
             <div className="flex gap-2">
               <div className="w-1/3">
-                <input
-                  ref={customerMobileRef}
-                  type="text"
-                  placeholder="Mobile Number"
-                  className="w-full p-2 border rounded text-sm focus:ring-1 focus:ring-blue-500"
-                  value={customerMobileNumber}
-                  onChange={(e) => setCustomerMobileNumber(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    ref={customerMobileRef}
+                    type="text"
+                    placeholder="Mobile Number"
+                    className="w-full p-2 border rounded text-sm focus:ring-1 focus:ring-blue-500"
+                    value={customerMobileNumber}
+                    onChange={(e) => {
+                      setCustomerMobileNumber(e.target.value);
+                      fetchCustomerSuggestions(e.target.value, 'mobile');
+                    }}
+                    onFocus={() => {
+                      if (customerMobileNumber.length >= 3) fetchCustomerSuggestions(customerMobileNumber, 'mobile');
+                    }}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                  />
+                  {showCustomerDropdown && activeCustomerField === 'mobile' && (
+                    <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                      {customerSuggestions.map((c, i) => (
+                        <li
+                          key={i}
+                          className={`p-2 cursor-pointer border-b flex justify-between items-center ${i === selectedCustomerIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
+                          onClick={() => handleSelectCustomer(c)}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-bold">{c.mobile}</span>
+                            <span className="text-xs text-gray-500">{c.name} - {c.address}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteCustomerSelection(e, c.mobile)}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Delete this suggestion"
+                          >
+                            ✕
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
               <div className="w-1/3">
-                <input
-                  type="text"
-                  placeholder="Customer Name (Optional)"
-                  className="w-full p-2 border rounded text-sm"
-                  value={toInfo.name}
-                  onChange={(e) => setToInfo({ ...toInfo, name: e.target.value })}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Customer Name (Optional)"
+                    className="w-full p-2 border rounded text-sm"
+                    value={toInfo.name}
+                    onChange={(e) => {
+                      setToInfo({ ...toInfo, name: e.target.value });
+                      fetchCustomerSuggestions(e.target.value, 'name');
+                    }}
+                    onFocus={() => {
+                      if (toInfo.name.length >= 3) fetchCustomerSuggestions(toInfo.name, 'name');
+                    }}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                  />
+                  {showCustomerDropdown && activeCustomerField === 'name' && (
+                    <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                      {customerSuggestions.map((c, i) => (
+                        <li
+                          key={i}
+                          className={`p-2 cursor-pointer border-b flex justify-between items-center ${i === selectedCustomerIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
+                          onClick={() => handleSelectCustomer(c)}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-bold">{c.name}</span>
+                            <span className="text-xs text-gray-500">{c.mobile} - {c.address}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteCustomerSelection(e, c.mobile)}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Delete this suggestion"
+                          >
+                            ✕
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
               <div className="w-1/3">
                 <input type="text" placeholder="PO No." className="w-full p-2 border rounded text-sm" />
@@ -847,13 +976,46 @@ function CreateBill({ baseUrl = '/admin' }) {
             </div>
             <div className="flex gap-2">
               <div className="w-2/3">
-                <input
-                  type="text"
-                  placeholder="Billing Address"
-                  className="w-full p-2 border rounded text-sm"
-                  value={toInfo.address}
-                  onChange={(e) => setToInfo({ ...toInfo, address: e.target.value })}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Billing Address"
+                    className="w-full p-2 border rounded text-sm"
+                    value={toInfo.address}
+                    onChange={(e) => {
+                      setToInfo({ ...toInfo, address: e.target.value });
+                      fetchCustomerSuggestions(e.target.value, 'address');
+                    }}
+                    onFocus={() => {
+                      if (toInfo.address.length >= 3) fetchCustomerSuggestions(toInfo.address, 'address');
+                    }}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                  />
+                  {showCustomerDropdown && activeCustomerField === 'address' && (
+                    <ul className="absolute left-0 top-full mt-1 w-full bg-white border shadow-lg max-h-60 overflow-y-auto z-50 rounded">
+                      {customerSuggestions.map((c, i) => (
+                        <li
+                          key={i}
+                          className={`p-2 cursor-pointer border-b flex justify-between items-center ${i === selectedCustomerIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
+                          onClick={() => handleSelectCustomer(c)}
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-bold">{c.address}</span>
+                            <span className="text-xs text-gray-500">{c.name} - {c.mobile}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteCustomerSelection(e, c.mobile)}
+                            className="text-red-400 hover:text-red-600 p-1"
+                            title="Delete this suggestion"
+                          >
+                            ✕
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
               <div className="w-1/3">
                 <input type="text" placeholder="PO Date" className="w-full p-2 border rounded text-sm" />

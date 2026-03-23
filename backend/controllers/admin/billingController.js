@@ -8,6 +8,70 @@ const { sendWhatsAppBill } = require('../../services/whatsappService');
 const { generateAdminBillId, generateShopBillId } = require('../../utils/billIdGenerator');
 const { convertUnit, areRelatedUnits } = require('../../utils/unitConversion');
 
+exports.searchCustomers = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query || query.length < 3) {
+      return res.json([]);
+    }
+
+    // Search for unique customers by mobile or name
+    const customers = await Bill.aggregate([
+      {
+        $match: {
+          $or: [
+            { customerMobileNumber: { $regex: query, $options: 'i' } },
+            { customerName: { $regex: query, $options: 'i' } },
+            { "toInfo.address": { $regex: query, $options: 'i' } }
+          ],
+          isDeleted: false,
+          hideFromSuggestions: { $ne: true }
+        }
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $group: {
+          _id: '$customerMobileNumber',
+          customerName: { $first: '$customerName' },
+          toInfo: { $first: '$toInfo' }
+        }
+      },
+      {
+        $limit: 10
+      }
+    ]);
+
+    res.json(customers.map(c => ({
+      mobile: c._id,
+      name: c.customerName,
+      address: c.toInfo?.address || ''
+    })));
+  } catch (error) {
+    console.error('Search Customers Error:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+exports.hideCustomerSuggestions = async (req, res) => {
+  try {
+    const { mobile } = req.body;
+    if (!mobile) return res.status(400).json({ message: 'Mobile number is required' });
+
+    // Mark all matching bills for this mobile as hidden from suggestions
+    await Bill.updateMany(
+      { customerMobileNumber: mobile },
+      { hideFromSuggestions: true }
+    );
+
+    res.json({ message: 'Customer suggestions hidden successfully' });
+  } catch (error) {
+    console.error('Hide Customer Suggestions Error:', error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
 exports.createBill = async (req, res) => {
   const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate, isTaxInvoice } = req.body;
 

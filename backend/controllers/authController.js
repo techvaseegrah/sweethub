@@ -113,6 +113,17 @@ exports.loginUser = async (req, res) => {
                 userType = 'admin';
             }
         }
+        // Handle product-billing-shop users
+        else if (user.role.name === 'product-billing-shop') {
+            if (user.shop) {
+                shopId = user.shop;
+                userType = 'shop';
+            }
+        }
+        // Handle product-billing-admin users
+        else if (user.role.name === 'product-billing-admin') {
+            userType = 'admin';
+        }
 
         // Add shopId to the token payload
         const token = jwt.sign(
@@ -128,8 +139,16 @@ exports.loginUser = async (req, res) => {
             token,
         };
 
-        // Include userType for attendance-only, raw-materials-only, before-packing-only, and after-packing-only users
-        if (user.role.name === 'attendance-only' || user.role.name === 'raw-materials-only' || user.role.name === 'before-packing-only' || user.role.name === 'after-packing-only') {
+        // Include userType for relevant roles
+        const userTypeRequiredRoles = [
+            'attendance-only',
+            'raw-materials-only',
+            'before-packing-only',
+            'after-packing-only',
+            'product-billing-shop',
+            'product-billing-admin'
+        ];
+        if (userTypeRequiredRoles.includes(user.role.name)) {
             response.userType = userType;
         }
 

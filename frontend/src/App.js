@@ -49,7 +49,7 @@ function App() {
               <Route
                 path="/admin/*"
                 element={
-                  <ProtectedRoute allowedRoles={['admin', 'attendance-only', 'raw-materials-only', 'before-packing-only', 'after-packing-only', 'warehouse-only', 'raw-materials']} fallbackPath="/">
+                  <ProtectedRoute allowedRoles={['admin', 'attendance-only', 'raw-materials-only', 'before-packing-only', 'after-packing-only', 'warehouse-only', 'raw-materials', 'product-billing-admin']} fallbackPath="/">
                     <AdminDashboardPage />
                   </ProtectedRoute>
                 }
@@ -59,7 +59,7 @@ function App() {
               <Route
                 path="/shop/*"
                 element={
-                  <ProtectedRoute allowedRoles={['shop', 'attendance-only', 'raw-materials-only']} fallbackPath="/">
+                  <ProtectedRoute allowedRoles={['shop', 'attendance-only', 'raw-materials-only', 'product-billing-shop']} fallbackPath="/">
                     <ShopPage />
                   </ProtectedRoute>
                 }

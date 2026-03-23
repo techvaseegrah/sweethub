@@ -136,6 +136,11 @@ const billSchema = new mongoose.Schema({
   isTaxInvoice: {
     type: Boolean,
     default: false
+  },
+  // Flag to hide from auto-suggest
+  hideFromSuggestions: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true,

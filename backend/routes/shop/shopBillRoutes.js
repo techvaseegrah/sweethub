@@ -5,6 +5,8 @@ const { shopAuth } = require('../../middleware/auth');
 
 
 router.post('/billing', shopAuth, billController.createBill);
+router.get('/billing/search-customers', shopAuth, billController.searchCustomers);
+router.post('/billing/hide-customer-suggestions', shopAuth, billController.hideCustomerSuggestions);
 router.get('/report/sales', shopAuth, billController.getSalesReport);
 router.get('/billing', shopAuth, billController.getBills);
 

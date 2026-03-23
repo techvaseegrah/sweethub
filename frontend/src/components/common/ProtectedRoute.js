@@ -79,6 +79,36 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
     }
   }
 
+  // Special handling for product-billing-admin users
+  if (authState?.role === 'product-billing-admin') {
+    const currentPath = window.location.pathname;
+    const isAllowedPath =
+      currentPath.startsWith('/admin/products') ||
+      currentPath.startsWith('/admin/bills') ||
+      currentPath.startsWith('/admin/orders') ||
+      currentPath.startsWith('/admin/categories');
+
+    if (!isAllowedPath) {
+      // Redirect to products page as default
+      return <Navigate to="/admin/products/view" replace />;
+    }
+  }
+
+  // Special handling for product-billing-shop users
+  if (authState?.role === 'product-billing-shop') {
+    const currentPath = window.location.pathname;
+    const isAllowedPath =
+      currentPath.startsWith('/shop/products') ||
+      currentPath.startsWith('/shop/billing') ||
+      currentPath.startsWith('/shop/orders') ||
+      currentPath.startsWith('/shop/categories');
+
+    if (!isAllowedPath) {
+      // Redirect to products page as default
+      return <Navigate to="/shop/products/view" replace />;
+    }
+  }
+
   // If specific roles are required, check if user has one of them
   if (allowedRoles.length > 0) {
     if (!allowedRoles.includes(authState?.role)) {

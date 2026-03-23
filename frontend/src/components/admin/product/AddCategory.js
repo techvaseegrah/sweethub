@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
+import CreateProductBillingAccountModal from './CreateProductBillingAccountModal';
 
 function AddCategory({ baseUrl = '/admin' }) {
+  const isShop = baseUrl.includes('shop');
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const CATEGORY_URL = `${baseUrl}/categories`;
   const SHOPS_URL = `${baseUrl}/shops`;
   const [categoryName, setCategoryName] = useState('');
@@ -107,7 +110,18 @@ function AddCategory({ baseUrl = '/admin' }) {
 
   return (
     <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
-      <h3 className="text-xl md:text-2xl font-semibold mb-4 text-gray-800"></h3>
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-xl md:text-2xl font-semibold text-gray-800">Add Category</h3>
+        <button
+          onClick={() => setShowAccountModal(true)}
+          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-200 flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+          </svg>
+          Create Account
+        </button>
+      </div>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="categoryName">
@@ -184,6 +198,26 @@ function AddCategory({ baseUrl = '/admin' }) {
                 Yes, Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Account Creation Modal */}
+      {showAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
+            <div className="bg-red-600 px-4 py-3 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-white">Create Product-Billing Account</h3>
+              <button onClick={() => setShowAccountModal(false)} className="text-white hover:text-gray-200">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <CreateProductBillingAccountModal
+              onClose={() => setShowAccountModal(false)}
+              onAccountCreated={() => { }}
+              isShop={isShop}
+            />
           </div>
         </div>
       )}

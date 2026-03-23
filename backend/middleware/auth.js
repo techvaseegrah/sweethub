@@ -15,7 +15,7 @@ exports.adminAuth = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const allowedRoles = ['admin', 'raw-materials-only', 'before-packing-only', 'after-packing-only', 'warehouse-only', 'raw-materials'];
+        const allowedRoles = ['admin', 'raw-materials-only', 'before-packing-only', 'after-packing-only', 'warehouse-only', 'raw-materials', 'product-billing-admin'];
         if (!allowedRoles.includes(decoded.role)) {
             console.log('User role not authorized for admin access:', decoded.role);
             return res.status(403).json({ message: 'Forbidden: Admin access required.' });
@@ -43,8 +43,8 @@ exports.shopAuth = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Allow access if user is admin OR a shop user with a valid shopId
-        if (decoded.role === 'admin' || (decoded.role === 'shop' && decoded.shopId)) {
+        // Allow access if user is admin OR a shop user with a valid shopId OR a product-billing-shop user with a valid shopId
+        if (decoded.role === 'admin' || ((decoded.role === 'shop' || decoded.role === 'product-billing-shop') && decoded.shopId)) {
             req.user = decoded;
             // Attach shopId to the request if it exists
             if (decoded.shopId) {

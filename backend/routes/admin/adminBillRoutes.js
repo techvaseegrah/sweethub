@@ -5,6 +5,8 @@ const { adminAuth } = require('../../middleware/auth');
 
 
 router.post('/', adminAuth, billingController.createBill);
+router.get('/search-customers', adminAuth, billingController.searchCustomers);
+router.post('/hide-customer-suggestions', adminAuth, billingController.hideCustomerSuggestions);
 router.get('/report/sales', adminAuth, billingController.getSalesReport);
 router.get('/', adminAuth, billingController.getBills);
 

@@ -175,6 +175,7 @@ function ShopSidebar() {
   // }, []);
 
   const { logout, authState } = useContext(AuthContext);
+  const isProductBilling = authState?.role === 'product-billing-shop';
 
   useEffect(() => {
     const checkPendingInvoice = async () => {
@@ -322,7 +323,7 @@ function ShopSidebar() {
       </div>
 
       <nav className="flex-1 px-4 py-6 space-y-2 relative z-10 overflow-y-auto">
-        {authState?.role !== 'attendance-only' && (
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <NavLink
             to="/shop/dashboard"
             className={({ isActive }) =>
@@ -346,50 +347,54 @@ function ShopSidebar() {
           </NavLink>
         )}
 
-        <details className="group" open={openMenu === 'workers'} onToggle={(e) => {
-          if (e.target.open) toggleMenu('workers');
-          else if (openMenu === 'workers') setOpenMenu(null);
-        }}>
-          <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
-            <div className="flex items-center">
-              <LuUsers className={`mr-3 text-lg ${iconColor}`} />
-              <span className="font-medium">Workers</span>
-            </div>
-            <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
-          </summary>
-          <nav className="mt-1 ml-6 space-y-1">
-            {authState?.role !== 'attendance-only' && (
-              <NavLink to="/shop/workers/add" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                <span className="font-medium">Add Worker</span>
+        {/* Workers Module - Hide for product-billing users */}
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
+          <details className="group" open={openMenu === 'workers'} onToggle={(e) => {
+            if (e.target.open) toggleMenu('workers');
+            else if (openMenu === 'workers') setOpenMenu(null);
+          }}>
+            <summary className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer ${hoverBg} ${textPrimary} list-none`}>
+              <div className="flex items-center">
+                <LuUsers className={`mr-3 text-lg ${iconColor}`} />
+                <span className="font-medium">Workers</span>
+              </div>
+              <LuChevronRight className={`w-4 h-4 transition-transform duration-200 ${openMenu === 'workers' ? 'rotate-90 text-blue-500' : 'text-red-500'}`} />
+            </summary>
+            <nav className="mt-1 ml-6 space-y-1">
+              {authState?.role !== 'attendance-only' && (
+                <NavLink to="/shop/workers/add" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                  <span className="font-medium">Add Worker</span>
+                </NavLink>
+              )}
+              {authState?.role !== 'attendance-only' && (
+                <NavLink to="/shop/workers/view" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                  <span className="font-medium">View Workers</span>
+                </NavLink>
+              )}
+              <NavLink to="/shop/workers/attendance" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                <span className="font-medium">Attendance Tracking</span>
               </NavLink>
-            )}
-            {authState?.role !== 'attendance-only' && (
-              <NavLink to="/shop/workers/view" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                <span className="font-medium">View Workers</span>
-              </NavLink>
-            )}
-            <NavLink to="/shop/workers/attendance" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-              <span className="font-medium">Attendance Tracking</span>
-            </NavLink>
-            {authState?.role !== 'attendance-only' && (
-              <NavLink to="/shop/workers/salary-report" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                <span className="font-medium">Salary Report</span>
-              </NavLink>
-            )}
-            {authState?.role !== 'attendance-only' && (
-              <NavLink to="/shop/workers/holidays" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                <span className="font-medium">Holidays</span>
-              </NavLink>
-            )}
-            {authState?.role !== 'attendance-only' && (
-              <NavLink to="/shop/face-enrollment" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                <span className="font-medium">Face Enrollment</span>
-              </NavLink>
-            )}
-          </nav>
-        </details>
+              {authState?.role !== 'attendance-only' && (
+                <NavLink to="/shop/workers/salary-report" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                  <span className="font-medium">Salary Report</span>
+                </NavLink>
+              )}
+              {authState?.role !== 'attendance-only' && (
+                <NavLink to="/shop/workers/holidays" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                  <span className="font-medium">Holidays</span>
+                </NavLink>
+              )}
+              {authState?.role !== 'attendance-only' && (
+                <NavLink to="/shop/face-enrollment" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                  <span className="font-medium">Face Enrollment</span>
+                </NavLink>
+              )}
+            </nav>
+          </details>
+        )}
 
-        {authState?.role !== 'attendance-only' && (
+        {/* Departments Module - Hide for product-billing users */}
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <details className="group" open={openMenu === 'departments'} onToggle={(e) => {
             if (e.target.open) toggleMenu('departments');
             else if (openMenu === 'departments') setOpenMenu(null);
@@ -459,7 +464,8 @@ function ShopSidebar() {
           </details>
         )}
 
-        {authState?.role !== 'attendance-only' && (
+        {/* Manufacturing - Hide for product-billing users */}
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <NavLink
             to="/shop/manufacturing"
             className={({ isActive }) =>
@@ -482,7 +488,8 @@ function ShopSidebar() {
           </NavLink>
         )}
 
-        {authState?.role !== 'attendance-only' && (
+        {/* View Invoice - Hide for product-billing users */}
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <NavLink
             to="/shop/invoice/view"
             className={({ isActive }) =>
@@ -556,8 +563,9 @@ function ShopSidebar() {
           </NavLink>
         )}
 
+        {/* Expenses Module - Hide for product-billing users */}
         {/* Expenses Module */}
-        {authState?.role !== 'attendance-only' && (
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <NavLink
             to="/shop/expenses"
             className={({ isActive }) =>
@@ -581,8 +589,9 @@ function ShopSidebar() {
           </NavLink>
         )}
 
+        {/* Return Products Module - Hide for product-billing users */}
         {/* Return Products Module */}
-        {authState?.role !== 'attendance-only' && (
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <NavLink
             to="/shop/return-products"
             className={({ isActive }) =>
@@ -606,8 +615,9 @@ function ShopSidebar() {
           </NavLink>
         )}
 
+        {/* Reports Module - Hide for product-billing users */}
         {/* Reports Module */}
-        {authState?.role !== 'attendance-only' && (
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <details className="group" open={openMenu === 'reports'} onToggle={(e) => {
             if (e.target.open) toggleMenu('reports');
             else if (openMenu === 'reports') setOpenMenu(null);
@@ -627,8 +637,9 @@ function ShopSidebar() {
           </details>
         )}
 
+        {/* Settings Link - Hide for product-billing users */}
         {/* Settings Link - Moved to be right after Return Products */}
-        {authState?.role !== 'attendance-only' && (
+        {authState?.role !== 'attendance-only' && !isProductBilling && (
           <NavLink
             to="/shop/settings"
             className={({ isActive }) =>
@@ -670,7 +681,7 @@ function ShopSidebar() {
         onClose={cancelLogout}
         onConfirm={confirmLogout}
       />
-    </div>
+    </div >
   );
 }
 
