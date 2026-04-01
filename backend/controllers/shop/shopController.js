@@ -1,6 +1,6 @@
-const Product = require('../../models/productModel'); 
-const Bill = require('../../models/billModel'); 
-const Worker = require('../../models/workerModel'); 
+const Product = require('../../models/productModel');
+const Bill = require('../../models/billModel');
+const Worker = require('../../models/workerModel');
 const Department = require('../../models/departmentModel');
 const Shop = require('../../models/shopModel');
 const mongoose = require('mongoose'); // Added this missing line
@@ -16,13 +16,13 @@ exports.getShopDashboard = async (req, res) => {
 
     // Fetch workers belonging to this shop
     const workers = await Worker.find({ shop: req.shopId }).populate('user', 'name').select('name workingHours');
-    
+
     // Fetch products belonging to this shop
     const products = await Product.find({ shop: req.shopId }).select('name stockLevel unit');
-    
+
     // Fetch departments belonging to this shop
     const departments = await Department.find({ shop: req.shopId }).select('name');
-    
+
     // Fetch invoice count for this shop (excluding reference and deleted bills)
     const invoiceCount = await Bill.countDocuments({ shop: req.shopId, billType: { $ne: 'REFERENCE' }, isDeleted: { $ne: true } });
 
@@ -45,7 +45,7 @@ exports.getShopDetails = async (req, res) => {
     if (!req.shopId) {
       return res.status(400).json({ message: 'Shop ID not found in token.' });
     }
-    const shop = await Shop.findById(req.shopId).select('name location shopPhoneNumber gstNumber fssaiNumber');
+    const shop = await Shop.findById(req.shopId).select('name location shopPhoneNumber gstNumber fssaiNumber hasTaxInvoiceAccess');
     if (!shop) {
       return res.status(404).json({ message: 'Shop not found.' });
     }

@@ -4,14 +4,14 @@ import axios from '../../../api/axios';
 // Add a utility function to convert 24-hour time to 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
   if (!time24) return '--:--';
-  
+
   const [hours, minutes] = time24.split(':');
   let hoursInt = parseInt(hours, 10);
   const ampm = hoursInt >= 12 ? 'PM' : 'AM';
-  
+
   // Convert to 12-hour format
   hoursInt = hoursInt % 12 || 12;
-  
+
   return `${hoursInt}:${minutes} ${ampm}`;
 };
 
@@ -20,7 +20,7 @@ const Settings = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState(''); // success or error
-  
+
   // Batch states
   const [batches, setBatches] = useState([]);
   const [newBatch, setNewBatch] = useState({
@@ -32,7 +32,10 @@ const Settings = () => {
   const [editingBatchId, setEditingBatchId] = useState(null);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null); // State for delete confirmation modal
-  
+
+  // Access control state
+  const [shops, setShops] = useState([]);
+
   // Fetch current GST settings on component mount
   useEffect(() => {
     const fetchGstSettings = async () => {
@@ -45,7 +48,7 @@ const Settings = () => {
         setMessageType('error');
       }
     };
-    
+
     const fetchBatchSettings = async () => {
       try {
         const response = await axios.get('/admin/settings/batches');
@@ -55,9 +58,19 @@ const Settings = () => {
         // Don't show error message for batches as it's not critical
       }
     };
-    
+
+    const fetchShops = async () => {
+      try {
+        const response = await axios.get('/admin/shops');
+        setShops(response.data);
+      } catch (error) {
+        console.error('Error fetching shops:', error);
+      }
+    };
+
     fetchGstSettings();
     fetchBatchSettings();
+    fetchShops();
   }, []);
 
   const handleSaveGst = async () => {
@@ -66,16 +79,16 @@ const Settings = () => {
       setMessageType('error');
       return;
     }
-    
+
     setLoading(true);
     setMessage('');
-    
+
     try {
       const response = await axios.post('/admin/settings/gst', { gstPercentage });
-      
+
       setMessage(response.data.message);
       setMessageType('success');
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setMessage('');
@@ -88,7 +101,7 @@ const Settings = () => {
       setLoading(false);
     }
   };
-  
+
   // Batch functions
   const handleAddBatch = async () => {
     if (!newBatch.name) {
@@ -96,10 +109,10 @@ const Settings = () => {
       setMessageType('error');
       return;
     }
-    
+
     setLoading(true);
     setMessage('');
-    
+
     try {
       const batchId = editingBatchId || Date.now().toString();
       const response = await axios.post('/admin/settings/batches', {
@@ -109,10 +122,10 @@ const Settings = () => {
         lunchBreak: newBatch.lunchBreak,
         breakTime: newBatch.breakTime
       });
-      
+
       setMessage(response.data.message);
       setMessageType('success');
-      
+
       // Reset form
       setNewBatch({
         name: '',
@@ -121,11 +134,11 @@ const Settings = () => {
         breakTime: { from: '', to: '', included: true }
       });
       setEditingBatchId(null);
-      
+
       // Refresh batches
       const batchResponse = await axios.get('/admin/settings/batches');
       setBatches(batchResponse.data);
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setMessage('');
@@ -138,7 +151,25 @@ const Settings = () => {
       setLoading(false);
     }
   };
-  
+
+  const handleToggleTaxInvoiceAccess = async (shopId, currentStatus) => {
+    try {
+      setLoading(true);
+      const newStatus = !currentStatus;
+      await axios.put(`/admin/shops/${shopId}/access`, { hasTaxInvoiceAccess: newStatus });
+      setShops(shops.map(shop => shop._id === shopId ? { ...shop, hasTaxInvoiceAccess: newStatus } : shop));
+      setMessage('Access updated successfully');
+      setMessageType('success');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error updating access:', error);
+      setMessage('Failed to update access. Please try again.');
+      setMessageType('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEditBatch = (batch) => {
     setNewBatch({
       name: batch.name,
@@ -148,7 +179,7 @@ const Settings = () => {
     });
     setEditingBatchId(batch.id);
   };
-  
+
   const handleDeleteBatch = async (batchId) => {
     setDeleteConfirmation(batchId);
   };
@@ -158,11 +189,11 @@ const Settings = () => {
       const response = await axios.delete(`/admin/settings/batches/${batchId}`);
       setMessage(response.data.message);
       setMessageType('success');
-      
+
       // Refresh batches
       const batchResponse = await axios.get('/admin/settings/batches');
       setBatches(batchResponse.data);
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setMessage('');
@@ -194,11 +225,11 @@ const Settings = () => {
         totalAmount: totalAmount.toFixed(2)
       };
     }
-    
+
     // Calculate base amount and GST
     const baseAmount = totalAmount / (1 + gstPercent / 100);
     const gstAmount = totalAmount - baseAmount;
-    
+
     return {
       baseAmount: baseAmount.toFixed(2),
       gstAmount: gstAmount.toFixed(2),
@@ -212,19 +243,19 @@ const Settings = () => {
     <div className="bg-white p-6 rounded-xl shadow-md">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Settings</h1>
       <p className="text-gray-600 mb-8">Configure application settings and preferences.</p>
-      
+
       {/* Message Display */}
       {message && (
         <div className={`mb-6 p-4 rounded-lg ${messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
           {message}
         </div>
       )}
-      
+
       {/* GST Management Section */}
       <div className="border border-gray-200 rounded-lg p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">GST Management</h2>
         <p className="text-gray-600 mb-6">Configure GST settings for billing and invoices.</p>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -249,7 +280,7 @@ const Settings = () => {
               Enter the GST percentage to be applied to all bills and invoices.
             </p>
           </div>
-          
+
           <div className="flex items-end">
             <button
               type="button"
@@ -261,7 +292,7 @@ const Settings = () => {
             </button>
           </div>
         </div>
-        
+
         {/* Example Calculation */}
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="text-lg font-medium text-gray-800 mb-3">GST Calculation Example</h3>
@@ -284,18 +315,70 @@ const Settings = () => {
           </p>
         </div>
       </div>
-      
+
+      {/* Access Control Section */}
+      <div className="border border-gray-200 rounded-lg p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4 text-gray-800">Access Control</h2>
+        <p className="text-gray-600 mb-6">Manage access rights for different shops globally.</p>
+
+        <div className="bg-white rounded border overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Shop Name
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tax Invoice Access
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {shops.map((shop) => (
+                <tr key={shop._id}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{shop.name}</div>
+                    <div className="text-sm text-gray-500">{shop.location || 'N/A'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <label className="flex items-center cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={shop.hasTaxInvoiceAccess || false}
+                          onChange={() => handleToggleTaxInvoiceAccess(shop._id, shop.hasTaxInvoiceAccess)}
+                          disabled={loading}
+                        />
+                        <div className={`block w-10 h-6 rounded-full transition-colors ${shop.hasTaxInvoiceAccess ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${shop.hasTaxInvoiceAccess ? 'transform translate-x-4' : ''}`}></div>
+                      </div>
+                      <div className="ml-3 text-sm font-medium text-gray-700">
+                        {shop.hasTaxInvoiceAccess ? 'Enabled' : 'Disabled'}
+                      </div>
+                    </label>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {shops.length === 0 && (
+            <div className="p-4 text-center text-sm text-gray-500">No shops available.</div>
+          )}
+        </div>
+      </div>
+
       {/* Batch Management Section */}
       <div className="border border-gray-200 rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">Batch Management</h2>
         <p className="text-gray-600 mb-6">Configure work batches with predefined working hours, lunch breaks, and break times.</p>
-        
+
         {/* Add/Edit Batch Form */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
           <h3 className="text-lg font-medium text-gray-800 mb-4">
             {editingBatchId ? 'Edit Batch' : 'Add New Batch'}
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -304,13 +387,13 @@ const Settings = () => {
               <input
                 type="text"
                 value={newBatch.name}
-                onChange={(e) => setNewBatch({...newBatch, name: e.target.value})}
+                onChange={(e) => setNewBatch({ ...newBatch, name: e.target.value })}
                 placeholder="Enter batch name"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
               />
             </div>
           </div>
-          
+
           {/* Working Hours */}
           <div className="mb-4 p-3 bg-white rounded border">
             <h4 className="font-medium text-gray-800 mb-2">Working Hours</h4>
@@ -321,8 +404,8 @@ const Settings = () => {
                   type="time"
                   value={newBatch.workingHours.from}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    workingHours: {...newBatch.workingHours, from: e.target.value}
+                    ...newBatch,
+                    workingHours: { ...newBatch.workingHours, from: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -333,8 +416,8 @@ const Settings = () => {
                   type="time"
                   value={newBatch.workingHours.to}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    workingHours: {...newBatch.workingHours, to: e.target.value}
+                    ...newBatch,
+                    workingHours: { ...newBatch.workingHours, to: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -345,8 +428,8 @@ const Settings = () => {
                     type="checkbox"
                     checked={newBatch.workingHours.included}
                     onChange={(e) => setNewBatch({
-                      ...newBatch, 
-                      workingHours: {...newBatch.workingHours, included: e.target.checked}
+                      ...newBatch,
+                      workingHours: { ...newBatch.workingHours, included: e.target.checked }
                     })}
                     className="mr-2"
                   />
@@ -355,7 +438,7 @@ const Settings = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Lunch Break */}
           <div className="mb-4 p-3 bg-white rounded border">
             <h4 className="font-medium text-gray-800 mb-2">Lunch Break</h4>
@@ -366,8 +449,8 @@ const Settings = () => {
                   type="time"
                   value={newBatch.lunchBreak.from}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    lunchBreak: {...newBatch.lunchBreak, from: e.target.value}
+                    ...newBatch,
+                    lunchBreak: { ...newBatch.lunchBreak, from: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -378,8 +461,8 @@ const Settings = () => {
                   type="time"
                   value={newBatch.lunchBreak.to}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    lunchBreak: {...newBatch.lunchBreak, to: e.target.value}
+                    ...newBatch,
+                    lunchBreak: { ...newBatch.lunchBreak, to: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -390,8 +473,8 @@ const Settings = () => {
                     type="checkbox"
                     checked={newBatch.lunchBreak.included}
                     onChange={(e) => setNewBatch({
-                      ...newBatch, 
-                      lunchBreak: {...newBatch.lunchBreak, included: e.target.checked}
+                      ...newBatch,
+                      lunchBreak: { ...newBatch.lunchBreak, included: e.target.checked }
                     })}
                     className="mr-2"
                   />
@@ -400,7 +483,7 @@ const Settings = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Break Time */}
           <div className="mb-4 p-3 bg-white rounded border">
             <h4 className="font-medium text-gray-800 mb-2">Break Time</h4>
@@ -411,8 +494,8 @@ const Settings = () => {
                   type="time"
                   value={newBatch.breakTime.from}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    breakTime: {...newBatch.breakTime, from: e.target.value}
+                    ...newBatch,
+                    breakTime: { ...newBatch.breakTime, from: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -423,8 +506,8 @@ const Settings = () => {
                   type="time"
                   value={newBatch.breakTime.to}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    breakTime: {...newBatch.breakTime, to: e.target.value}
+                    ...newBatch,
+                    breakTime: { ...newBatch.breakTime, to: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -435,8 +518,8 @@ const Settings = () => {
                     type="checkbox"
                     checked={newBatch.breakTime.included}
                     onChange={(e) => setNewBatch({
-                      ...newBatch, 
-                      breakTime: {...newBatch.breakTime, included: e.target.checked}
+                      ...newBatch,
+                      breakTime: { ...newBatch.breakTime, included: e.target.checked }
                     })}
                     className="mr-2"
                   />
@@ -445,7 +528,7 @@ const Settings = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -474,7 +557,7 @@ const Settings = () => {
             )}
           </div>
         </div>
-        
+
         {/* Batches List */}
         <div>
           <h3 className="text-lg font-medium text-gray-800 mb-4">Existing Batches</h3>
@@ -501,30 +584,30 @@ const Settings = () => {
                       </button>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2 text-sm">
                     <div>
                       <p className="font-medium text-gray-700">Working Hours</p>
                       <p className="text-gray-600">
-                        {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - 
+                        {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} -
                         {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}
                         {!batch.workingHours?.included && ' (Excluded)'}
                       </p>
                     </div>
-                    
+
                     <div>
                       <p className="font-medium text-gray-700">Lunch Break</p>
                       <p className="text-gray-600">
-                        {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - 
+                        {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} -
                         {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}
                         {batch.lunchBreak?.included !== undefined && !batch.lunchBreak?.included && ' (Excluded)'}
                       </p>
                     </div>
-                    
+
                     <div>
                       <p className="font-medium text-gray-700">Break Time</p>
                       <p className="text-gray-600">
-                        {batch.breakTime?.from ? formatTimeTo12Hour(batch.breakTime.from) : '--:--'} - 
+                        {batch.breakTime?.from ? formatTimeTo12Hour(batch.breakTime.from) : '--:--'} -
                         {batch.breakTime?.to ? formatTimeTo12Hour(batch.breakTime.to) : '--:--'}
                         {batch.breakTime?.included !== undefined && !batch.breakTime?.included && ' (Excluded)'}
                       </p>
@@ -536,7 +619,7 @@ const Settings = () => {
           )}
         </div>
       </div>
-      
+
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

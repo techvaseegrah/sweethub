@@ -86,7 +86,9 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
       currentPath.startsWith('/admin/products') ||
       currentPath.startsWith('/admin/bills') ||
       currentPath.startsWith('/admin/orders') ||
-      currentPath.startsWith('/admin/categories');
+      currentPath.startsWith('/admin/categories') ||
+      currentPath.startsWith('/admin/warehouse/track-stock') ||
+      currentPath.startsWith('/admin/warehouse/stock-alerts');
 
     if (!isAllowedPath) {
       // Redirect to products page as default
@@ -101,7 +103,9 @@ const ProtectedRoute = ({ children, allowedRoles = [], fallbackPath = "/", requi
       currentPath.startsWith('/shop/products') ||
       currentPath.startsWith('/shop/billing') ||
       currentPath.startsWith('/shop/orders') ||
-      currentPath.startsWith('/shop/categories');
+      currentPath.startsWith('/shop/categories') ||
+      currentPath.startsWith('/shop/warehouse/track-stock') ||
+      currentPath.startsWith('/shop/warehouse/stock-alerts');
 
     if (!isAllowedPath) {
       // Redirect to products page as default

@@ -10,8 +10,14 @@ exports.addProduct = async (req, res) => {
   const adminId = req.user.id; // Get admin ID from authenticated user
 
   try {
-    // Check if a product with the same SKU already exists for this admin
-    let existingProduct = await Product.findOne({ sku, admin: adminId });
+    // Check if a product with the same SKU already exists for the admin side
+    let existingProduct = await Product.findOne({
+      sku,
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ]
+    });
 
     if (existingProduct) {
       // If product exists, update its stock level by adding the new quantity
@@ -89,18 +95,33 @@ exports.addProduct = async (req, res) => {
   }
 };
 
-// --- MODIFIED: Get Products for the Logged-in Admin Only ---
+// --- MODIFIED: Get Products for the Logged-in Admin or Admin Sub-users with Support for Filtering by Shop ---
 exports.getProducts = async (req, res) => {
   try {
-    // Fetch products that belong to the currently logged-in admin
-    const products = await Product.find({ admin: req.user.id }).populate('category', 'name').sort({ updatedAt: -1 });
+    const { shopId, showAdmin, fetchAll } = req.query;
+
+    let filter = {};
+    if (fetchAll) {
+      filter = {};
+    } else if (shopId) {
+      filter = { shop: shopId };
+    } else {
+      // Fetch products that belong to the admin side (not shop products)
+      filter = {
+        $or: [
+          { shop: { $exists: false } },
+          { shop: null }
+        ]
+      };
+    }
+
+    const products = await Product.find(filter).populate('category', 'name').sort({ updatedAt: -1 });
     res.json(products);
   } catch (error) {
     console.error("Error fetching products:", error);
     res.status(500).json({ message: 'Server Error' });
   }
 };
-
 // --- MODIFIED: Update Product with Authorization Check ---
 exports.updateProduct = async (req, res) => {
   try {
@@ -123,9 +144,9 @@ exports.updateProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found.' });
     }
 
-    // Authorization: Check if the product belongs to the logged-in admin
-    if (product.admin.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'You are not authorized to update this product.' });
+    // Authorization: Check if the product belongs to the admin side (not a shop)
+    if (product.shop) {
+      return res.status(403).json({ message: 'You are not authorized to update this shop product.' });
     }
 
     // Prepare update data
@@ -207,9 +228,9 @@ exports.deleteProduct = async (req, res) => {
       return res.status(404).json({ message: 'Product not found.' });
     }
 
-    // Authorization: Check if the product belongs to the logged-in admin
-    if (product.admin.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'You are not authorized to delete this product.' });
+    // Authorization: Check if the product belongs to the admin side (not a shop)
+    if (product.shop) {
+      return res.status(403).json({ message: 'You are not authorized to delete this shop product.' });
     }
 
     // Proceed with deletion
@@ -238,8 +259,13 @@ exports.deleteProduct = async (req, res) => {
 
 exports.getUnits = async (req, res) => {
   try {
-    // First, find all products for this admin
-    const products = await Product.find({ admin: req.user.id }).select('prices.unit');
+    // First, find all products for the admin side
+    const products = await Product.find({
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ]
+    }).select('prices.unit');
 
     // Extract units from products, filtering out any invalid data
     const unitSet = new Set();
@@ -265,7 +291,13 @@ exports.getUnits = async (req, res) => {
 exports.isUnitInUse = async (req, res) => {
   try {
     const { unitName } = req.params;
-    const count = await Product.countDocuments({ admin: req.user.id, 'prices.unit': unitName });
+    const count = await Product.countDocuments({
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ],
+      'prices.unit': unitName
+    });
     res.json({ inUse: count > 0 });
   } catch (error) {
     console.error("Error checking if unit is in use:", error);
@@ -308,11 +340,17 @@ exports.getProductCountByAdmin = async (req, res) => {
   }
 };
 
-// Get a specific product by ID for the logged-in admin
+// Get a specific product by ID for the admin side
 exports.getProductById = async (req, res) => {
   try {
     const { id } = req.params;
-    const product = await Product.findOne({ _id: id, admin: req.user.id }).populate('category', 'name');
+    const product = await Product.findOne({
+      _id: id,
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ]
+    }).populate('category', 'name');
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found or unauthorized' });
@@ -325,11 +363,14 @@ exports.getProductById = async (req, res) => {
   }
 };
 
-// --- MODIFIED: Get stock alert count for the logged-in admin ---
+// --- MODIFIED: Get stock alert count for the admin side ---
 exports.getTotalStockAlertCount = async (req, res) => {
   try {
     const totalCount = await Product.countDocuments({
-      admin: req.user.id, // Filter for the logged-in admin
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ],
       $expr: { $lte: ['$stockLevel', '$stockAlertThreshold'] }
     });
     res.json({ totalCount });
@@ -339,12 +380,15 @@ exports.getTotalStockAlertCount = async (req, res) => {
   }
 };
 
-// Get expired products for the logged-in admin
+// Get expired products for the admin side
 exports.getExpiredProducts = async (req, res) => {
   try {
-    // Find ALL products for the logged-in admin (both with and without expiry dates)
+    // Find ALL products for the admin side (both with and without expiry dates)
     const products = await Product.find({
-      admin: req.user.id
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ]
     }).populate('category', 'name');
 
     // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
@@ -381,8 +425,13 @@ exports.getExpiredProducts = async (req, res) => {
 // Get all admin products for shop users to view (read-only)
 exports.getAllAdminProducts = async (req, res) => {
   try {
-    // Fetch all products regardless of admin, but only return essential read-only information
-    const products = await Product.find({})
+    // Fetch all admin products, but only return essential read-only information
+    const products = await Product.find({
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ]
+    })
       .populate('category', 'name')
       .sort({ name: 1 });
 

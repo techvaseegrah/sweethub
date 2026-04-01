@@ -21,6 +21,8 @@ function CreateBill({ baseUrl = '/shop' }) {
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [customerMobileNumber, setCustomerMobileNumber] = useState('');
+  const [isTaxInvoice, setIsTaxInvoice] = useState(false);
+  const [hasTaxInvoiceAccess, setHasTaxInvoiceAccess] = useState(false);
 
   // UI States
   const [searchTerm, setSearchTerm] = useState('');
@@ -221,6 +223,7 @@ function CreateBill({ baseUrl = '/shop' }) {
             phone: shopRes.data.shopPhoneNumber || '',
             email: shopRes.data.email || ''
           });
+          setHasTaxInvoiceAccess(shopRes.data.hasTaxInvoiceAccess || false);
         }
 
         // Set workers
@@ -301,6 +304,7 @@ function CreateBill({ baseUrl = '/shop' }) {
       setAmountPaid(bill.amountPaid?.toString() || '');
       setAmountPaid(bill.amountPaid?.toString() || '');
       setBillType(bill.billType || 'ORDINARY');
+      setIsTaxInvoice(bill.isTaxInvoice || false);
 
       if (bill.billDate || bill.createdAt) {
         const dateToUse = new Date(bill.billDate || bill.createdAt);
@@ -349,7 +353,7 @@ function CreateBill({ baseUrl = '/shop' }) {
   // --- PDF GENERATION LOGIC ---
   const handlePrintBill = (billData = null, forcePrint = false) => {
     // Import the standard bill PDF generator
-    import('../../../utils/generateBillPdf').then(({ printBill, generateBillPdf }) => {
+    import('../../../utils/generateBillPdf').then(({ printBill, generateBillPdf, generateTaxInvoicePdf }) => {
       const dataToPrint = billData || {
         invoiceNo: isEditMode ? "UPDATED" : (Math.floor(Math.random() * 90000) + 10000),
         date: formatDateToDDMMYYYY(billDate),
@@ -377,6 +381,7 @@ function CreateBill({ baseUrl = '/shop' }) {
         discountType: discountType,
         discountValue: discountValue,
         discountAmount: discountAmount,
+        fromInfo: fromInfo,
         toInfo: toInfo,
       };
 
@@ -388,20 +393,28 @@ function CreateBill({ baseUrl = '/shop' }) {
         fssaiNumber: fromInfo.fssaiNumber,
       };
 
-      // Use the standard bill generator which creates 2-inch format
-      // If forcePrint is true (when Print button is clicked), open print dialog
-      // Also download PDF if autoDownload is true
-      if (forcePrint) {
-        // Print first
-        printBill(billDataFormatted, shopData);
-        // Also download if autoDownload is true
-        if (autoDownload) {
-          generateBillPdf(billDataFormatted, shopData);
+      if (isTaxInvoice) {
+        if (forcePrint) {
+          generateTaxInvoicePdf(billDataFormatted, shopData, true);
+          if (autoDownload) {
+            generateTaxInvoicePdf(billDataFormatted, shopData, false);
+          }
+        } else if (autoDownload) {
+          generateTaxInvoicePdf(billDataFormatted, shopData, false);
+        } else {
+          generateTaxInvoicePdf(billDataFormatted, shopData, true);
         }
-      } else if (autoDownload) {
-        generateBillPdf(billDataFormatted, shopData);
       } else {
-        printBill(billDataFormatted, shopData);
+        if (forcePrint) {
+          printBill(billDataFormatted, shopData);
+          if (autoDownload) {
+            generateBillPdf(billDataFormatted, shopData);
+          }
+        } else if (autoDownload) {
+          generateBillPdf(billDataFormatted, shopData);
+        } else {
+          printBill(billDataFormatted, shopData);
+        }
       }
     }).catch(error => {
       console.error('Error importing generateBillPdf:', error);
@@ -630,6 +643,7 @@ function CreateBill({ baseUrl = '/shop' }) {
         discountValue: discountValue ? parseFloat(discountValue) : 0,
         discountAmount,
         billType,
+        isTaxInvoice,
         toInfo: toInfo.name ? toInfo : undefined,
         ...(selectedWorker && { worker: selectedWorker }),
       };
@@ -662,6 +676,7 @@ function CreateBill({ baseUrl = '/shop' }) {
         setDiscountValue('');
         setDiscountType('none');
         setSearchTerm('');
+        setIsTaxInvoice(false);
         // Reset customer info as well
         setIsManualTime(false); // Reset manual time after saving
         setToInfo({
@@ -830,6 +845,20 @@ function CreateBill({ baseUrl = '/shop' }) {
                 </span>
               </span>
             </div>
+
+            {/* Tax Invoice Checkbox */}
+            {hasTaxInvoiceAccess && (
+              <div className="flex items-center gap-2 ml-4">
+                <input
+                  type="checkbox"
+                  id="taxInvoiceCheckbox"
+                  checked={isTaxInvoice}
+                  onChange={(e) => setIsTaxInvoice(e.target.checked)}
+                  className="form-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                <label htmlFor="taxInvoiceCheckbox" className="text-sm font-medium text-gray-700 cursor-pointer">Tax Invoice</label>
+              </div>
+            )}
           </div>
           <button onClick={() => navigate(baseUrl + '/billing/view')} className="text-gray-500 hover:text-red-500">✕</button>
         </div>

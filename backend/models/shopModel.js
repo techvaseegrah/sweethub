@@ -12,6 +12,10 @@ const shopSchema = new mongoose.Schema({
   shopPhoneNumber: { // Add this new field
     type: String,
   },
+  hasTaxInvoiceAccess: {
+    type: Boolean,
+    default: false,
+  },
   gstNumber: { // Add GST number field
     type: String,
   },

@@ -7,14 +7,20 @@ exports.getProductHistory = async (req, res) => {
     const { productId } = req.params;
     const adminId = req.user.id;
 
-    // Verify that the product belongs to this admin
-    const product = await Product.findOne({ _id: productId, admin: adminId });
+    // Verify that the product belongs to the admin side
+    const product = await Product.findOne({
+      _id: productId,
+      $or: [
+        { shop: { $exists: false } },
+        { shop: null }
+      ]
+    });
     if (!product) {
       return res.status(404).json({ message: 'Product not found or unauthorized' });
     }
 
-    // Get history sorted by latest first
-    const history = await ProductHistory.find({ productId, admin: adminId })
+    // Get history sorted by latest first (all actions on this product)
+    const history = await ProductHistory.find({ productId })
       .sort({ timestamp: -1 });
 
     res.json(history);
@@ -24,13 +30,11 @@ exports.getProductHistory = async (req, res) => {
   }
 };
 
-// Get all product history for an admin (for overview)
+// Get all product history for the admin side (for overview)
 exports.getAllProductHistory = async (req, res) => {
   try {
-    const adminId = req.user.id;
-    
     // Get history sorted by latest first
-    const history = await ProductHistory.find({ admin: adminId })
+    const history = await ProductHistory.find()
       .sort({ timestamp: -1 })
       .limit(100); // Limit to prevent overload
 
@@ -46,7 +50,7 @@ exports.createProductHistory = async (product, actionType, adminId, quantity = n
   try {
     // For "Added" and "Updated" actions, we use the product's current data
     // For "Stock In" and "Stock Out" actions, we might have a specific quantity
-    
+
     const historyEntry = new ProductHistory({
       productId: product._id,
       sku: product.sku,
