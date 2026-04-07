@@ -67,8 +67,19 @@ const AfterPacking = () => {
                     axios.get('/admin/categories'),
                     axios.get('/admin/products')
                 ]);
-                setCategories(catRes.data);
-                setProducts(prodRes.data);
+                let catData = catRes.data;
+                if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                    const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                    catData = catData.filter(cat => allowedIds.includes(cat._id));
+                }
+                setCategories(catData);
+
+                let prodData = prodRes.data;
+                if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                    const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                    prodData = prodData.filter(p => allowedIds.includes(p.category?._id || p.category));
+                }
+                setProducts(prodData);
             } catch (error) {
                 console.error("Failed to fetch auxiliary data", error);
             }
@@ -122,6 +133,12 @@ const AfterPacking = () => {
                 const product = products.find(p => p.name.toLowerCase() === productName);
                 const itemCategoryId = product?.category?._id || product?.category || '';
                 if (itemCategoryId !== selectedCategoryFilter) return false;
+            } else if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                // If no filter selected but restricted, only show items belonging to allowed categories
+                const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                const product = products.find(p => p.name.toLowerCase() === productName);
+                const itemCategoryId = product?.category?._id || product?.category || '';
+                if (!allowedIds.includes(itemCategoryId)) return false;
             }
 
             const itemDate = new Date(item.date);
@@ -406,7 +423,9 @@ const AfterPacking = () => {
                         value={selectedCategoryFilter}
                         onChange={(e) => setSelectedCategoryFilter(e.target.value)}
                     >
-                        <option value="">All Categories</option>
+                        {(!authState?.allowedCategories || authState.allowedCategories.length === 0 || authState?.role === 'admin') && (
+                            <option value="">All Categories</option>
+                        )}
                         {categories.map(cat => (
                             <option key={cat._id} value={cat._id}>{cat.name}</option>
                         ))}

@@ -31,8 +31,8 @@ function LoginPage() {
         }
       );
 
-      const { token, role, userType } = response.data;
-      login(token, role, userType);
+      const { token, role, userType, allowedCategories } = response.data;
+      login(token, role, userType, allowedCategories);
 
       if (role === 'admin') {
         navigate('/admin');

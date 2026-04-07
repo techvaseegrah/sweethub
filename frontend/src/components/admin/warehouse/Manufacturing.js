@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from '../../../api/axios';
 import { LuPlus, LuPencil, LuTrash2 } from 'react-icons/lu';
 import MessageAlert from '../../MessageAlert'; // Assuming you have this component for messages
+import { AuthContext } from '../../../context/AuthContext';
 
 const Manufacturing = () => {
+    const { authState } = useContext(AuthContext);
     const [processes, setProcesses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -71,26 +73,36 @@ const Manufacturing = () => {
         const fetchAllProducts = async () => {
             try {
                 const response = await axios.get('/admin/products');
-                setAllProducts(response.data);
+                let prodData = response.data;
+                if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                    const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                    prodData = prodData.filter(p => allowedIds.includes(p.category?._id || p.category));
+                }
+                setAllProducts(prodData);
             } catch (error) {
                 console.error('Error fetching all products:', error);
             }
         };
         fetchAllProducts();
-    }, []);
+    }, [authState]);
 
     // Fetch all categories
     useEffect(() => {
         const fetchCategories = async () => {
             try {
                 const response = await axios.get('/admin/categories');
-                setCategories(response.data);
+                let catData = response.data;
+                if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                    const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                    catData = catData.filter(cat => allowedIds.includes(cat._id));
+                }
+                setCategories(catData);
             } catch (error) {
                 console.error('Error fetching categories:', error);
             }
         };
         fetchCategories();
-    }, []);
+    }, [authState]);
 
 
 
@@ -452,7 +464,9 @@ const Manufacturing = () => {
                                         onChange={(e) => setSelectedCategory(e.target.value)}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
                                     >
-                                        <option value="">All Categories</option>
+                                        {(!authState?.allowedCategories || authState.allowedCategories.length === 0 || authState?.role === 'admin') && (
+                                            <option value="">All Categories</option>
+                                        )}
                                         {categories.map((cat) => (
                                             <option key={cat._id} value={cat._id}>{cat.name}</option>
                                         ))}

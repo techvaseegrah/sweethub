@@ -41,6 +41,17 @@ const MixedSweets = () => {
     const [showProductDropdown, setShowProductDropdown] = useState(false);
     const dropdownRef = useRef(null);
 
+    // Unit conversion helper
+    const getConvertedStock = (stock, stockUnit, targetUnit) => {
+        const val = parseFloat(stock) || 0;
+        const sUnit = (stockUnit || 'kg').toLowerCase();
+        const tUnit = (targetUnit || 'kg').toLowerCase();
+        if (sUnit === tUnit) return val;
+        if (sUnit === 'kg' && tUnit === 'gm') return val * 1000;
+        if (sUnit === 'gm' && tUnit === 'kg') return val / 1000;
+        return val;
+    };
+
     useEffect(() => {
         fetchInitialData();
 
@@ -151,15 +162,19 @@ const MixedSweets = () => {
             return;
         }
 
-        // Simple validation for qty used
+
+        // Validation for qty used with unit conversion
         for (const comp of formData.components) {
-            if (!comp.quantityUsed || parseFloat(comp.quantityUsed) <= 0) {
+            const qtyUsed = parseFloat(comp.quantityUsed);
+            if (!comp.quantityUsed || qtyUsed <= 0) {
                 setError(`Please enter a valid quantity for ${comp.name}`);
                 setActionLoading(false);
                 return;
             }
-            if (parseFloat(comp.quantityUsed) > comp.availableStock) {
-                setError(`Insufficient stock for ${comp.name}. Available: ${comp.availableStock}`);
+
+            const convertedStock = getConvertedStock(comp.availableStock, comp.stockUnit, comp.unit);
+            if (qtyUsed > convertedStock) {
+                setError(`Insufficient stock for ${comp.name}. Available: ${comp.availableStock} ${comp.stockUnit}${comp.stockUnit !== comp.unit ? ` (${convertedStock} ${comp.unit})` : ''}`);
                 setActionLoading(false);
                 return;
             }
@@ -483,19 +498,26 @@ const MixedSweets = () => {
                                                     <tr key={comp.product} className="hover:bg-slate-50/50 transition-colors">
                                                         <td className="px-6 py-4">
                                                             <div className="font-bold text-slate-800 uppercase text-xs">{comp.name}</div>
-                                                            <div className="text-[10px] text-slate-400 font-medium">Stock: {comp.availableStock} {comp.stockUnit || comp.unit}</div>
+                                                            <div className="text-[10px] text-slate-400 font-medium">
+                                                                Stock: {comp.availableStock} {comp.stockUnit || comp.unit}
+                                                                {comp.stockUnit?.toLowerCase() !== comp.unit?.toLowerCase() && (comp.stockUnit?.toLowerCase() === 'kg' || comp.stockUnit?.toLowerCase() === 'gm') && (comp.unit?.toLowerCase() === 'kg' || comp.unit?.toLowerCase() === 'gm') && (
+                                                                    <span className="text-slate-500 ml-1">
+                                                                        ({getConvertedStock(comp.availableStock, comp.stockUnit, comp.unit)} {comp.unit})
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center gap-2">
                                                                 <input
                                                                     type="text"
                                                                     step="0.01"
-                                                                    className={`w-20 px-2 py-1 bg-white border rounded focus:ring-2 focus:ring-slate-900/5 outline-none font-bold text-xs ${parseFloat(comp.quantityUsed) > comp.availableStock ? 'border-rose-400 text-rose-600' : 'border-slate-200'}`}
+                                                                    className={`w-20 px-2 py-1 bg-white border rounded focus:ring-2 focus:ring-slate-900/5 outline-none font-bold text-xs ${parseFloat(comp.quantityUsed) > getConvertedStock(comp.availableStock, comp.stockUnit, comp.unit) ? 'border-rose-400 text-rose-600 shadow-[0_0_0_1px_#fb7185]' : 'border-slate-200'}`}
                                                                     value={comp.quantityUsed}
                                                                     onChange={(e) => handleComponentQtyChange(index, e.target.value)}
                                                                 />
                                                                 <select
-                                                                    className="bg-transparent border-none text-[10px] font-heavy text-slate-500 uppercase outline-none cursor-pointer hover:text-slate-900 transition-colors"
+                                                                    className="bg-slate-50 px-2 py-1 rounded border border-slate-100 text-[10px] font-heavy text-slate-500 uppercase outline-none cursor-pointer hover:text-slate-900 transition-colors"
                                                                     value={comp.unit}
                                                                     onChange={(e) => handleComponentUnitChange(index, e.target.value)}
                                                                 >
@@ -781,15 +803,20 @@ const MixedSweets = () => {
                                                             <span className="w-1.5 h-1.5 bg-slate-300 rounded-full mr-2"></span>
                                                             {c.name}
                                                         </span>
-                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${c.availableStock < parseFloat(c.quantityUsed) ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${parseFloat(c.quantityUsed) > getConvertedStock(c.availableStock, c.stockUnit, c.unit) ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
                                                             {c.availableStock} {c.stockUnit || c.unit}
+                                                            {c.stockUnit?.toLowerCase() !== c.unit?.toLowerCase() && (c.stockUnit?.toLowerCase() === 'kg' || c.stockUnit?.toLowerCase() === 'gm') && (c.unit?.toLowerCase() === 'kg' || c.unit?.toLowerCase() === 'gm') && (
+                                                                <span className="opacity-70 ml-1">
+                                                                    ({getConvertedStock(c.availableStock, c.stockUnit, c.unit)} {c.unit})
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <div className="relative flex-1">
                                                             <input
                                                                 type="text"
-                                                                className={`w-full pl-3 pr-8 py-1.5 bg-white border rounded-lg focus:ring-1 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-xs font-bold ${c.availableStock < parseFloat(c.quantityUsed) ? 'border-rose-300' : 'border-slate-200'}`}
+                                                                className={`w-full pl-3 pr-8 py-1.5 bg-white border rounded-lg focus:ring-1 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-xs font-bold ${parseFloat(c.quantityUsed) > getConvertedStock(c.availableStock, c.stockUnit, c.unit) ? 'border-rose-300' : 'border-slate-200'}`}
                                                                 value={c.quantityUsed}
                                                                 onChange={(e) => handleReAddComponentQtyChange(i, e.target.value)}
                                                             />
@@ -811,7 +838,7 @@ const MixedSweets = () => {
                                     </button>
                                     <button
                                         onClick={confirmReAdd}
-                                        disabled={actionLoading || reAddModal.record.components.some(c => c.availableStock < parseFloat(c.quantityUsed))}
+                                        disabled={actionLoading || reAddModal.record.components.some(c => parseFloat(c.quantityUsed) > getConvertedStock(c.availableStock, c.stockUnit, c.unit))}
                                         className="px-6 py-4 bg-slate-900 hover:bg-black text-white rounded-2xl font-bold text-sm shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed group"
                                     >
                                         {actionLoading ? (

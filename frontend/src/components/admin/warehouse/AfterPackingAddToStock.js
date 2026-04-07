@@ -54,8 +54,19 @@ const AfterPackingAddToStock = () => {
                 axios.get('/admin/categories'),
                 axios.get('/admin/products')
             ]);
-            setCategories(catRes.data);
-            setProducts(prodRes.data);
+            let catData = catRes.data;
+            if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                catData = catData.filter(cat => allowedIds.includes(cat._id));
+            }
+            setCategories(catData);
+
+            let prodData = prodRes.data;
+            if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                prodData = prodData.filter(p => allowedIds.includes(p.category?._id || p.category));
+            }
+            setProducts(prodData);
         } catch (error) {
             console.error("Failed to fetch auxiliary data", error);
         }
@@ -99,12 +110,21 @@ const AfterPackingAddToStock = () => {
 
     const filteredItems = items
         .filter(item => {
-            const matchesSearch = (item.productName || item.sweetName || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const productName = (item.productName || item.sweetName || '').toLowerCase();
+            const matchesSearch = productName.includes(searchTerm.toLowerCase());
             if (!matchesSearch) return false;
 
             const itemSource = item.source || 'OWN';
             if (viewMode === 'OWN' && itemSource !== 'OWN') return false;
             if (viewMode === 'FINISHED' && itemSource !== 'FINISHED PRODUCT') return false;
+
+            // Apply category filter for restricted users
+            if (authState?.role !== 'admin' && authState?.allowedCategories && authState.allowedCategories.length > 0) {
+                const allowedIds = authState.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+                const product = products.find(p => p.name.toLowerCase() === productName);
+                const itemCategoryId = product?.category?._id || product?.category || '';
+                if (!allowedIds.includes(itemCategoryId)) return false;
+            }
 
             return true;
         })

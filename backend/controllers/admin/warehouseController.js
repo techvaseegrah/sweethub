@@ -437,6 +437,49 @@ const getAllVendorHistory = async (req, res) => {
     }
 };
 
+const updateVendorHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { materialName, quantityReceived, unit, vendorName, pricePerUnit, gstPercentage, receivedDate } = req.body;
+
+        const qty = Number(quantityReceived) || 0;
+        const price = Number(pricePerUnit) || 0;
+        const gst = Number(gstPercentage) || 0;
+        const gstAmount = (qty * price) * (gst / 100);
+
+        const updatedRecord = await VendorHistory.findByIdAndUpdate(id, {
+            materialName,
+            quantityReceived: qty,
+            unit,
+            vendorName,
+            pricePerUnit: price,
+            gstPercentage: gst,
+            gstAmount,
+            receivedDate: receivedDate ? new Date(receivedDate) : undefined
+        }, { new: true });
+
+        if (!updatedRecord) {
+            return res.status(404).json({ message: 'Record not found' });
+        }
+        res.json(updatedRecord);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
+const deleteVendorHistory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedRecord = await VendorHistory.findByIdAndDelete(id);
+        if (!deletedRecord) {
+            return res.status(404).json({ message: 'Record not found' });
+        }
+        res.json({ message: 'Record deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
 // Manufacturing
 const addManufacturingProcess = async (req, res) => {
     try {
@@ -1445,5 +1488,7 @@ module.exports = {
     updateAfterPackingStatus,
     addToStockFromAfterPacking,
     deleteAfterPackingItem,
-    deleteOutgoingMaterial
+    deleteOutgoingMaterial,
+    updateVendorHistory,
+    deleteVendorHistory
 };

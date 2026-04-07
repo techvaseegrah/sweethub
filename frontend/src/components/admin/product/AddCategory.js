@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import axios from '../../../api/axios';
 import CreateProductBillingAccountModal from './CreateProductBillingAccountModal';
+import { AuthContext } from '../../../context/AuthContext';
 
 function AddCategory({ baseUrl = '/admin' }) {
   const isShop = baseUrl.includes('shop');
+  const { authState } = useContext(AuthContext);
+  const isProductBilling = authState?.role === 'product-billing-admin' || authState?.role === 'product-billing-shop';
+  
   const [showAccountModal, setShowAccountModal] = useState(false);
   const CATEGORY_URL = `${baseUrl}/categories`;
   const SHOPS_URL = `${baseUrl}/shops`;
@@ -111,38 +115,44 @@ function AddCategory({ baseUrl = '/admin' }) {
   return (
     <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl md:text-2xl font-semibold text-gray-800">Add Category</h3>
-        <button
-          onClick={() => setShowAccountModal(true)}
-          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-200 flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
-          </svg>
-          Create Account
-        </button>
+        <h3 className="text-xl md:text-2xl font-semibold text-gray-800">
+          {isProductBilling ? 'View Categories' : 'Add Category'}
+        </h3>
+        {!isProductBilling && (
+          <button
+            onClick={() => setShowAccountModal(true)}
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow-md transition duration-200 flex items-center"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
+            </svg>
+            Create Account
+          </button>
+        )}
       </div>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="categoryName">
-            Category Name
-          </label>
-          <input
-            type="text"
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            id="categoryName"
-            value={categoryName}
-            onChange={(e) => setCategoryName(e.target.value)}
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          className="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-        >
-          Create Category
-        </button>
-      </form>
+      {!isProductBilling && (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="categoryName">
+              Category Name
+            </label>
+            <input
+              type="text"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              id="categoryName"
+              value={categoryName}
+              onChange={(e) => setCategoryName(e.target.value)}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          >
+            Create Category
+          </button>
+        </form>
+      )}
       {message && <p className="mt-4 text-green-500">{message}</p>}
       {error && <p className="mt-4 text-red-500">{error}</p>}
 
@@ -158,12 +168,14 @@ function AddCategory({ baseUrl = '/admin' }) {
                   {category.name} <span className="text-sm text-gray-500">({category.products.length} products)</span>
                 </p>
                 <div className="w-full flex justify-end sm:w-auto">
-                  <button
-                    onClick={() => confirmDelete(category._id)}
-                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
-                  >
-                    Delete
-                  </button>
+                  {!isProductBilling && (
+                    <button
+                      onClick={() => confirmDelete(category._id)}
+                      className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </li>
             ))}

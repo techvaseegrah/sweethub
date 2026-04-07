@@ -34,6 +34,11 @@ const userSchema = new mongoose.Schema({
         ref: 'Shop',
         required: false, // Not required to allow admin users without shop association
     },
+    allowedCategories: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        required: false,
+    }],
 }, {
     timestamps: true,
 });

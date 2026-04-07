@@ -9,6 +9,7 @@ export const AuthProvider = ({ children }) => {
     role: null,
     userType: null, // 'admin' or 'shop'
     isAuthenticated: false,
+    allowedCategories: [],
   });
 
   const navigate = useNavigate();
@@ -17,19 +18,21 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('role');
     const userType = localStorage.getItem('userType');
+    const allowedCategories = JSON.parse(localStorage.getItem('allowedCategories') || '[]');
     if (token && role) {
-      setAuthState({ token, role, userType, isAuthenticated: true });
+      setAuthState({ token, role, userType, allowedCategories, isAuthenticated: true });
     }
   }, []);
 
-  const login = (token, role, userType = null) => {
+  const login = (token, role, userType = null, allowedCategories = []) => {
     console.log('Logging in with token, role, and userType:', { token, role, userType });
     localStorage.setItem('token', token);
     localStorage.setItem('role', role);
     if (userType) {
       localStorage.setItem('userType', userType);
     }
-    setAuthState({ token, role, userType, isAuthenticated: true });
+    localStorage.setItem('allowedCategories', JSON.stringify(allowedCategories));
+    setAuthState({ token, role, userType, allowedCategories, isAuthenticated: true });
   };
 
   const logout = () => {
@@ -37,7 +40,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('userType');
-    setAuthState({ token: null, role: null, userType: null, isAuthenticated: false });
+    localStorage.removeItem('allowedCategories');
+    setAuthState({ token: null, role: null, userType: null, allowedCategories: [], isAuthenticated: false });
     navigate('/');
   };
 

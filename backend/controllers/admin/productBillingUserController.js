@@ -29,6 +29,7 @@ exports.createProductBillingAdminUser = async (req, res) => {
             username,
             password: hashedPassword,
             role: role._id,
+            allowedCategories: req.body.allowedCategories || [],
         });
 
         await newUser.save();
@@ -39,7 +40,8 @@ exports.createProductBillingAdminUser = async (req, res) => {
                 _id: newUser._id,
                 username: newUser.username,
                 name: newUser.name,
-                role: 'product-billing-admin'
+                role: 'product-billing-admin',
+                allowedCategories: newUser.allowedCategories
             }
         });
     } catch (error) {
@@ -58,7 +60,8 @@ exports.getAllProductBillingAdminUsers = async (req, res) => {
 
         const users = await User.find({ role: role._id })
             .select('-password')
-            .populate('role', 'name');
+            .populate('role', 'name')
+            .populate('allowedCategories', 'name');
 
         res.status(200).json(users);
     } catch (error) {
@@ -92,6 +95,7 @@ exports.updateProductBillingAdminUser = async (req, res) => {
         }
 
         if (name) user.name = name;
+        if (req.body.allowedCategories !== undefined) user.allowedCategories = req.body.allowedCategories;
 
         if (password) {
             const salt = await bcrypt.genSalt(10);
@@ -106,7 +110,8 @@ exports.updateProductBillingAdminUser = async (req, res) => {
                 _id: user._id,
                 username: user.username,
                 name: user.name,
-                role: 'product-billing-admin'
+                role: 'product-billing-admin',
+                allowedCategories: user.allowedCategories
             }
         });
     } catch (error) {

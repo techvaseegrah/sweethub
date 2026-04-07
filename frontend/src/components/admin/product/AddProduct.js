@@ -27,6 +27,10 @@ function AddProduct({ baseUrl = '/admin' }) {
     { unit: 'piece', netPrice: '', sellingPrice: '' }
   ]);
 
+  // State to track if the current input name matches an existing product
+  const [isExistingProduct, setIsExistingProduct] = useState(false);
+  const [originalStockLevel, setOriginalStockLevel] = useState(0);
+
   // Fetch categories and products
   useEffect(() => {
     const fetchData = async () => {
@@ -74,8 +78,21 @@ function AddProduct({ baseUrl = '/admin' }) {
         product.name.toLowerCase().includes(productName.toLowerCase())
       );
       setFilteredProducts(filtered);
+
+      // Check for exact match to auto-fill
+      const exactMatch = allProducts.find(product => product.name.toLowerCase() === productName.toLowerCase());
+      if (exactMatch) {
+        if (!isExistingProduct) {
+          selectProduct(exactMatch.name);
+        }
+      } else if (isExistingProduct) {
+        setIsExistingProduct(false);
+      }
     } else {
       setFilteredProducts(allProducts);
+      if (isExistingProduct) {
+        setIsExistingProduct(false);
+      }
     }
   }, [productName, allProducts]);
 
@@ -84,6 +101,16 @@ function AddProduct({ baseUrl = '/admin' }) {
     const value = e.target.value;
     setProductName(value);
     setShowDropdown(true);
+
+    // If clearing name, reset form
+    if (value === '') {
+      setSku('');
+      setStockLevel('');
+      setStockAlertThreshold('');
+      setProductUnits([{ unit: 'piece', netPrice: '', sellingPrice: '' }]);
+      setIsExistingProduct(false);
+      setOriginalStockLevel(0);
+    }
   };
 
   // Select a product from dropdown
@@ -92,6 +119,9 @@ function AddProduct({ baseUrl = '/admin' }) {
     const selectedProduct = allProducts.find(p => p.name === productName);
 
     if (selectedProduct) {
+      setIsExistingProduct(true);
+      setOriginalStockLevel(selectedProduct.stockLevel || 0);
+
       if (selectedProduct.category) {
         setCategory(selectedProduct.category._id || selectedProduct.category);
       }
@@ -185,6 +215,8 @@ function AddProduct({ baseUrl = '/admin' }) {
       setStockLevel('');
       setStockAlertThreshold('');
       setProductUnits([{ unit: 'piece', netPrice: '', sellingPrice: '' }]);
+      setIsExistingProduct(false);
+      setOriginalStockLevel(0);
 
       // Refresh product list
       try {
@@ -287,10 +319,11 @@ function AddProduct({ baseUrl = '/admin' }) {
             </label>
             <select
               id="category"
-              className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              className={`shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${isExistingProduct ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               required
+              disabled={isExistingProduct}
             >
               {Array.isArray(categories) && categories.length > 0 ? (
                 categories.map((cat) => (
@@ -311,22 +344,24 @@ function AddProduct({ baseUrl = '/admin' }) {
             </label>
             <input
               type="text"
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${isExistingProduct ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               id="sku"
               value={sku}
               onChange={(e) => setSku(e.target.value)}
               required
+              disabled={isExistingProduct}
             />
           </div>
           <div>
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="stockLevel">
-              Stock Level
+              {isExistingProduct ? `Stock to Add (Existing: ${originalStockLevel})` : 'Stock Level'}
             </label>
             <input
-              type="number"
+              type="text"
               step="0.01"
               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               id="stockLevel"
+              placeholder={isExistingProduct ? "Enter quantity to add" : "Enter initial stock"}
               value={stockLevel}
               onChange={(e) => setStockLevel(e.target.value)}
             />
@@ -337,12 +372,13 @@ function AddProduct({ baseUrl = '/admin' }) {
             Stock Alert Threshold
           </label>
           <input
-            type="number"
+            type="text"
             step="0.01"
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${isExistingProduct ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             id="stockAlertThreshold"
             value={stockAlertThreshold}
             onChange={(e) => setStockAlertThreshold(e.target.value)}
+            disabled={isExistingProduct}
           />
         </div>
 
@@ -354,34 +390,38 @@ function AddProduct({ baseUrl = '/admin' }) {
           </div>
 
           {productUnits.map((unit, index) => (
-            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3 p-3 border rounded">
+            <div key={index} className={`grid grid-cols-1 md:grid-cols-4 gap-3 mb-3 p-3 border rounded ${isExistingProduct ? 'bg-gray-50' : ''}`}>
               <div className="md:col-span-1">
                 <label className="block text-gray-700 text-xs font-bold mb-1">Unit</label>
-                <UnitSelector
-                  value={unit.unit}
-                  onChange={(selectedUnit) => handleUnitChange(index, 'unit', selectedUnit)}
-                />
+                <div className={isExistingProduct ? 'pointer-events-none opacity-70' : ''}>
+                  <UnitSelector
+                    value={unit.unit}
+                    onChange={(selectedUnit) => handleUnitChange(index, 'unit', selectedUnit)}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-gray-700 text-xs font-bold mb-1">Net Price</label>
                 <input
-                  type="number"
+                  type="text"
                   step="0.01"
                   value={unit.netPrice}
                   onChange={(e) => handleUnitChange(index, 'netPrice', e.target.value)}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-sm"
+                  className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-sm ${isExistingProduct ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   required
+                  disabled={isExistingProduct}
                 />
               </div>
               <div>
                 <label className="block text-gray-700 text-xs font-bold mb-1">Selling Price</label>
                 <input
-                  type="number"
+                  type="text"
                   step="0.01"
                   value={unit.sellingPrice}
                   onChange={(e) => handleUnitChange(index, 'sellingPrice', e.target.value)}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-sm"
+                  className={`shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-sm ${isExistingProduct ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   required
+                  disabled={isExistingProduct}
                 />
               </div>
               <div className="flex items-end">

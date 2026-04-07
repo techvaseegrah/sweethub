@@ -3,7 +3,7 @@ const Role = require('../../models/Role');
 const bcrypt = require('bcrypt');
 
 async function createAfterPackingOnlyUser(req, res) {
-    const { username, password, name } = req.body;
+    const { username, password, name, allowedCategories } = req.body;
 
     try {
         // Check if user already exists
@@ -28,10 +28,12 @@ async function createAfterPackingOnlyUser(req, res) {
             username,
             password: hashedPassword,
             role: afterPackingOnlyRole._id,
+            allowedCategories: allowedCategories || [],
             // No shop association for admin after packing-only users
         });
 
         await newUser.save();
+        await newUser.populate('allowedCategories', 'name');
 
         res.status(201).json({
             message: 'After packing-only user created successfully',
@@ -39,7 +41,8 @@ async function createAfterPackingOnlyUser(req, res) {
                 _id: newUser._id,
                 username: newUser.username,
                 name: newUser.name,
-                role: 'after-packing-only'
+                role: 'after-packing-only',
+                allowedCategories: newUser.allowedCategories
             }
         });
     } catch (error) {
@@ -64,7 +67,8 @@ async function getAllAfterPackingOnlyUsers(req, res) {
             ]
         })
             .select('-password') // Don't return password
-            .populate('role', 'name');
+            .populate('role', 'name')
+            .populate('allowedCategories', 'name');
 
         res.status(200).json(users);
     } catch (error) {
@@ -75,7 +79,7 @@ async function getAllAfterPackingOnlyUsers(req, res) {
 
 async function updateAfterPackingOnlyUser(req, res) {
     const { id } = req.params;
-    const { username, password, name } = req.body;
+    const { username, password, name, allowedCategories } = req.body;
 
     try {
         // Only find admin after-packing-only users (those without shop association)
@@ -115,7 +119,12 @@ async function updateAfterPackingOnlyUser(req, res) {
             user.password = hashedPassword;
         }
 
+        if (allowedCategories) {
+            user.allowedCategories = allowedCategories;
+        }
+
         await user.save();
+        await user.populate('allowedCategories', 'name');
 
         res.status(200).json({
             message: 'After packing-only user updated successfully',
@@ -123,7 +132,8 @@ async function updateAfterPackingOnlyUser(req, res) {
                 _id: user._id,
                 username: user.username,
                 name: user.name,
-                role: 'after-packing-only'
+                role: 'after-packing-only',
+                allowedCategories: user.allowedCategories
             }
         });
     } catch (error) {

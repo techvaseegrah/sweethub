@@ -42,7 +42,9 @@ const {
     addToStockFromAfterPacking,
     deleteAfterPackingItem,
     deleteBeforePackingItem,
-    deleteOutgoingMaterial
+    deleteOutgoingMaterial,
+    updateVendorHistory,
+    deleteVendorHistory
 } = require('../../controllers/admin/warehouseController');
 const { adminAuth } = require('../../middleware/auth');
 
@@ -58,6 +60,8 @@ router.put('/store-room/:id', updateStoreRoomItem);
 router.delete('/store-room/:id', deleteStoreRoomItem);
 router.get('/vendor-history/:materialName', getVendorHistory);
 router.get('/vendor-history', getAllVendorHistory);
+router.put('/vendor-history/:id', updateVendorHistory);
+router.delete('/vendor-history/:id', deleteVendorHistory);
 
 // Expired Materials
 router.get('/expired-materials', getExpiredMaterials);

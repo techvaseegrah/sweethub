@@ -26,6 +26,10 @@ const StoreRoom = () => {
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
     const [selectedMaterialHistory, setSelectedMaterialHistory] = useState([]);
     const [historyMaterialName, setHistoryMaterialName] = useState('');
+    const [isEditRecordModalOpen, setIsEditRecordModalOpen] = useState(false);
+    const [currentRecord, setCurrentRecord] = useState(null);
+    const [isDeleteRecordModalOpen, setIsDeleteRecordModalOpen] = useState(false);
+    const [recordToDelete, setRecordToDelete] = useState(null);
 
     const fetchItems = useCallback(async () => {
         setLoading(true);
@@ -95,6 +99,45 @@ const StoreRoom = () => {
             fetchItems();
         } catch (err) {
             setError('Failed to update item.');
+        }
+    };
+
+    const openEditRecordModal = (record) => {
+        setCurrentRecord({ ...record });
+        setIsEditRecordModalOpen(true);
+    };
+
+    const handleRecordModalChange = (e) => {
+        const { name, value } = e.target;
+        setCurrentRecord(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleUpdateRecord = async () => {
+        if (!currentRecord) return;
+        try {
+            await axios.put(`/admin/warehouse/vendor-history/${currentRecord._id}`, currentRecord);
+            setIsEditRecordModalOpen(false);
+            setCurrentRecord(null);
+            fetchItems();
+        } catch (err) {
+            setError('Failed to update purchase record.');
+        }
+    };
+
+    const handleDeleteRecord = (record) => {
+        setRecordToDelete(record);
+        setIsDeleteRecordModalOpen(true);
+    };
+
+    const confirmDeleteRecord = async () => {
+        if (!recordToDelete) return;
+        try {
+            await axios.delete(`/admin/warehouse/vendor-history/${recordToDelete._id}`);
+            fetchItems();
+            setIsDeleteRecordModalOpen(false);
+            setRecordToDelete(null);
+        } catch (err) {
+            setError('Failed to delete purchase record.');
         }
     };
 
@@ -378,6 +421,7 @@ const StoreRoom = () => {
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GST (%)</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GST Amt</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total (with GST)</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 )}
                             </thead>
@@ -447,6 +491,16 @@ const StoreRoom = () => {
                                             <td className="px-6 py-4 text-emerald-600 font-medium">₹{(record.gstAmount || 0).toFixed(2)}</td>
                                             <td className="px-6 py-4 font-bold text-gray-800">
                                                 ₹{(record.quantityReceived * (record.pricePerUnit || 0) + (record.gstAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex gap-2">
+                                                    <button onClick={() => openEditRecordModal(record)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                                                        <LuPencil />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteRecord(record)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                                                        <LuTrash2 />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     )) : (
@@ -619,6 +673,90 @@ const StoreRoom = () => {
                                 </button>
                                 <button
                                     onClick={confirmDelete}
+                                    className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-md transition-colors"
+                                >
+                                    Delete Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Purchase Record Modal */}
+            {isEditRecordModalOpen && currentRecord && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-gray-800">Edit Purchase Record</h2>
+                            <button onClick={() => setIsEditRecordModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                        </div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Material Name</label>
+                                <input type="text" name="materialName" value={currentRecord.materialName} onChange={handleRecordModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Vendor Name</label>
+                                <input type="text" name="vendorName" value={currentRecord.vendorName} onChange={handleRecordModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Quantity</label>
+                                <input type="text" name="quantityReceived" value={currentRecord.quantityReceived} onChange={handleRecordModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Unit</label>
+                                <input type="text" name="unit" value={currentRecord.unit} onChange={handleRecordModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Price per Unit (₹)</label>
+                                <input type="text" name="pricePerUnit" value={currentRecord.pricePerUnit} onChange={handleRecordModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">GST %</label>
+                                <input type="text" name="gstPercentage" value={currentRecord.gstPercentage} onChange={handleRecordModalChange} className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-semibold text-gray-600 mb-1">Received Date</label>
+                                <input
+                                    type="datetime-local"
+                                    name="receivedDate"
+                                    value={currentRecord.receivedDate ? new Date(currentRecord.receivedDate).toISOString().slice(0, 16) : ''}
+                                    onChange={handleRecordModalChange}
+                                    className="w-full px-4 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                        </div>
+                        <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+                            <button onClick={() => setIsEditRecordModalOpen(false)} className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                            <button onClick={handleUpdateRecord} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark shadow-md transition-all">Update Record</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Purchase Record Modal */}
+            {isDeleteRecordModalOpen && recordToDelete && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
+                        <div className="text-center">
+                            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                                <LuTrash2 className="h-6 w-6 text-red-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Purchase Record?</h3>
+                            <p className="text-gray-500 mb-6">
+                                Are you sure you want to delete this purchase record for <span className="font-bold text-gray-700">{recordToDelete.materialName}</span> from <span className="font-bold text-gray-700">{recordToDelete.vendorName}</span>?
+                                This action cannot be undone.
+                            </p>
+                            <div className="flex justify-center gap-3">
+                                <button
+                                    onClick={() => setIsDeleteRecordModalOpen(false)}
+                                    className="px-6 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmDeleteRecord}
                                     className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow-md transition-colors"
                                 >
                                     Delete Now

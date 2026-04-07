@@ -14,6 +14,9 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
     const [showPassword, setShowPassword] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [accountToDeleteId, setAccountToDeleteId] = useState(null);
+    const [categories, setCategories] = useState([]);
+    const [selectedCategories, setSelectedCategories] = useState([]);
+    const [editingInternalAccount, setEditingInternalAccount] = useState(null);
 
     const getEndpoint = () => isShop ? '/shop/product-billing-users' : '/admin/product-billing-users';
 
@@ -22,6 +25,7 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
         if (showManageAccounts) {
             fetchAccounts();
         }
+        fetchCategories();
     }, [showManageAccounts]);
 
     // Load editing account data if editing
@@ -31,11 +35,13 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
                 username: editingAccount.username,
                 password: '',
             });
+            setSelectedCategories(editingAccount.allowedCategories ? (typeof editingAccount.allowedCategories[0] === 'object' ? editingAccount.allowedCategories.map(cat => cat._id) : editingAccount.allowedCategories) : []);
         } else {
             setFormData({
                 username: '',
                 password: '',
             });
+            setSelectedCategories([]);
         }
     }, [editingAccount]);
 
@@ -49,6 +55,24 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
             console.error('Error fetching product-billing users:', err);
             setError('Failed to load product-billing accounts');
         }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const categoryUrl = isShop ? '/shop/categories' : '/admin/categories';
+            const response = await axios.get(categoryUrl, { withCredentials: true });
+            setCategories(Array.isArray(response.data) ? response.data : []);
+        } catch (err) {
+            console.error('Error fetching categories:', err);
+        }
+    };
+
+    const handleCategoryToggle = (categoryId) => {
+        setSelectedCategories(prev =>
+            prev.includes(categoryId)
+                ? prev.filter(id => id !== categoryId)
+                : [...prev, categoryId]
+        );
     };
 
     const handleChange = (e) => {
@@ -66,12 +90,14 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
 
         try {
             const endpoint = getEndpoint();
+            const currentEditing = editingAccount || editingInternalAccount;
 
-            if (editingAccount) {
+            if (currentEditing) {
                 // Update existing account
-                await axios.put(`${endpoint}/${editingAccount._id}`, {
+                await axios.put(`${endpoint}/${currentEditing._id}`, {
                     username: formData.username,
                     password: formData.password || undefined,
+                    allowedCategories: selectedCategories,
                 }, {
                     withCredentials: true,
                 });
@@ -82,6 +108,7 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
                     username: formData.username,
                     password: formData.password,
                     name: formData.username,
+                    allowedCategories: selectedCategories,
                 }, {
                     withCredentials: true,
                 });
@@ -89,10 +116,7 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
             }
 
             // Clear form
-            setFormData({
-                username: '',
-                password: '',
-            });
+            resetForm();
 
             // Refresh accounts list if in manage mode
             if (showManageAccounts) {
@@ -149,10 +173,16 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
     };
 
     const startEditing = (account) => {
+        setEditingInternalAccount(account);
         setFormData({
             username: account.username,
             password: '',
         });
+        setSelectedCategories(account.allowedCategories ? 
+            (typeof account.allowedCategories[0] === 'object' 
+                ? account.allowedCategories.map(cat => cat._id) 
+                : account.allowedCategories) 
+            : []);
         setShowManageAccounts(false);
         setShowPassword(false);
     };
@@ -162,6 +192,8 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
             username: '',
             password: '',
         });
+        setSelectedCategories([]);
+        setEditingInternalAccount(null);
         setShowPassword(false);
     };
 
@@ -231,13 +263,36 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
                         </div>
                     </div>
 
+                    <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Allowed Categories
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 rounded-md">
+                            {categories.map(cat => (
+                                <label key={cat._id} className="flex items-center space-x-2 text-sm text-gray-600 hover:bg-gray-50 p-1 rounded cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedCategories.includes(cat._id)}
+                                        onChange={() => handleCategoryToggle(cat._id)}
+                                        className="rounded text-red-600 focus:ring-red-500 h-4 w-4"
+                                    />
+                                    <span className="truncate">{cat.name}</span>
+                                </label>
+                            ))}
+                            {categories.length === 0 && (
+                                <p className="col-span-2 text-xs text-gray-500 text-center py-2">No categories found</p>
+                            )}
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">If none selected, user can see all categories.</p>
+                    </div>
+
                     <div className="flex space-x-4 pt-4">
                         <button
                             type="submit"
                             disabled={loading}
-                            className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className={`flex-1 ${editingAccount || editingInternalAccount ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} text-white py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold`}
                         >
-                            {loading ? (editingAccount ? 'Updating...' : 'Creating...') : (editingAccount ? 'Update Account' : 'Create Account')}
+                            {loading ? (editingAccount || editingInternalAccount ? 'Updating...' : 'Creating...') : (editingAccount || editingInternalAccount ? 'Update Account' : 'Create Account')}
                         </button>
                         <button
                             type="button"
@@ -266,24 +321,38 @@ function CreateProductBillingAccountModal({ onClose, onAccountCreated, isShop = 
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allowed Categories</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {accounts.map((account) => (
-                                    <tr key={account._id}>
-                                        <td className="px-6 py-4 whitespace-nowrap">{account.username}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                                    <tr key={account._id} className="hover:bg-gray-50">
+                                        <td className="px-4 py-4 whitespace-nowrap font-medium text-gray-900">{account.username}</td>
+                                        <td className="px-4 py-4 text-sm text-gray-500 max-w-xs overflow-hidden">
+                                            {account.allowedCategories && account.allowedCategories.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {account.allowedCategories.map(cat => (
+                                                        <span key={cat?._id || Math.random()} className="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-blue-200">
+                                                            {typeof cat === 'object' ? cat.name : cat}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400 italic text-[10px]">All Accessible</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-xs space-x-1">
                                             <button
                                                 onClick={() => startEditing(account)}
-                                                className="text-blue-600 hover:text-blue-900"
+                                                className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-2.5 py-1.5 rounded-lg transition-colors font-bold"
                                             >
                                                 Edit
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(account._id)}
-                                                className="text-red-600 hover:text-red-900 ml-2"
+                                                className="bg-red-100 text-red-600 hover:bg-red-200 px-2.5 py-1.5 rounded-lg transition-colors font-bold ml-1"
                                             >
                                                 Delete
                                             </button>

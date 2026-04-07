@@ -11,13 +11,16 @@ const {
     getProductCountByAdmin,
     getTotalStockAlertCount,
     getProductById,
-    getExpiredProducts
+    getExpiredProducts,
+    copyProducts
 } = require('../../controllers/admin/productController');
 const { adminAuth } = require('../../middleware/auth');
 
 // --- All Product Routes ---
 router.post('/', adminAuth, addProduct);
+router.post('/copy', adminAuth, copyProducts);
 router.get('/', adminAuth, getProducts);
+
 
 // --- Unit and Price Routes (No changes needed here) ---
 router.get('/units', adminAuth, getUnits);

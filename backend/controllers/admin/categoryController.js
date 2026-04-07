@@ -1,4 +1,5 @@
 const Category = require('../../models/Category');
+const User = require('../../models/User');
 
 exports.createCategory = async (req, res) => {
   try {
@@ -48,6 +49,12 @@ exports.getCategories = async (req, res) => {
           { shop: null }
         ]
       };
+    }
+
+    // Filter by allowedCategories if user has restrictions
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      filter._id = { $in: currentUser.allowedCategories };
     }
 
     const categories = await Category.find(filter).populate('products');
@@ -107,7 +114,6 @@ exports.getShopCategories = async (req, res) => {
     // Extract unique categories from products
     const categoryMap = {};
     const uniqueCategories = [];
-
     shopProducts.forEach(product => {
       if (product.category && !categoryMap[product.category._id]) {
         categoryMap[product.category._id] = true;
@@ -115,7 +121,15 @@ exports.getShopCategories = async (req, res) => {
       }
     });
 
-    res.json(uniqueCategories);
+    // Filter by allowedCategories if user has restrictions
+    const currentUser = await User.findById(req.user.id);
+    let finalCategories = uniqueCategories;
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      const allowedIds = currentUser.allowedCategories.map(id => id.toString());
+      finalCategories = uniqueCategories.filter(cat => allowedIds.includes(cat._id.toString()));
+    }
+
+    res.json(finalCategories);
   } catch (error) {
     console.error('Error fetching shop categories:', error);
     res.status(500).json({ message: 'Server Error' });

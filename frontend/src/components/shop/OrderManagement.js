@@ -40,18 +40,15 @@ function ShopOrderManagement() {
   useEffect(() => {
     const fetchStockAlertProducts = async () => {
       try {
-        const response = await axios.get('/shop/products/low-stock'); // Assuming this endpoint exists
+        const response = await axios.get('/shop/products/stock-alerts'); // Fixed: use existing stock-alerts endpoint
         setStockAlertProducts(response.data);
       } catch (err) {
-        // If the endpoint doesn't exist, fetch all products and filter for low stock
-        try {
-          const response = await axios.get('/shop/products');
-          const lowStockProducts = response.data.filter(product => product.stockLevel < 10); // Assuming < 10 is low stock
-          setStockAlertProducts(lowStockProducts);
-        } catch (err2) {
-          console.error('Failed to load stock alert products:', err2);
-          setStockAlertProducts([]); // Set to empty array if both attempts fail
-        }
+        console.error('Failed to load stock alert products from API, using local filter:', err);
+        // If the endpoint fails, filter the products we already have
+        const lowStockProducts = products.filter(product => 
+          product.stockLevel <= (product.stockAlertThreshold || 0)
+        );
+        setStockAlertProducts(lowStockProducts);
       }
     };
 

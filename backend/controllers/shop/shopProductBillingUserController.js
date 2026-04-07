@@ -36,6 +36,7 @@ exports.createProductBillingShopUser = async (req, res) => {
             password: hashedPassword,
             role: role._id,
             shop: req.shopId, // Associated with the same shop
+            allowedCategories: req.body.allowedCategories || [],
         });
 
         await newUser.save();
@@ -46,7 +47,8 @@ exports.createProductBillingShopUser = async (req, res) => {
                 _id: newUser._id,
                 username: newUser.username,
                 name: newUser.name,
-                role: 'product-billing-shop'
+                role: 'product-billing-shop',
+                allowedCategories: newUser.allowedCategories
             }
         });
     } catch (error) {
@@ -65,7 +67,8 @@ exports.getAllProductBillingShopUsers = async (req, res) => {
 
         const users = await User.find({ role: role._id, shop: req.shopId })
             .select('-password')
-            .populate('role', 'name');
+            .populate('role', 'name')
+            .populate('allowedCategories', 'name');
 
         res.status(200).json(users);
     } catch (error) {
@@ -100,6 +103,7 @@ exports.updateProductBillingShopUser = async (req, res) => {
         }
 
         if (name) user.name = name;
+        if (req.body.allowedCategories !== undefined) user.allowedCategories = req.body.allowedCategories;
 
         if (password) {
             const salt = await bcrypt.genSalt(10);
@@ -114,7 +118,8 @@ exports.updateProductBillingShopUser = async (req, res) => {
                 _id: user._id,
                 username: user.username,
                 name: user.name,
-                role: 'product-billing-shop'
+                role: 'product-billing-shop',
+                allowedCategories: user.allowedCategories
             }
         });
     } catch (error) {

@@ -18,12 +18,22 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
         show: false,
         accountId: null
     });
+    const [categories, setCategories] = useState([]);
+    const [selectedCategories, setSelectedCategories] = useState([]);
+
+    // Sync internal state with prop if it changes
+    useEffect(() => {
+        if (editingAccount) {
+            setCurrentEditingAccount(editingAccount);
+        }
+    }, [editingAccount]);
 
     // Load accounts when component mounts if in manage mode
     useEffect(() => {
         if (showManageAccountsInitial) {
             fetchAccounts();
         }
+        fetchCategories();
     }, []);
     
     // Load editing account data if editing
@@ -33,11 +43,17 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
                 username: currentEditingAccount.username,
                 password: '',
             });
+            setSelectedCategories(currentEditingAccount.allowedCategories ? 
+                currentEditingAccount.allowedCategories.map(cat => 
+                    (cat && typeof cat === 'object') ? cat._id : cat
+                ).filter(Boolean)
+                : []);
         } else {
             setFormData({
                 username: '',
                 password: '',
             });
+            setSelectedCategories([]);
         }
     }, [currentEditingAccount]);
 
@@ -51,6 +67,23 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
             console.error('Error fetching after-packing-only users:', err);
             setError('Failed to load after-packing-only accounts');
         }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const response = await axios.get('/admin/categories', { withCredentials: true });
+            setCategories(Array.isArray(response.data) ? response.data : []);
+        } catch (err) {
+            console.error('Error fetching categories:', err);
+        }
+    };
+
+    const handleCategoryToggle = (categoryId) => {
+        setSelectedCategories(prev =>
+            prev.includes(categoryId)
+                ? prev.filter(id => id !== categoryId)
+                : [...prev, categoryId]
+        );
     };
 
     const handleChange = (e) => {
@@ -72,6 +105,7 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
                 await axios.put(`/admin/after-packing-only-users/${currentEditingAccount._id}`, {
                     username: formData.username,
                     password: formData.password || undefined, // Only send password if it's being changed
+                    allowedCategories: selectedCategories,
                 }, {
                     withCredentials: true,
                 });
@@ -82,17 +116,18 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
                     username: formData.username,
                     password: formData.password,
                     name: formData.username, // Use username as name
+                    allowedCategories: selectedCategories,
                 }, {
                     withCredentials: true,
                 });
                 setSuccess('After packing-only account created successfully!');
             }
             
-            // Clear form
             setFormData({
                 username: '',
                 password: '',
             });
+            setSelectedCategories([]);
 
             // Refresh accounts list to show the newly created account
             fetchAccounts();
@@ -150,6 +185,11 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
             username: account.username,
             password: '',
         });
+        setSelectedCategories(account.allowedCategories ? 
+            account.allowedCategories.map(cat => 
+                (cat && typeof cat === 'object') ? cat._id : cat
+            ).filter(Boolean)
+            : []);
         setCurrentEditingAccount(account);
         setShowManageAccounts(false);
     };
@@ -168,6 +208,7 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
                                 setShowManageAccounts(false);
                                 setCurrentEditingAccount(null);
                                 setFormData({ username: '', password: '' });
+                                setSelectedCategories([]);
                             }}
                             className="text-blue-600 hover:text-blue-800"
                         >
@@ -180,7 +221,7 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
                             <thead>
                                 <tr className="bg-gray-50">
                                     <th className="py-2 px-4 border-b text-left">Username</th>
-                                    <th className="py-2 px-4 border-b text-left">Name</th>
+                                    <th className="py-2 px-4 border-b text-left">Allowed Categories</th>
                                     <th className="py-2 px-4 border-b text-left">Actions</th>
                                 </tr>
                             </thead>
@@ -188,7 +229,19 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
                                 {accounts.map((account) => (
                                     <tr key={account._id} className="hover:bg-gray-50">
                                         <td className="py-2 px-4 border-b">{account.username}</td>
-                                        <td className="py-2 px-4 border-b">{account.name}</td>
+                                        <td className="py-2 px-4 border-b text-sm text-gray-500">
+                                            {account.allowedCategories && account.allowedCategories.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {account.allowedCategories.map(cat => (
+                                                        <span key={cat?._id || Math.random()} className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-green-200">
+                                                            {typeof cat === 'object' ? cat.name : cat}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400 italic text-[10px]">All Accessible</span>
+                                            )}
+                                        </td>
                                         <td className="py-2 px-4 border-b">
                                             <button
                                                 onClick={() => startEditing(account)}
@@ -245,6 +298,29 @@ function CreateAfterPackingAccountModal({ onClose, onAccountCreated, editingAcco
                                     {showPassword ? 'Hide' : 'Show'}
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="mt-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Allowed Categories
+                            </label>
+                            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-gray-200 rounded-md">
+                                {categories.map(cat => (
+                                    <label key={cat._id} className="flex items-center space-x-2 text-sm text-gray-600 hover:bg-gray-50 p-1 rounded cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedCategories.includes(cat._id)}
+                                            onChange={() => handleCategoryToggle(cat._id)}
+                                            className="rounded text-green-600 focus:ring-green-500 h-4 w-4"
+                                        />
+                                        <span className="truncate">{cat.name}</span>
+                                    </label>
+                                ))}
+                                {categories.length === 0 && (
+                                    <p className="col-span-2 text-xs text-gray-500 text-center py-2">No categories found</p>
+                                )}
+                            </div>
+                            <p className="text-[10px] text-gray-500 mt-1">If none selected, user can see all categories.</p>
                         </div>
                     </div>
                     

@@ -130,7 +130,7 @@ const { adminAuth } = require('./middleware/auth');
 
 // Before Packing Only User Routes
 app.post('/api/admin/before-packing-only-users', adminAuth, async (req, res) => {
-    const { username, password, name } = req.body;
+    const { username, password, name, allowedCategories } = req.body;
 
     try {
         // Check if user already exists
@@ -155,9 +155,11 @@ app.post('/api/admin/before-packing-only-users', adminAuth, async (req, res) => 
             username,
             password: hashedPassword,
             role: beforePackingOnlyRole._id,
+            allowedCategories: allowedCategories || []
         });
 
         await newUser.save();
+        await newUser.populate('allowedCategories', 'name');
 
         res.status(201).json({
             message: 'Before packing-only user created successfully',
@@ -165,7 +167,8 @@ app.post('/api/admin/before-packing-only-users', adminAuth, async (req, res) => 
                 _id: newUser._id,
                 username: newUser.username,
                 name: newUser.name,
-                role: 'before-packing-only'
+                role: 'before-packing-only',
+                allowedCategories: newUser.allowedCategories
             }
         });
     } catch (error) {
@@ -189,7 +192,8 @@ app.get('/api/admin/before-packing-only-users', adminAuth, async (req, res) => {
             ]
         })
             .select('-password')
-            .populate('role', 'name');
+            .populate('role', 'name')
+            .populate('allowedCategories', 'name');
 
         res.status(200).json(users);
     } catch (error) {
@@ -200,7 +204,7 @@ app.get('/api/admin/before-packing-only-users', adminAuth, async (req, res) => {
 
 app.put('/api/admin/before-packing-only-users/:id', adminAuth, async (req, res) => {
     const { id } = req.params;
-    const { username, password, name } = req.body;
+    const { username, password, name, allowedCategories } = req.body;
 
     try {
         const user = await User.findOne({
@@ -231,6 +235,10 @@ app.put('/api/admin/before-packing-only-users/:id', adminAuth, async (req, res) 
             user.name = name;
         }
 
+        if (allowedCategories) {
+            user.allowedCategories = allowedCategories;
+        }
+
         if (password) {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
@@ -238,6 +246,7 @@ app.put('/api/admin/before-packing-only-users/:id', adminAuth, async (req, res) 
         }
 
         await user.save();
+        await user.populate('allowedCategories', 'name');
 
         res.status(200).json({
             message: 'Before packing-only user updated successfully',
@@ -245,7 +254,8 @@ app.put('/api/admin/before-packing-only-users/:id', adminAuth, async (req, res) 
                 _id: user._id,
                 username: user.username,
                 name: user.name,
-                role: 'before-packing-only'
+                role: 'before-packing-only',
+                allowedCategories: user.allowedCategories
             }
         });
     } catch (error) {
@@ -285,7 +295,7 @@ app.delete('/api/admin/before-packing-only-users/:id', adminAuth, async (req, re
 
 // After Packing Only User Routes
 app.post('/api/admin/after-packing-only-users', adminAuth, async (req, res) => {
-    const { username, password, name } = req.body;
+    const { username, password, name, allowedCategories } = req.body;
 
     try {
         // Check if user already exists
@@ -310,9 +320,11 @@ app.post('/api/admin/after-packing-only-users', adminAuth, async (req, res) => {
             username,
             password: hashedPassword,
             role: afterPackingOnlyRole._id,
+            allowedCategories: allowedCategories || []
         });
 
         await newUser.save();
+        await newUser.populate('allowedCategories', 'name');
 
         res.status(201).json({
             message: 'After packing-only user created successfully',
@@ -320,7 +332,8 @@ app.post('/api/admin/after-packing-only-users', adminAuth, async (req, res) => {
                 _id: newUser._id,
                 username: newUser.username,
                 name: newUser.name,
-                role: 'after-packing-only'
+                role: 'after-packing-only',
+                allowedCategories: newUser.allowedCategories
             }
         });
     } catch (error) {
@@ -344,7 +357,8 @@ app.get('/api/admin/after-packing-only-users', adminAuth, async (req, res) => {
             ]
         })
             .select('-password')
-            .populate('role', 'name');
+            .populate('role', 'name')
+            .populate('allowedCategories', 'name');
 
         res.status(200).json(users);
     } catch (error) {
@@ -355,7 +369,7 @@ app.get('/api/admin/after-packing-only-users', adminAuth, async (req, res) => {
 
 app.put('/api/admin/after-packing-only-users/:id', adminAuth, async (req, res) => {
     const { id } = req.params;
-    const { username, password, name } = req.body;
+    const { username, password, name, allowedCategories } = req.body;
 
     try {
         const user = await User.findOne({
@@ -386,6 +400,10 @@ app.put('/api/admin/after-packing-only-users/:id', adminAuth, async (req, res) =
             user.name = name;
         }
 
+        if (allowedCategories) {
+            user.allowedCategories = allowedCategories;
+        }
+
         if (password) {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(password, salt);
@@ -393,6 +411,7 @@ app.put('/api/admin/after-packing-only-users/:id', adminAuth, async (req, res) =
         }
 
         await user.save();
+        await user.populate('allowedCategories', 'name');
 
         res.status(200).json({
             message: 'After packing-only user updated successfully',
@@ -400,7 +419,8 @@ app.put('/api/admin/after-packing-only-users/:id', adminAuth, async (req, res) =
                 _id: user._id,
                 username: user.username,
                 name: user.name,
-                role: 'after-packing-only'
+                role: 'after-packing-only',
+                allowedCategories: user.allowedCategories
             }
         });
     } catch (error) {

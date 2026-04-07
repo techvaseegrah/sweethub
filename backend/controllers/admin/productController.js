@@ -1,6 +1,9 @@
 const Product = require('../../models/productModel');
 const Category = require('../../models/Category');
+const User = require('../../models/User');
+const Shop = require('../../models/shopModel');
 const { createProductHistory } = require('./productHistoryController');
+const { recordCopyHistory } = require('./productCopyHistoryController');
 const mongoose = require('mongoose');
 
 // --- MODIFIED: Add Product to Admin's Own Inventory ---
@@ -10,12 +13,16 @@ exports.addProduct = async (req, res) => {
   const adminId = req.user.id; // Get admin ID from authenticated user
 
   try {
-    // Check if a product with the same SKU already exists for the admin side
+    // Check if a product with the same name or SKU already exists for the admin side
     let existingProduct = await Product.findOne({
-      sku,
-      $or: [
-        { shop: { $exists: false } },
-        { shop: null }
+      $and: [
+        { $or: [{ name: name }, { sku: sku }] },
+        {
+          $or: [
+            { shop: { $exists: false } },
+            { shop: null }
+          ]
+        }
       ]
     });
 
@@ -113,6 +120,12 @@ exports.getProducts = async (req, res) => {
           { shop: null }
         ]
       };
+    }
+
+    // Filter by allowedCategories if user is not a full admin and has restrictions
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      filter.category = { $in: currentUser.allowedCategories };
     }
 
     const products = await Product.find(filter).populate('category', 'name').sort({ updatedAt: -1 });
@@ -366,13 +379,21 @@ exports.getProductById = async (req, res) => {
 // --- MODIFIED: Get stock alert count for the admin side ---
 exports.getTotalStockAlertCount = async (req, res) => {
   try {
-    const totalCount = await Product.countDocuments({
+    const alertFilter = {
       $or: [
         { shop: { $exists: false } },
         { shop: null }
       ],
       $expr: { $lte: ['$stockLevel', '$stockAlertThreshold'] }
-    });
+    };
+
+    // Filter by allowedCategories if user is not a full admin and has restrictions
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      alertFilter.category = { $in: currentUser.allowedCategories };
+    }
+
+    const totalCount = await Product.countDocuments(alertFilter);
     res.json({ totalCount });
   } catch (error) {
     console.error('Error fetching total stock alert count:', error);
@@ -384,12 +405,20 @@ exports.getTotalStockAlertCount = async (req, res) => {
 exports.getExpiredProducts = async (req, res) => {
   try {
     // Find ALL products for the admin side (both with and without expiry dates)
-    const products = await Product.find({
+    const expiredFilter = {
       $or: [
         { shop: { $exists: false } },
         { shop: null }
       ]
-    }).populate('category', 'name');
+    };
+
+    // Filter by allowedCategories if user is not a full admin and has restrictions
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      expiredFilter.category = { $in: currentUser.allowedCategories };
+    }
+
+    const products = await Product.find(expiredFilter).populate('category', 'name');
 
     // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
     const sortedProducts = products.sort((a, b) => {
@@ -452,4 +481,162 @@ exports.getAllAdminProducts = async (req, res) => {
   }
 };
 
-exports.getExpiredProducts;
+exports.copyProducts = async (req, res) => {
+  const { sourceShopId, destinationShopId, includeQty } = req.body;
+  const adminId = req.user.id;
+
+  // Use a log for debugging if needed
+  const fs = require('fs');
+  const path = require('path');
+  const logError = (msg, err) => {
+    const logPath = path.join(__dirname, '..', '..', 'server_debug.log');
+    fs.appendFileSync(logPath, `${new Date().toISOString()} - CopyProducts Error: ${msg} - ${err.stack || err}\n`);
+  };
+
+  try {
+    // 1. Define source filter
+    let sourceFilter = {};
+    if (sourceShopId && sourceShopId !== 'admin') {
+      if (!mongoose.Types.ObjectId.isValid(sourceShopId)) {
+          return res.status(400).json({ message: 'Invalid source shop ID' });
+      }
+      sourceFilter = { shop: sourceShopId };
+    } else {
+      sourceFilter = {
+        $or: [
+          { shop: { $exists: false } },
+          { shop: null }
+        ],
+        admin: adminId // Ensure we only copy products owned by this admin
+      };
+    }
+
+    // 2. Fetch all source products
+    const sourceProducts = await Product.find(sourceFilter);
+
+    if (sourceProducts.length === 0) {
+      return res.status(404).json({ message: 'No products found in the source shop.' });
+    }
+
+    // 3. Define destination shop reference
+    const destShopRef = (destinationShopId === 'admin' || !destinationShopId) ? null : destinationShopId;
+    const destAdminRef = (destinationShopId === 'admin' || !destinationShopId) ? adminId : null;
+
+    if (destShopRef && !mongoose.Types.ObjectId.isValid(destShopRef)) {
+       return res.status(400).json({ message: 'Invalid destination shop ID' });
+    }
+
+    let copiedCount = 0;
+    let updatedCount = 0;
+
+    // 4. Iterate and copy
+    for (const product of sourceProducts) {
+      try {
+        // Check if product with same SKU already exists in destination
+        let destFilter = { sku: product.sku };
+        if (destShopRef) {
+          destFilter.shop = destShopRef;
+        } else {
+          destFilter.$or = [{ shop: { $exists: false } }, { shop: null }];
+          destFilter.admin = adminId; // Filter by the specific destination admin
+        }
+
+        let existingDestProduct = await Product.findOne(destFilter);
+
+        // Robust stock handling
+        const sourceStock = typeof product.stockLevel === 'number' ? product.stockLevel : 0;
+        const stockToSet = includeQty ? sourceStock : 0;
+
+        // Strip price subdocument IDs to prevent duplicate key errors
+        const sanitizedPrices = product.prices ? product.prices.map(p => ({
+          unit: p.unit,
+          netPrice: p.netPrice,
+          sellingPrice: p.sellingPrice
+        })) : [];
+
+        if (existingDestProduct) {
+          // Update existing product's stock and prices
+          if (includeQty) {
+            const currentStock = typeof existingDestProduct.stockLevel === 'number' ? existingDestProduct.stockLevel : 0;
+            existingDestProduct.stockLevel = currentStock + stockToSet;
+          }
+          // Always sync prices and other metadata
+          existingDestProduct.name = product.name;
+          existingDestProduct.prices = sanitizedPrices;
+          existingDestProduct.category = product.category;
+          existingDestProduct.expiryDate = product.expiryDate;
+          existingDestProduct.usedByDate = product.usedByDate;
+          
+          await existingDestProduct.save();
+          updatedCount++;
+        } else {
+          // Create new product
+          const productData = {
+            name: product.name,
+            category: product.category,
+            sku: product.sku,
+            stockLevel: stockToSet,
+            stockAlertThreshold: product.stockAlertThreshold,
+            prices: sanitizedPrices,
+            expiryDate: product.expiryDate,
+            usedByDate: product.usedByDate
+          };
+
+          // Only set the ownership fields if they have a non-null value to avoid indexing collisions
+          if (destShopRef) productData.shop = destShopRef;
+          if (destAdminRef) productData.admin = destAdminRef;
+
+          const newProduct = new Product(productData);
+          const savedProduct = await newProduct.save();
+
+          // Add to category if it exists and is a valid ObjectId
+          if (product.category && mongoose.Types.ObjectId.isValid(product.category)) {
+            await Category.findByIdAndUpdate(product.category, { $addToSet: { products: savedProduct._id } });
+          }
+          copiedCount++;
+        }
+      } catch (itemError) {
+        logError(`Failed to process product: ${product.name} (SKU: ${product.sku})`, itemError);
+        // Continue with next product, but we'll return 500 if NO products could be processed
+      }
+    }
+
+    // Record History
+    try {
+      let sourceName = 'Admin';
+      let destName = 'Admin';
+      if (sourceShopId && sourceShopId !== 'admin') {
+        const sourceShop = await Shop.findById(sourceShopId);
+        if (sourceShop) sourceName = sourceShop.name;
+      }
+      if (destinationShopId && destinationShopId !== 'admin') {
+        const destShop = await Shop.findById(destinationShopId);
+        if (destShop) destName = destShop.name;
+      }
+      
+      await recordCopyHistory({
+        sourceShop: sourceName,
+        destinationShop: destName,
+        copiedCount: copiedCount,
+        updatedCount: updatedCount,
+        totalProducts: sourceProducts.length,
+        includeQty: includeQty,
+        admin: adminId
+      });
+    } catch (historyError) {
+      logError('Failed to record copy history', historyError);
+    }
+
+    res.json({
+      message: `Successfully processed products.`,
+      details: {
+        totalSource: sourceProducts.length,
+        newlyCopied: copiedCount,
+        updatedExisting: updatedCount
+      }
+    });
+  } catch (error) {
+    logError('Critical error in copyProducts', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

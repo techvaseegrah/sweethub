@@ -52,7 +52,7 @@ exports.loginUser = async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        const user = await User.findOne({ username }).populate('role');
+        const user = await User.findOne({ username }).populate('role').populate('allowedCategories', 'name');
         if (!user) {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
@@ -137,6 +137,7 @@ exports.loginUser = async (req, res) => {
             name: user.name,
             role: user.role.name,
             token,
+            allowedCategories: user.allowedCategories || []
         };
 
         // Include userType for relevant roles

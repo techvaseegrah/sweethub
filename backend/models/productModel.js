@@ -39,9 +39,15 @@ const productSchema = new mongoose.Schema({
 });
 
 // --- MODIFIED: Ensure SKU is unique per owner (either admin or shop) ---
-// This prevents duplicate SKUs within the same inventory.
-productSchema.index({ sku: 1, admin: 1 }, { unique: true, partialFilterExpression: { admin: { $exists: true } } });
-productSchema.index({ sku: 1, shop: 1 }, { unique: true, partialFilterExpression: { shop: { $exists: true } } });
+// We avoid indexing 'null' values by using a partialFilterExpression that requires the field to NOT be null.
+productSchema.index({ sku: 1, admin: 1 }, { 
+  unique: true, 
+  partialFilterExpression: { admin: { $exists: true, $ne: null } } 
+});
+productSchema.index({ sku: 1, shop: 1 }, { 
+  unique: true, 
+  partialFilterExpression: { shop: { $exists: true, $ne: null } } 
+});
 
 
 module.exports = mongoose.model('Product', productSchema);

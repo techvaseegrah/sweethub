@@ -15,11 +15,58 @@ const formatTimeTo12Hour = (time24) => {
   return `${hoursInt}:${minutes} ${ampm}`;
 };
 
+const MessageAlert = ({ status, onClose }) => {
+  if (!status || !status.message) return null;
+  return (
+    <div className={`mb-4 p-4 rounded-lg flex justify-between items-center animate-fade-in ${status.type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+      <div className="flex items-center">
+        {status.type === 'success' ? (
+          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+        )}
+        <span className="font-medium">{status.message}</span>
+      </div>
+      <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition-colors">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+};
+
 const Settings = () => {
   const [gstPercentage, setGstPercentage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [messageType, setMessageType] = useState(''); // success or error
+  
+  // Section-specific status states
+  const [gstStatus, setGstStatus] = useState({ message: '', type: '' });
+  const [accessStatus, setAccessStatus] = useState({ message: '', type: '' });
+  const [copyStatus, setCopyStatus] = useState({ message: '', type: '' });
+  const [batchStatus, setBatchStatus] = useState({ message: '', type: '' });
+
+  // Function to show message and auto-dismiss
+  const showSectionMessage = (section, message, type = 'success') => {
+    const setters = {
+      gst: setGstStatus,
+      access: setAccessStatus,
+      copy: setCopyStatus,
+      batch: setBatchStatus
+    };
+    
+    const setter = setters[section];
+    if (setter) {
+      setter({ message, type });
+      setTimeout(() => {
+        setter({ message: '', type: '' });
+      }, 5000);
+    }
+  };
 
   // Batch states
   const [batches, setBatches] = useState([]);
@@ -33,8 +80,19 @@ const Settings = () => {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null); // State for delete confirmation modal
 
+  // Product Shifting state
+  const [sourceShopId, setSourceShopId] = useState('');
+  const [destinationShopId, setDestinationShopId] = useState('');
+  const [copyIncludeQty, setCopyIncludeQty] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+
   // Access control state
   const [shops, setShops] = useState([]);
+
+  // Copy History state
+  const [copyHistory, setCopyHistory] = useState([]);
+  const [showCopyHistoryModal, setShowCopyHistoryModal] = useState(false);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
 
   // Fetch current GST settings on component mount
   useEffect(() => {
@@ -44,8 +102,7 @@ const Settings = () => {
         setGstPercentage(response.data.gstPercentage || '');
       } catch (error) {
         console.error('Error fetching GST settings:', error);
-        setMessage('Failed to load GST settings.');
-        setMessageType('error');
+        showSectionMessage('gst', 'Failed to load GST settings.', 'error');
       }
     };
 
@@ -75,28 +132,20 @@ const Settings = () => {
 
   const handleSaveGst = async () => {
     if (gstPercentage === '' || isNaN(gstPercentage) || gstPercentage < 0) {
-      setMessage('Please enter a valid GST percentage.');
-      setMessageType('error');
+      showSectionMessage('gst', 'Please enter a valid GST percentage.', 'error');
       return;
     }
 
     setLoading(true);
-    setMessage('');
+    setGstStatus({ message: '', type: '' });
 
     try {
       const response = await axios.post('/admin/settings/gst', { gstPercentage });
 
-      setMessage(response.data.message);
-      setMessageType('success');
-
-      // Clear message after 3 seconds
-      setTimeout(() => {
-        setMessage('');
-      }, 3000);
+      showSectionMessage('gst', 'GST settings updated successfully', 'success');
     } catch (error) {
       console.error('Error saving GST settings:', error);
-      setMessage('Failed to save GST settings. Please try again.');
-      setMessageType('error');
+      showSectionMessage('gst', 'Failed to save GST settings. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -105,13 +154,12 @@ const Settings = () => {
   // Batch functions
   const handleAddBatch = async () => {
     if (!newBatch.name) {
-      setMessage('Please enter a batch name.');
-      setMessageType('error');
+      showSectionMessage('batch', 'Please enter a batch name.', 'error');
       return;
     }
 
     setLoading(true);
-    setMessage('');
+    setBatchStatus({ message: '', type: '' });
 
     try {
       const batchId = editingBatchId || Date.now().toString();
@@ -123,8 +171,7 @@ const Settings = () => {
         breakTime: newBatch.breakTime
       });
 
-      setMessage(response.data.message);
-      setMessageType('success');
+      showSectionMessage('batch', editingBatchId ? 'Batch updated successfully' : 'Batch added successfully', 'success');
 
       // Reset form
       setNewBatch({
@@ -138,15 +185,9 @@ const Settings = () => {
       // Refresh batches
       const batchResponse = await axios.get('/admin/settings/batches');
       setBatches(batchResponse.data);
-
-      // Clear message after 3 seconds
-      setTimeout(() => {
-        setMessage('');
-      }, 3000);
     } catch (error) {
       console.error('Error saving batch settings:', error);
-      setMessage('Failed to save batch settings. Please try again.');
-      setMessageType('error');
+      showSectionMessage('batch', 'Failed to save batch settings. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -158,13 +199,10 @@ const Settings = () => {
       const newStatus = !currentStatus;
       await axios.put(`/admin/shops/${shopId}/access`, { hasTaxInvoiceAccess: newStatus });
       setShops(shops.map(shop => shop._id === shopId ? { ...shop, hasTaxInvoiceAccess: newStatus } : shop));
-      setMessage('Access updated successfully');
-      setMessageType('success');
-      setTimeout(() => setMessage(''), 3000);
+      showSectionMessage('access', `Access for ${shops.find(s => s._id === shopId)?.name} updated successfully`, 'success');
     } catch (error) {
       console.error('Error updating access:', error);
-      setMessage('Failed to update access. Please try again.');
-      setMessageType('error');
+      showSectionMessage('access', 'Failed to update access. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
@@ -187,25 +225,15 @@ const Settings = () => {
   const confirmDeleteBatch = async (batchId) => {
     try {
       const response = await axios.delete(`/admin/settings/batches/${batchId}`);
-      setMessage(response.data.message);
-      setMessageType('success');
+      showSectionMessage('batch', 'Batch deleted successfully', 'success');
 
       // Refresh batches
       const batchResponse = await axios.get('/admin/settings/batches');
       setBatches(batchResponse.data);
-
-      // Clear message after 3 seconds
-      setTimeout(() => {
-        setMessage('');
-      }, 3000);
     } catch (error) {
       console.error('Error deleting batch:', error);
-      if (error.response && error.response.data && error.response.data.message) {
-        setMessage(`Failed to delete batch: ${error.response.data.message}`);
-      } else {
-        setMessage('Failed to delete batch. Please try again.');
-      }
-      setMessageType('error');
+      const errorMsg = error.response?.data?.message || 'Failed to delete batch. Please try again.';
+      showSectionMessage('batch', errorMsg, 'error');
     } finally {
       setDeleteConfirmation(null);
     }
@@ -213,6 +241,70 @@ const Settings = () => {
 
   const cancelDeleteBatch = () => {
     setDeleteConfirmation(null);
+  };
+
+  const handleCopyProducts = async () => {
+    if (!sourceShopId || !destinationShopId) {
+      showSectionMessage('copy', 'Please select both source and destination shops.', 'error');
+      return;
+    }
+
+    if (sourceShopId === destinationShopId) {
+      showSectionMessage('copy', 'Source and destination cannot be the same.', 'error');
+      return;
+    }
+
+    setIsCopying(true);
+    setCopyStatus({ message: '', type: '' });
+
+    try {
+      const response = await axios.post('/admin/products/copy', {
+        sourceShopId: sourceShopId,
+        destinationShopId: destinationShopId,
+        includeQty: copyIncludeQty
+      });
+
+      showSectionMessage('copy', 'Products and inventory details copied successfully', 'success');
+      
+      // Reset form
+      setSourceShopId('');
+      setDestinationShopId('');
+      setCopyIncludeQty(false);
+    } catch (error) {
+      console.error('Error copying products:', error);
+      showSectionMessage('copy', error.response?.data?.message || 'Failed to copy products.', 'error');
+    } finally {
+      setIsCopying(false);
+    }
+  };
+
+  const fetchCopyHistory = async () => {
+    setIsFetchingHistory(true);
+    try {
+      const response = await axios.get('/admin/product-history/copy');
+      setCopyHistory(response.data);
+      setShowCopyHistoryModal(true);
+    } catch (error) {
+      console.error('Error fetching copy history:', error);
+      showSectionMessage('copy', 'Failed to load copy history.', 'error');
+    } finally {
+      setIsFetchingHistory(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   // Calculate example values for display
@@ -244,14 +336,8 @@ const Settings = () => {
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Settings</h1>
       <p className="text-gray-600 mb-8">Configure application settings and preferences.</p>
 
-      {/* Message Display */}
-      {message && (
-        <div className={`mb-6 p-4 rounded-lg ${messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-          {message}
-        </div>
-      )}
-
       {/* GST Management Section */}
+      <MessageAlert status={gstStatus} onClose={() => setGstStatus({ message: '', type: '' })} />
       <div className="border border-gray-200 rounded-lg p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">GST Management</h2>
         <p className="text-gray-600 mb-6">Configure GST settings for billing and invoices.</p>
@@ -317,6 +403,7 @@ const Settings = () => {
       </div>
 
       {/* Access Control Section */}
+      <MessageAlert status={accessStatus} onClose={() => setAccessStatus({ message: '', type: '' })} />
       <div className="border border-gray-200 rounded-lg p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">Access Control</h2>
         <p className="text-gray-600 mb-6">Manage access rights for different shops globally.</p>
@@ -368,7 +455,91 @@ const Settings = () => {
         </div>
       </div>
 
+      <MessageAlert status={copyStatus} onClose={() => setCopyStatus({ message: '', type: '' })} />
+      <div className="border border-gray-200 rounded-lg p-6 mb-8 bg-blue-50">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            Product Copying / Shifting
+          </h2>
+          <button
+            onClick={fetchCopyHistory}
+            disabled={isFetchingHistory}
+            className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors flex items-center gap-1 text-sm font-medium"
+            title="View Copy History"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {isFetchingHistory ? 'Loading...' : 'History'}
+          </button>
+        </div>
+        <p className="text-gray-600 mb-6 font-medium">Duplicate all products from one shop to another. This is useful for setting up new shops quickly.</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Source Shop (From)</label>
+            <select
+              value={sourceShopId}
+              onChange={(e) => setSourceShopId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary bg-white shadow-sm"
+            >
+              <option value="">Select Source</option>
+              <option value="admin">Admin Side (Base Products)</option>
+              {shops.map(shop => (
+                <option key={shop._id} value={shop._id}>{shop.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Destination Shop (To)</label>
+            <select
+              value={destinationShopId}
+              onChange={(e) => setDestinationShopId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary bg-white shadow-sm"
+            >
+              <option value="">Select Destination</option>
+              <option value="admin">Admin Side (Base Products)</option>
+              {shops.map(shop => (
+                <option key={shop._id} value={shop._id}>{shop.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center mb-3">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={copyIncludeQty}
+                onChange={(e) => setCopyIncludeQty(e.target.checked)}
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <span className="ml-3 text-sm font-medium text-gray-700">Include Stock QTY</span>
+            </label>
+          </div>
+
+          <div>
+            <button
+              onClick={handleCopyProducts}
+              disabled={isCopying}
+              className={`w-full bg-blue-600 text-white font-semibold py-2 px-6 rounded-md hover:bg-blue-700 transition duration-200 shadow-md ${isCopying ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {isCopying ? 'Processing...' : 'Copy Products'}
+            </button>
+          </div>
+        </div>
+        <p className="mt-4 text-xs text-gray-500 italic">
+          * Note: Products are matched by SKU. If a product already exists in the destination, its details (except stock, unless toggled) will be synced.
+        </p>
+      </div>
+
       {/* Batch Management Section */}
+
+      <MessageAlert status={batchStatus} onClose={() => setBatchStatus({ message: '', type: '' })} />
       <div className="border border-gray-200 rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">Batch Management</h2>
         <p className="text-gray-600 mb-6">Configure work batches with predefined working hours, lunch breaks, and break times.</p>
@@ -653,6 +824,77 @@ const Settings = () => {
                 className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Copy History Modal */}
+      {showCopyHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-800">Product Copy History</h3>
+              <button 
+                onClick={() => setShowCopyHistoryModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {copyHistory.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No copy history found.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destination</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Copied</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Qty Incl.</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {copyHistory.map((history) => (
+                        <tr key={history._id}>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div>{formatDate(history.timestamp)}</div>
+                            <div className="text-xs text-gray-500">{formatTime(history.timestamp)}</div>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{history.sourceShop}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-green-600">{history.destinationShop}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-center font-bold text-gray-700">{history.copiedCount}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-700">{history.updatedCount}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-center text-gray-500">{history.totalProducts}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
+                            {history.includeQty ? (
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Yes</span>
+                            ) : (
+                              <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">No</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{history.admin?.name || 'Unknown'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t bg-gray-50 flex justify-end">
+              <button 
+                onClick={() => setShowCopyHistoryModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

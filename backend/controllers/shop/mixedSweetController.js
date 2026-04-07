@@ -2,6 +2,16 @@ const MixedSweetProduction = require('../../models/mixedSweetProductionModel');
 const Product = require('../../models/productModel');
 const Category = require('../../models/Category');
 
+const convertWeight = (value, fromUnit, toUnit) => {
+    const val = parseFloat(value) || 0;
+    const f = (fromUnit || 'kg').toLowerCase();
+    const t = (toUnit || 'kg').toLowerCase();
+    if (f === t) return val;
+    if (f === 'kg' && t === 'gm') return val * 1000;
+    if (f === 'gm' && t === 'kg') return val / 1000;
+    return val;
+};
+
 exports.createMixedSweetProduction = async (req, res) => {
     try {
         const { name, sku, quantityProduced, sellingPrice, category, components, unit, expiryDate, usedByDate } = req.body;
@@ -27,16 +37,24 @@ exports.createMixedSweetProduction = async (req, res) => {
             if (!product) {
                 return res.status(404).json({ message: `Component product ${component.name} not found.` });
             }
-            if (product.stockLevel < component.quantityUsed) {
-                return res.status(400).json({ message: `Insufficient stock for ${component.name}. Available: ${product.stockLevel}, Required: ${component.quantityUsed}` });
+
+            const baseUnit = product.prices?.[0]?.unit || 'kg';
+            const normalizedQtyUsed = convertWeight(component.quantityUsed, component.unit, baseUnit);
+
+            if (product.stockLevel < normalizedQtyUsed) {
+                return res.status(400).json({ message: `Insufficient stock for ${component.name}. Available: ${product.stockLevel} ${baseUnit}, Required: ${component.quantityUsed} ${component.unit} (${normalizedQtyUsed} ${baseUnit})` });
             }
         }
 
         // 2. Reduce stock from components
         for (const component of components) {
+            const product = await Product.findOne({ _id: component.product, shop: shopId });
+            const baseUnit = product.prices?.[0]?.unit || 'kg';
+            const normalizedQtyUsed = convertWeight(component.quantityUsed, component.unit, baseUnit);
+
             await Product.updateOne(
                 { _id: component.product, shop: shopId },
-                { $inc: { stockLevel: -parseFloat(component.quantityUsed) } }
+                { $inc: { stockLevel: -normalizedQtyUsed } }
             );
         }
 
@@ -65,7 +83,7 @@ exports.createMixedSweetProduction = async (req, res) => {
             mixedProduct.isMixedSweet = true;
             mixedProduct.sku = sku;
             if (finalCategory) mixedProduct.category = finalCategory;
-            
+
             // Update selling price if it exists for the unit, or add it
             const priceIndex = mixedProduct.prices.findIndex(p => p.unit === finalUnit);
             if (priceIndex >= 0) {
@@ -103,8 +121,8 @@ exports.createMixedSweetProduction = async (req, res) => {
 
     } catch (error) {
         console.error('CRITICAL: Error in Mixed Sweet Production:', error);
-        res.status(500).json({ 
-            message: 'Production failed.', 
+        res.status(500).json({
+            message: 'Production failed.',
             error: error.message,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });

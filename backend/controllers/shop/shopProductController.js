@@ -1,5 +1,6 @@
 const Product = require('../../models/productModel');
 const Category = require('../../models/Category');
+const User = require('../../models/User');
 const MixedSweetProduction = require('../../models/mixedSweetProductionModel');
 
 /**
@@ -7,9 +8,6 @@ const MixedSweetProduction = require('../../models/mixedSweetProductionModel');
  * This is used to display the shop's inventory.
  */
 exports.getShopProducts = async (req, res) => {
-  console.log('=== GET SHOP PRODUCTS REQUEST ===');
-  console.log('User:', req.user);
-
   try {
     // Get shop ID from the authenticated user - should be in req.user.shopId
     const shopId = req.user.shopId;
@@ -20,12 +18,19 @@ exports.getShopProducts = async (req, res) => {
     }
 
     // Find all products where the 'shop' field matches the logged-in shop's ID
-    const products = await Product.find({ shop: shopId })
+    const filter = { shop: shopId };
+
+    // Filter by allowedCategories if user is not a full admin/shop and has restrictions
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      filter.category = { $in: currentUser.allowedCategories };
+    }
+
+    const products = await Product.find(filter)
       .populate('category', 'name') // Optionally show category names
       .sort({ updatedAt: -1 }); // Sort by latest updated/added first
 
     console.log('Found shop products:', products.length);
-    console.log('Products:', products.map(p => ({ name: p.name, sku: p.sku, stock: p.stockLevel })));
 
     res.status(200).json(products);
   } catch (error) {
@@ -142,8 +147,13 @@ exports.createShopProduct = async (req, res) => {
       }
     }
 
-    // Check if product with same SKU already exists for this shop
-    let existingProduct = await Product.findOne({ sku, shop: shopId });
+    // Check if product with same name or SKU already exists for this shop
+    let existingProduct = await Product.findOne({
+      $and: [
+        { $or: [{ name: name }, { sku: sku }] },
+        { shop: shopId }
+      ]
+    });
     if (existingProduct) {
       // If product exists, update its stock level by adding the new quantity
       const newStockLevel = (parseFloat(existingProduct.stockLevel) || 0) + (parseFloat(stockLevel) || 0);
@@ -223,9 +233,15 @@ exports.getShopExpiredProducts = async (req, res) => {
     }
 
     // Find all products for this shop (both with and without expiry dates)
-    const products = await Product.find({
-      shop: shopId
-    }).populate('category', 'name');
+    const filter = { shop: shopId };
+
+    // Filter by allowedCategories if user is not a full admin/shop and has restrictions
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      filter.category = { $in: currentUser.allowedCategories };
+    }
+
+    const products = await Product.find(filter).populate('category', 'name');
 
     // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
     const sortedProducts = products.sort((a, b) => {
@@ -260,6 +276,7 @@ exports.getShopExpiredProducts = async (req, res) => {
 
 // Get stock alert products for the logged-in shop
 exports.getShopStockAlerts = async (req, res) => {
+  console.log('=== GET SHOP STOCK ALERTS REQUEST ===');
   try {
     // Get shop ID from the authenticated user
     const shopId = req.user.shopId;
@@ -269,10 +286,18 @@ exports.getShopStockAlerts = async (req, res) => {
     }
 
     // Find products for this shop where stock level is less than or equal to alert threshold
-    const lowStockProducts = await Product.find({
+    const filter = {
       shop: shopId,
       $expr: { $lte: ['$stockLevel', '$stockAlertThreshold'] }
-    }).populate('category', 'name')
+    };
+
+    // Filter by allowedCategories if user is not a full admin/shop and has restrictions
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
+      filter.category = { $in: currentUser.allowedCategories };
+    }
+
+    const lowStockProducts = await Product.find(filter).populate('category', 'name')
       .sort({ updatedAt: -1 });
 
     res.status(200).json(lowStockProducts);
@@ -281,5 +306,3 @@ exports.getShopStockAlerts = async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch stock alerts.', error: error.message });
   }
 };
-
-exports.getShopExpiredProducts;

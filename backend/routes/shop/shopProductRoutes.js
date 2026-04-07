@@ -20,6 +20,7 @@ router.get('/expired', shopAuth, getShopExpiredProducts);
 
 // Route to get stock alerts for shop users
 router.get('/stock-alerts', shopAuth, getShopStockAlerts);
+router.get('/low-stock', shopAuth, getShopStockAlerts);
 
 // Route to update product prices for shop users
 router.put('/:id', shopAuth, updateShopProduct);
