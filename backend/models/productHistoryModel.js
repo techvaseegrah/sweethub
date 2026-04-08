@@ -19,6 +19,10 @@ const productHistorySchema = new mongoose.Schema({
     enum: ['Added', 'Updated', 'Stock In', 'Stock Out'],
     required: true
   },
+  description: {
+    type: String,
+    required: false
+  },
   quantity: {
     type: Number,
     required: true

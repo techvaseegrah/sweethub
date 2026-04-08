@@ -43,7 +43,7 @@ const MessageAlert = ({ status, onClose }) => {
 const Settings = () => {
   const [gstPercentage, setGstPercentage] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   // Section-specific status states
   const [gstStatus, setGstStatus] = useState({ message: '', type: '' });
   const [accessStatus, setAccessStatus] = useState({ message: '', type: '' });
@@ -56,9 +56,10 @@ const Settings = () => {
       gst: setGstStatus,
       access: setAccessStatus,
       copy: setCopyStatus,
-      batch: setBatchStatus
+      batch: setBatchStatus,
+      category: setCategoryAccessStatus
     };
-    
+
     const setter = setters[section];
     if (setter) {
       setter({ message, type });
@@ -88,6 +89,10 @@ const Settings = () => {
 
   // Access control state
   const [shops, setShops] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedShopForCategories, setSelectedShopForCategories] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [categoryAccessStatus, setCategoryAccessStatus] = useState({ message: '', type: '' });
 
   // Copy History state
   const [copyHistory, setCopyHistory] = useState([]);
@@ -125,9 +130,19 @@ const Settings = () => {
       }
     };
 
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('/admin/categories');
+        setCategories(response.data);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
     fetchGstSettings();
     fetchBatchSettings();
     fetchShops();
+    fetchCategories();
   }, []);
 
   const handleSaveGst = async () => {
@@ -188,6 +203,77 @@ const Settings = () => {
     } catch (error) {
       console.error('Error saving batch settings:', error);
       showSectionMessage('batch', 'Failed to save batch settings. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleShopChangeForCategories = async (shopId) => {
+    setSelectedShopForCategories(shopId);
+    if (shopId) {
+      try {
+        setLoading(true);
+        // Fetch categories used by this specific shop
+        const catResponse = await axios.get(`/admin/categories/shop-specific?shopId=${shopId}`);
+        setCategories(catResponse.data);
+
+        const shop = shops.find(s => s._id === shopId);
+        if (shop && shop.allowedCategories) {
+          // Extract IDs from shop.allowedCategories which might be objects or strings
+          const allowedIds = shop.allowedCategories.map(cat => typeof cat === 'object' ? cat._id : cat);
+          setSelectedCategories(allowedIds);
+        } else {
+          setSelectedCategories([]);
+        }
+      } catch (error) {
+        console.error('Error fetching shop-specific categories:', error);
+        showSectionMessage('category', 'Failed to load shop categories.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      setSelectedCategories([]);
+      // Reset to all categories when no shop is selected
+      try {
+        const response = await axios.get('/admin/categories');
+        setCategories(response.data);
+      } catch (error) {
+        console.error('Error resetting categories:', error);
+      }
+    }
+  };
+
+  const handleCategoryToggle = (categoryId) => {
+    setSelectedCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
+        : [...prev, categoryId]
+    );
+  };
+
+  const handleSaveCategoryPermissions = async () => {
+    if (!selectedShopForCategories) {
+      showSectionMessage('category', 'Please select a shop first.', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.put(`/admin/shops/${selectedShopForCategories}/category-permissions`, {
+        allowedCategories: selectedCategories
+      });
+
+      // Update local shops state
+      setShops(prevShops => prevShops.map(shop =>
+        shop._id === selectedShopForCategories
+          ? { ...shop, allowedCategories: response.data.shop.allowedCategories }
+          : shop
+      ));
+
+      showSectionMessage('category', 'Category permissions updated successfully', 'success');
+    } catch (error) {
+      console.error('Error saving category permissions:', error);
+      showSectionMessage('category', 'Failed to update category permissions.', 'error');
     } finally {
       setLoading(false);
     }
@@ -265,7 +351,7 @@ const Settings = () => {
       });
 
       showSectionMessage('copy', 'Products and inventory details copied successfully', 'success');
-      
+
       // Reset form
       setSourceShopId('');
       setDestinationShopId('');
@@ -453,6 +539,87 @@ const Settings = () => {
             <div className="p-4 text-center text-sm text-gray-500">No shops available.</div>
           )}
         </div>
+      </div>
+
+      {/* Category Access Control Section */}
+      <MessageAlert status={categoryAccessStatus} onClose={() => setCategoryAccessStatus({ message: '', type: '' })} />
+      <div className="border border-gray-200 rounded-lg p-6 mb-8 bg-green-50">
+        <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+          <svg className="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          Category Access Control
+        </h2>
+        <div className="flex flex-col gap-1 mb-6">
+          <p className="text-gray-600 font-medium">Select a shop and control which categories are visible to them in filters and reports.</p>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border border-green-200">View Products</span>
+            <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border border-green-200">Track Stock</span>
+            <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border border-green-200">Stock Alerts</span>
+            <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border border-green-200">Sales Report</span>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Shop</label>
+          <select
+            value={selectedShopForCategories}
+            onChange={(e) => handleShopChangeForCategories(e.target.value)}
+            className="w-full md:w-1/2 px-4 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary bg-white shadow-sm"
+          >
+            <option value="">Select Shop</option>
+            {shops.map(shop => (
+              <option key={shop._id} value={shop._id}>{shop.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedShopForCategories && (
+          <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm animate-fade-in">
+            <h3 className="text-lg font-medium text-gray-800 mb-4 flex justify-between items-center">
+              <span>Allowed Categories for {shops.find(s => s._id === selectedShopForCategories)?.name}</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedCategories(categories.map(c => c._id))}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  onClick={() => setSelectedCategories([])}
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </h3>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+              {categories.map((category) => (
+                <label key={category._id} className="flex items-center p-3 border rounded-md hover:bg-gray-50 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(category._id)}
+                    onChange={() => handleCategoryToggle(category._id)}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-3 text-sm text-gray-700 font-medium">{category.name}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleSaveCategoryPermissions}
+                disabled={loading}
+                className={`bg-green-600 text-white font-semibold py-2 px-8 rounded-md hover:bg-green-700 transition duration-200 shadow-md ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {loading ? 'Saving...' : 'Save Permissions'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <MessageAlert status={copyStatus} onClose={() => setCopyStatus({ message: '', type: '' })} />
@@ -835,7 +1002,7 @@ const Settings = () => {
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] flex flex-col">
             <div className="p-6 border-b flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-800">Product Copy History</h3>
-              <button 
+              <button
                 onClick={() => setShowCopyHistoryModal(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
@@ -890,7 +1057,7 @@ const Settings = () => {
               )}
             </div>
             <div className="p-6 border-t bg-gray-50 flex justify-end">
-              <button 
+              <button
                 onClick={() => setShowCopyHistoryModal(false)}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
               >

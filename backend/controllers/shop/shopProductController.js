@@ -2,6 +2,8 @@ const Product = require('../../models/productModel');
 const Category = require('../../models/Category');
 const User = require('../../models/User');
 const MixedSweetProduction = require('../../models/mixedSweetProductionModel');
+const { createProductHistory } = require('../admin/productHistoryController');
+
 
 /**
  * Retrieves all products that belong to the currently logged-in shop.
@@ -24,6 +26,18 @@ exports.getShopProducts = async (req, res) => {
     const currentUser = await User.findById(req.user.id);
     if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
       filter.category = { $in: currentUser.allowedCategories };
+    }
+
+    // NEW: Filter by Shop's allowedCategories
+    const Shop = require('../../models/shopModel');
+    const shop = await Shop.findById(shopId);
+    if (shop && shop.allowedCategories && shop.allowedCategories.length > 0) {
+      if (filter.category && filter.category.$in) {
+        const allowedIds = shop.allowedCategories.map(id => id.toString());
+        filter.category.$in = filter.category.$in.filter(id => allowedIds.includes(id.toString()));
+      } else {
+        filter.category = { $in: shop.allowedCategories };
+      }
     }
 
     const products = await Product.find(filter)
@@ -115,6 +129,14 @@ exports.updateShopProduct = async (req, res) => {
 
     const updatedProduct = await product.save();
 
+    // Record product history
+    try {
+      await createProductHistory(updatedProduct, 'Updated', req.user.id, null, updatedProduct.stockLevel);
+    } catch (historyError) {
+      console.error('Failed to create product history:', historyError);
+    }
+
+
     res.status(200).json(updatedProduct);
   } catch (error) {
     console.error('Error updating shop product:', error);
@@ -168,7 +190,16 @@ exports.createShopProduct = async (req, res) => {
       if (usedByDate) existingProduct.usedByDate = new Date(usedByDate);
 
       const savedProduct = await existingProduct.save();
+
+      // Record product history for update
+      try {
+        await createProductHistory(savedProduct, 'Updated', req.user.id, parseFloat(stockLevel), savedProduct.stockLevel);
+      } catch (historyError) {
+        console.error('Failed to create product history:', historyError);
+      }
+
       return res.status(200).json(savedProduct);
+
     }
 
     // Create new product
@@ -185,6 +216,14 @@ exports.createShopProduct = async (req, res) => {
     });
 
     const savedProduct = await newProduct.save();
+
+    // Record product history for addition
+    try {
+      await createProductHistory(savedProduct, 'Added', req.user.id, null, savedProduct.stockLevel);
+    } catch (historyError) {
+      console.error('Failed to create product history:', historyError);
+    }
+
 
     res.status(201).json(savedProduct);
   } catch (error) {
@@ -241,6 +280,18 @@ exports.getShopExpiredProducts = async (req, res) => {
       filter.category = { $in: currentUser.allowedCategories };
     }
 
+    // NEW: Filter by Shop's allowedCategories
+    const Shop = require('../../models/shopModel');
+    const shop = await Shop.findById(shopId);
+    if (shop && shop.allowedCategories && shop.allowedCategories.length > 0) {
+      if (filter.category && filter.category.$in) {
+        const allowedIds = shop.allowedCategories.map(id => id.toString());
+        filter.category.$in = filter.category.$in.filter(id => allowedIds.includes(id.toString()));
+      } else {
+        filter.category = { $in: shop.allowedCategories };
+      }
+    }
+
     const products = await Product.find(filter).populate('category', 'name');
 
     // Sort products: first expired/near expiry items (by expiry date), then items with good expiry dates, then items without expiry dates
@@ -295,6 +346,18 @@ exports.getShopStockAlerts = async (req, res) => {
     const currentUser = await User.findById(req.user.id);
     if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
       filter.category = { $in: currentUser.allowedCategories };
+    }
+
+    // NEW: Filter by Shop's allowedCategories
+    const Shop = require('../../models/shopModel');
+    const shop = await Shop.findById(shopId);
+    if (shop && shop.allowedCategories && shop.allowedCategories.length > 0) {
+      if (filter.category && filter.category.$in) {
+        const allowedIds = shop.allowedCategories.map(id => id.toString());
+        filter.category.$in = filter.category.$in.filter(id => allowedIds.includes(id.toString()));
+      } else {
+        filter.category = { $in: shop.allowedCategories };
+      }
     }
 
     const lowStockProducts = await Product.find(filter).populate('category', 'name')

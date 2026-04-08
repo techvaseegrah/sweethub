@@ -33,6 +33,10 @@ const shopSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
+  allowedCategories: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+  }],
 }, {
   timestamps: true,
 });

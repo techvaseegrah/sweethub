@@ -8,5 +8,6 @@ router.get('/', adminAuth, getShops);
 router.put('/:id', adminAuth, updateShop);
 router.delete('/:id', adminAuth, deleteShop);
 router.put('/:id/access', adminAuth, updateShopAccess);
+router.put('/:id/category-permissions', adminAuth, require('../../controllers/admin/adminShopController').updateCategoryPermissions);
 
 module.exports = router;

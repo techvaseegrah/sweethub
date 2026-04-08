@@ -178,3 +178,27 @@ exports.updateShopAccess = async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 };
+
+exports.updateCategoryPermissions = async (req, res) => {
+  const { id } = req.params;
+  const { allowedCategories } = req.body;
+  try {
+    const updatedShop = await Shop.findByIdAndUpdate(
+      id,
+      { allowedCategories },
+      { new: true }
+    ).populate('allowedCategories', 'name');
+
+    if (!updatedShop) {
+      return res.status(404).json({ message: 'Shop not found' });
+    }
+
+    res.json({
+      message: 'Category permissions updated successfully',
+      shop: updatedShop
+    });
+  } catch (error) {
+    console.error('Error updating category permissions:', error);
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};

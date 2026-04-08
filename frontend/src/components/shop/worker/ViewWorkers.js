@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from '../../../api/axios';
 import CustomModal from '../../../components/CustomModal'; // Import CustomModal
 import Webcam from 'react-webcam'; // Import Webcam for face enrollment
-import { LuCamera, LuUpload, LuUserPlus, LuCheck, LuX } from 'react-icons/lu'; // Import icons
+import { LuCamera, LuUpload, LuUserPlus, LuCheck, LuX, LuPencil, LuTrash2 } from 'react-icons/lu'; // Import icons
 import { useNavigate, useLocation } from 'react-router-dom'; // Import useNavigate and useLocation for navigation and route change detection
 import faceRecognitionService from '../../../services/faceRecognitionService';
 
@@ -41,28 +41,28 @@ const ViewWorkers = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  
+
   // State for delete confirmation modal
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [workerToDelete, setWorkerToDelete] = useState(null);
 
   // Create a function to fetch data that can be called externally
   const fetchData = async () => {
-      try {
-          const [workersResponse, departmentsResponse, batchesResponse] = await Promise.all([
-              axios.get(WORKER_URL, { withCredentials: true }),
-              axios.get('/shop/departments', { withCredentials: true }),
-              axios.get('/shop/settings/batches')
-          ]);
-          setWorkers(workersResponse.data);
-          setDepartments(departmentsResponse.data);
-          setBatches(batchesResponse.data);
-      } catch (err) {
-          setError('Failed to fetch data.');
-          console.error(err);
-      } finally {
-          setLoading(false);
-      }
+    try {
+      const [workersResponse, departmentsResponse, batchesResponse] = await Promise.all([
+        axios.get(WORKER_URL, { withCredentials: true }),
+        axios.get('/shop/departments', { withCredentials: true }),
+        axios.get('/shop/settings/batches')
+      ]);
+      setWorkers(workersResponse.data);
+      setDepartments(departmentsResponse.data);
+      setBatches(batchesResponse.data);
+    } catch (err) {
+      setError('Failed to fetch data.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -78,8 +78,8 @@ const ViewWorkers = () => {
   // Open edit modal
   const handleEdit = (worker) => {
     setEditingWorker(worker);
-    setEditedWorkerData({ 
-      ...worker, 
+    setEditedWorkerData({
+      ...worker,
       department: worker.department?._id || worker.department || '',
       selectedBatch: worker.batchId || ''
     });
@@ -96,7 +96,7 @@ const ViewWorkers = () => {
   // Handle input changes in the edit form
   const handleInputChange = (e, field) => {
     const { value } = e.target;
-    
+
     // Handle nested properties like workingHours.from
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
@@ -143,28 +143,28 @@ const ViewWorkers = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-        // Preserve face enrollment data during worker update
-        const updateData = { ...editedWorkerData };
-        
-        // Map selectedBatch to batchId for backend
-        if (editedWorkerData.selectedBatch !== undefined) {
-          updateData.batchId = editedWorkerData.selectedBatch || null;
-        }
-        
-        // If the worker already has face data, preserve it during the update
-        if (editingWorker && editingWorker.faceEncodings) {
-          updateData.faceEncodings = editingWorker.faceEncodings;
-        }
-        if (editingWorker && editingWorker.faceImages) {
-          updateData.faceImages = editingWorker.faceImages;
-        }
-        
-        const response = await axios.put(`${WORKER_URL}/${editingWorker._id}`, updateData, { withCredentials: true });
-        setWorkers(workers.map(w => w._id === editingWorker._id ? response.data.worker : w));
-        handleCloseEditModal();
+      // Preserve face enrollment data during worker update
+      const updateData = { ...editedWorkerData };
+
+      // Map selectedBatch to batchId for backend
+      if (editedWorkerData.selectedBatch !== undefined) {
+        updateData.batchId = editedWorkerData.selectedBatch || null;
+      }
+
+      // If the worker already has face data, preserve it during the update
+      if (editingWorker && editingWorker.faceEncodings) {
+        updateData.faceEncodings = editingWorker.faceEncodings;
+      }
+      if (editingWorker && editingWorker.faceImages) {
+        updateData.faceImages = editingWorker.faceImages;
+      }
+
+      const response = await axios.put(`${WORKER_URL}/${editingWorker._id}`, updateData, { withCredentials: true });
+      setWorkers(workers.map(w => w._id === editingWorker._id ? response.data.worker : w));
+      handleCloseEditModal();
     } catch (err) {
-        setError('Failed to update worker.');
-        console.error(err);
+      setError('Failed to update worker.');
+      console.error(err);
     }
   };
 
@@ -239,7 +239,7 @@ const ViewWorkers = () => {
   // Submit face enrollment
   const handleSubmitFaceEnrollment = async (e) => {
     e.preventDefault();
-    
+
     if (!faceEnrollmentWorker || images.length === 0) {
       setMessage({ type: 'error', text: 'Please select a worker and provide at least one image.' });
       return;
@@ -254,12 +254,12 @@ const ViewWorkers = () => {
 
       // Process images to extract face descriptors
       const faceDescriptors = [];
-      
+
       for (const imageData of images) {
         try {
           const img = await faceRecognitionService.loadImageFromDataURL(imageData.preview);
           const detection = await faceRecognitionService.detectFaceFromImage(img);
-          
+
           if (detection && detection.descriptor) {
             faceDescriptors.push(Array.from(detection.descriptor));
           }
@@ -281,7 +281,7 @@ const ViewWorkers = () => {
       const formData = new FormData();
       formData.append('workerId', faceEnrollmentWorker._id);
       formData.append('faceDescriptors', JSON.stringify(faceDescriptors));
-      
+
       // Add image files for display purposes
       images.forEach(image => {
         formData.append('faces', image.file);
@@ -291,16 +291,16 @@ const ViewWorkers = () => {
       await axios.post('/shop/attendance/enroll-face', formData);
 
       setMessage({ type: 'success', text: 'Face enrollment successful!' });
-      
+
       // Refresh workers data to show updated face enrollment status
       await fetchData();
-      
+
       // Update the editingWorker state to reflect the new face enrollment
       // Fetch the updated worker data to get the latest faceImages
       try {
         // Add a small delay to ensure the database update is complete
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         const updatedWorkerResponse = await axios.get(`${WORKER_URL}/${faceEnrollmentWorker._id}`, { withCredentials: true });
         // Update the editingWorker state if it matches the enrolled worker
         if (editingWorker && editingWorker._id === faceEnrollmentWorker._id) {
@@ -316,43 +316,43 @@ const ViewWorkers = () => {
             faceEncodings: faceDescriptors // Add the face encodings as well
           }));
         }
-      }      
+      }
       // Update the face recognition service with the new face data
       try {
         // Convert descriptors to Float32Array format for the service
         const float32Descriptors = faceDescriptors.map(desc => new Float32Array(desc));
         faceRecognitionService.addEnrolledFace(faceEnrollmentWorker._id, float32Descriptors);
-        
+
         // Small delay to ensure the face data is properly stored
         await new Promise(resolve => setTimeout(resolve, 100));
-        
+
         // Reload enrolled faces to ensure consistency
         const enrolledCount = await faceRecognitionService._loadEnrolledFaces();
         console.log('Reloaded enrolled faces. Total enrolled workers:', enrolledCount);
-        
+
         // Notify that face attendance records should be updated
         // This could trigger a refresh of any attendance tracking components
-        window.dispatchEvent(new CustomEvent('faceEnrollmentUpdated', { 
-          detail: { workerId: faceEnrollmentWorker._id, timestamp: Date.now() } 
-        }));        
+        window.dispatchEvent(new CustomEvent('faceEnrollmentUpdated', {
+          detail: { workerId: faceEnrollmentWorker._id, timestamp: Date.now() }
+        }));
         // Also dispatch a custom event with more detailed information
-        window.dispatchEvent(new CustomEvent('faceEnrollmentCompleted', { 
-          detail: { 
-            workerId: faceEnrollmentWorker._id, 
+        window.dispatchEvent(new CustomEvent('faceEnrollmentCompleted', {
+          detail: {
+            workerId: faceEnrollmentWorker._id,
             workerName: faceEnrollmentWorker.name,
             descriptorsCount: float32Descriptors.length,
-            timestamp: Date.now() 
-          } 
+            timestamp: Date.now()
+          }
         }));
       } catch (serviceError) {
         console.warn('Failed to update face recognition service:', serviceError);
       }
-      
+
       // Close the modal after a delay
       setTimeout(() => {
         handleCloseFaceEnrollment();
       }, 2000);
-      
+
     } catch (error) {
       console.error('Error enrolling face:', error);
       const errorMsg = error.response?.data?.message || error.message || 'An error occurred during enrollment.';
@@ -370,7 +370,7 @@ const ViewWorkers = () => {
 
   const confirmDelete = async () => {
     if (!workerToDelete) return;
-    
+
     try {
       await axios.delete(`${WORKER_URL}/${workerToDelete._id}`, { withCredentials: true });
       setWorkers(workers.filter((w) => w._id !== workerToDelete._id));
@@ -398,7 +398,7 @@ const ViewWorkers = () => {
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
       <h3 className="text-2xl font-semibold mb-4 text-gray-800">Existing Workers</h3>
-      
+
       {/* Search Bar */}
       <div className="relative w-full sm:w-1/3 mb-6">
         <input
@@ -409,83 +409,71 @@ const ViewWorkers = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
-      
+
       {filteredWorkers.length === 0 ? (
         <p>No workers found. Please add a worker.</p>
       ) : (
         <div className="overflow-x-auto">
-         <table className="min-w-full divide-y divide-gray-200">
-    <thead className="bg-gray-50">
-        <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salary</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch Details</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RFID</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-        </tr>
-    </thead>
-    <tbody className="bg-white divide-y divide-gray-200">
-        {filteredWorkers.map((worker) => (
-            <tr key={worker._id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{worker.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.department?.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.salary}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {worker.batchId ? (
-                    <div>
-                      <div>
-                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
-                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
-                          : 'Not set'}
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Staff Name</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Schedule</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">RFID</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredWorkers.map((worker) => (
+                <tr key={worker._id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">{worker.name}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{worker.department?.name || 'N/A'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs font-bold text-emerald-600">₹{worker.salary?.toLocaleString()}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-[10px] text-gray-500">
+                    {worker.workingHours?.from && (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="bg-gray-50 px-1.5 py-0.5 rounded text-gray-600 border border-gray-100">
+                          {formatTimeTo12Hour(worker.workingHours.from)} - {formatTimeTo12Hour(worker.workingHours.to)}
+                        </span>
                       </div>
-                      <div>
-                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
-                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
-                          : 'Not set'}
-                      </div>
-                      <div>
-                        Break Time: {worker.breakTime?.startTime && worker.breakTime?.endTime 
-                          ? `${formatTimeTo12Hour(worker.breakTime.startTime)} - ${formatTimeTo12Hour(worker.breakTime.endTime)}` 
-                          : 'Not set'}
-                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                    <span className={`px-2 py-0.5 rounded-full ${worker.rfid ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-gray-50 text-gray-400 border border-gray-100'} text-[10px] font-bold`}>
+                      {worker.rfid || 'Unassigned'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center space-x-2">
+                      <button
+                        onClick={() => handleEdit(worker)}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Edit Worker"
+                      >
+                        <LuPencil size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(worker)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete Worker"
+                      >
+                        <LuTrash2 size={18} />
+                      </button>
                     </div>
-                  ) : (
-                    <div>
-                      <div>
-                        Working Hours: {worker.workingHours?.from && worker.workingHours?.to 
-                          ? `${formatTimeTo12Hour(worker.workingHours.from)} - ${formatTimeTo12Hour(worker.workingHours.to)}` 
-                          : 'Not set'}
-                      </div>
-                      <div>
-                        Lunch Break: {worker.lunchBreak?.from && worker.lunchBreak?.to 
-                          ? `${formatTimeTo12Hour(worker.lunchBreak.from)} - ${formatTimeTo12Hour(worker.lunchBreak.to)}` 
-                          : 'Not set'}
-                      </div>
-                      <div>
-                        Break Time: {worker.breakTime?.startTime && worker.breakTime?.endTime 
-                          ? `${formatTimeTo12Hour(worker.breakTime.startTime)} - ${formatTimeTo12Hour(worker.breakTime.endTime)}` 
-                          : 'Not set'}
-                      </div>
-                    </div>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{worker.rfid || 'Not Assigned'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(worker)} className="text-indigo-600 hover:text-indigo-900 mr-4">Edit</button>
-                    <button onClick={() => handleDeleteClick(worker)} className="text-red-600 hover:text-red-900">Delete</button>
-                </td>
-            </tr>
-        ))}
-    </tbody>
-</table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Edit Worker Modal */}
-      <CustomModal 
-        isOpen={isEditModalOpen} 
-        onClose={handleCloseEditModal} 
+      <CustomModal
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
         title="Edit Worker"
       >
         {editingWorker && (
@@ -500,7 +488,7 @@ const ViewWorkers = () => {
                 required
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
               <select
@@ -514,7 +502,7 @@ const ViewWorkers = () => {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Salary</label>
               <input
@@ -524,7 +512,7 @@ const ViewWorkers = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">RFID</label>
               <input
@@ -534,7 +522,7 @@ const ViewWorkers = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            
+
             {/* Batch Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
@@ -548,7 +536,7 @@ const ViewWorkers = () => {
                   <option key={batch.id} value={batch.id}>{batch.name}</option>
                 ))}
               </select>
-              
+
               {/* Display selected batch details */}
               {editedWorkerData.selectedBatch && (
                 <div className="mt-2 p-2 bg-gray-100 rounded text-sm">
@@ -566,7 +554,7 @@ const ViewWorkers = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Face Enrollment Section */}
             <div className="border-t border-gray-200 pt-4">
               <div className="flex justify-between items-center">
@@ -582,8 +570,8 @@ const ViewWorkers = () => {
                 )}
               </div>
               <p className="mt-1 text-sm text-gray-500">
-                {editingWorker.faceImages && editingWorker.faceImages.length > 0 
-                  ? `Worker has ${editingWorker.faceImages.length} face images enrolled.` 
+                {editingWorker.faceImages && editingWorker.faceImages.length > 0
+                  ? `Worker has ${editingWorker.faceImages.length} face images enrolled.`
                   : 'Worker has not been enrolled for face recognition.'}
               </p>
               <button
@@ -592,12 +580,12 @@ const ViewWorkers = () => {
                 className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 <LuUserPlus className="mr-1" size={16} />
-                {editingWorker.faceImages && editingWorker.faceImages.length > 0 
-                  ? 'Update Face Enrollment' 
+                {editingWorker.faceImages && editingWorker.faceImages.length > 0
+                  ? 'Update Face Enrollment'
                   : 'Enroll Face'}
               </button>
             </div>
-            
+
             <div className="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
@@ -618,9 +606,9 @@ const ViewWorkers = () => {
       </CustomModal>
 
       {/* Face Enrollment Modal */}
-      <CustomModal 
-        isOpen={isFaceEnrollmentOpen} 
-        onClose={handleCloseFaceEnrollment} 
+      <CustomModal
+        isOpen={isFaceEnrollmentOpen}
+        onClose={handleCloseFaceEnrollment}
         title="Face Enrollment"
       >
         {faceEnrollmentWorker && (
@@ -628,7 +616,7 @@ const ViewWorkers = () => {
             <p className="text-sm text-gray-600">
               Enrolling face for worker: <span className="font-medium">{faceEnrollmentWorker.name}</span>
             </p>
-            
+
             {/* Instructions */}
             <div className="bg-blue-50 p-4 rounded-md">
               <h4 className="text-sm font-medium text-blue-800 mb-2">Instructions</h4>
@@ -638,14 +626,14 @@ const ViewWorkers = () => {
                 <li>Ensure good lighting and avoid glare or shadows on the face</li>
               </ul>
             </div>
-            
+
             {/* Status Message */}
             {message.text && (
               <div className={`p-3 rounded-md ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                 {message.text}
               </div>
             )}
-            
+
             <form onSubmit={handleSubmitFaceEnrollment} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
@@ -686,7 +674,7 @@ const ViewWorkers = () => {
                     </button>
                   )}
                 </div>
-                
+
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-2">Preview ({images.length}/5)</h3>
                   {images.length > 0 ? (
@@ -711,7 +699,7 @@ const ViewWorkers = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"

@@ -4,7 +4,7 @@ import CreateInvoice from './CreateInvoice';
 import InvoiceHistory from './InvoiceHistory';
 import ProductHistory from './ProductHistory'; // Add this import
 import { generateProductReportPdf } from '../../../utils/generateProductReportPdf';
-import { LuChevronDown, LuChevronUp, LuInfo, LuPlus, LuTrash2, LuSearch, LuLoaderCircle } from 'react-icons/lu';
+import { LuChevronDown, LuChevronUp, LuInfo, LuPlus, LuTrash2, LuSearch, LuLoaderCircle, LuPencil, LuHistory, LuTrash } from 'react-icons/lu';
 
 function ViewProducts({ baseUrl = '/admin' }) {
   const PRODUCT_URL = `${baseUrl}/products`;
@@ -403,14 +403,16 @@ function ViewProducts({ baseUrl = '/admin' }) {
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl sm:text-2xl font-semibold text-gray-800">View Products</h3>
         <div className="flex gap-3">
+          <button
+            onClick={() => setIsHistoryModalOpen(true)}
+            className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center gap-2"
+          >
+            <LuHistory size={18} />
+            Invoice History
+          </button>
+
           {baseUrl === '/admin' ? (
             <>
-              <button
-                onClick={() => setIsHistoryModalOpen(true)}
-                className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-              >
-                Invoice History
-              </button>
               <button
                 onClick={() => setIsInvoiceModalOpen(true)}
                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
@@ -516,18 +518,18 @@ function ViewProducts({ baseUrl = '/admin' }) {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">
                   Product Name
                 </th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Price</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sell Price</th>
-                <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry Date</th>
-                <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Used By Date</th>
-                <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                <th className="px-2 sm:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Stock</th>
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Net Price</th>
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Sell Price</th>
+                <th className="hidden lg:table-cell px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Expiry</th>
+                <th className="hidden lg:table-cell px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Used By</th>
+                <th className="hidden lg:table-cell px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="px-3 py-3 text-right text-sm font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -538,7 +540,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
                 return (
                   <React.Fragment key={`${product._id}-${product.unit}`}>
                     <tr className="hover:bg-gray-50 border-b border-gray-100">
-                      <td className="px-2 sm:px-6 py-4 text-sm font-semibold text-gray-900">
+                      <td className="px-3 py-3 text-sm font-medium text-gray-900 max-w-[150px] truncate">
                         <div className="flex items-center gap-2">
                           {hasMixedDetails && (
                             <button
@@ -561,78 +563,81 @@ function ViewProducts({ baseUrl = '/admin' }) {
                               }}
                               className="text-slate-400 hover:text-slate-900 transition-colors"
                             >
-                              {isExpanded ? <LuChevronUp size={16} /> : <LuChevronDown size={16} />}
+                              {isExpanded ? <LuChevronUp size={14} /> : <LuChevronDown size={14} />}
                             </button>
                           )}
-                          {product.name}
+                          <span className="truncate" title={product.name}>{product.name}</span>
                           {product.isMixedSweet && (
                             <span className="text-[8px] bg-slate-900 text-white px-1.5 py-0.5 rounded-full font-bold">MIX</span>
                           )}
                         </div>
                       </td>
-                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                         {product.sku}
                       </td>
-                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 uppercase">
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 uppercase">
                           {product.unit}
                         </span>
                       </td>
-                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.stockLevel <= (product.stockAlertThreshold || 0)
-                          ? 'bg-red-100 text-red-800'
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${product.stockLevel <= (product.stockAlertThreshold || 0)
+                          ? 'bg-red-50 text-red-700'
                           : product.stockLevel <= (product.stockAlertThreshold || 0) * 2
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
+                            ? 'bg-yellow-50 text-yellow-700'
+                            : 'bg-green-50 text-green-700'
                           }`}>
                           {product.stockLevel}
                         </span>
                       </td>
-                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm">
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
                         {Number(product.netPrice) === 0 ? (
                           <span className="text-red-500 font-bold">(0)</span>
                         ) : (
                           <span className="text-gray-500">₹{product.netPrice}</span>
                         )}
                       </td>
-                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm font-semibold">
+                      <td className="px-3 py-3 whitespace-nowrap text-sm font-semibold">
                         {Number(product.sellingPrice) === 0 ? (
                           <span className="text-red-500 font-bold">(0)</span>
                         ) : (
                           <span className="text-green-600">₹{product.sellingPrice}</span>
                         )}
                       </td>
-                      <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('en-GB') : 'N/A'}
+                      <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {product.expiryDate ? new Date(product.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'N/A'}
                       </td>
-                      <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {product.usedByDate ? new Date(product.usedByDate).toLocaleDateString('en-GB') : 'N/A'}
+                      <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {product.usedByDate ? new Date(product.usedByDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }) : 'N/A'}
                       </td>
-                      <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-sm text-gray-500 max-w-[100px] truncate">
                         {product.category ? (typeof product.category === 'object' ? product.category.name :
                           categories.find(cat => cat._id === product.category)?.name || 'N/A') : 'N/A'}
                       </td>
-                      <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => openEditModal(product)}
-                          className="text-indigo-600 hover:text-indigo-900 mr-4 font-bold"
-                        >
-                          Edit
-                        </button>
-                        {baseUrl === '/admin' && (
+                      <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => openEditModal(product)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit Product"
+                          >
+                            <LuPencil size={18} />
+                          </button>
                           <button
                             onClick={() => openProductHistoryModal(product._id)}
-                            className="text-green-600 hover:text-green-900 mr-4 font-bold"
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="View History"
                           >
-                            History
+                            <LuHistory size={18} />
                           </button>
-                        )}
-                        <button
-                          onClick={() => openDeleteConfirmation(product._id)}
-                          className="text-red-600 hover:text-red-900 font-bold"
-                        >
-                          Delete
-                        </button>
+                          <button
+                            onClick={() => openDeleteConfirmation(product._id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Product"
+                          >
+                            <LuTrash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     {isExpanded && mixedSweetDetails[product._id] && (
@@ -1029,10 +1034,11 @@ function ViewProducts({ baseUrl = '/admin' }) {
       )}
 
       {/* Product History Modal */}
-      {isProductHistoryModalOpen && baseUrl === '/admin' && (
+      {isProductHistoryModalOpen && (
         <ProductHistory
           closeModal={() => setIsProductHistoryModalOpen(false)}
           productId={selectedProductId}
+          baseUrl={baseUrl}
         />
       )}
 
@@ -1045,10 +1051,11 @@ function ViewProducts({ baseUrl = '/admin' }) {
         />
       )}
 
-      {/* Only show invoice history modal for admin, not for shop */}
-      {isHistoryModalOpen && baseUrl === '/admin' && (
+      {/* Show invoice history modal for both admin and shop */}
+      {isHistoryModalOpen && (
         <InvoiceHistory
           closeModal={() => setIsHistoryModalOpen(false)}
+          baseUrl={baseUrl}
         />
       )}
     </div>

@@ -120,6 +120,7 @@ app.use('/api/shop/settings', shopSettingsRoutes);
 app.use('/api/shop/attendance-only-users', shopAttendanceOnlyUserRoutes);
 app.use('/api/shop/orders', shopOrderRoutes);
 app.use('/api/shop/mixed-sweets', shopMixedSweetRoutes);
+app.use('/api/shop/product-history', require('./routes/shop/shopProductHistoryRoutes'));
 app.use('/api/shop/product-billing-users', shopProductBillingUserRoutes);
 
 // Add Before Packing and After Packing user routes after all other routes

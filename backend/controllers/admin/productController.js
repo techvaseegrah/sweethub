@@ -353,17 +353,28 @@ exports.getProductCountByAdmin = async (req, res) => {
   }
 };
 
-// Get a specific product by ID for the admin side
+// Get a specific product by ID
 exports.getProductById = async (req, res) => {
   try {
     const { id } = req.params;
-    const product = await Product.findOne({
-      _id: id,
-      $or: [
+
+    // Build query based on user role
+    let productQuery = { _id: id };
+
+    if (req.shopId) {
+      // If it's a shop user, product must belong to their shop
+      productQuery.shop = req.shopId;
+    } else if (req.user && req.user.role === 'admin') {
+      // If it's an admin, they see admin products (no shop)
+      productQuery.$or = [
         { shop: { $exists: false } },
         { shop: null }
-      ]
-    }).populate('category', 'name');
+      ];
+    } else {
+      return res.status(403).json({ message: 'Unauthorized access' });
+    }
+
+    const product = await Product.findOne(productQuery).populate('category', 'name');
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found or unauthorized' });
@@ -498,7 +509,7 @@ exports.copyProducts = async (req, res) => {
     let sourceFilter = {};
     if (sourceShopId && sourceShopId !== 'admin') {
       if (!mongoose.Types.ObjectId.isValid(sourceShopId)) {
-          return res.status(400).json({ message: 'Invalid source shop ID' });
+        return res.status(400).json({ message: 'Invalid source shop ID' });
       }
       sourceFilter = { shop: sourceShopId };
     } else {
@@ -523,7 +534,7 @@ exports.copyProducts = async (req, res) => {
     const destAdminRef = (destinationShopId === 'admin' || !destinationShopId) ? adminId : null;
 
     if (destShopRef && !mongoose.Types.ObjectId.isValid(destShopRef)) {
-       return res.status(400).json({ message: 'Invalid destination shop ID' });
+      return res.status(400).json({ message: 'Invalid destination shop ID' });
     }
 
     let copiedCount = 0;
@@ -566,7 +577,7 @@ exports.copyProducts = async (req, res) => {
           existingDestProduct.category = product.category;
           existingDestProduct.expiryDate = product.expiryDate;
           existingDestProduct.usedByDate = product.usedByDate;
-          
+
           await existingDestProduct.save();
           updatedCount++;
         } else {
@@ -613,7 +624,7 @@ exports.copyProducts = async (req, res) => {
         const destShop = await Shop.findById(destinationShopId);
         if (destShop) destName = destShop.name;
       }
-      
+
       await recordCopyHistory({
         sourceShop: sourceName,
         destinationShop: destName,
@@ -639,4 +650,4 @@ exports.copyProducts = async (req, res) => {
     logError('Critical error in copyProducts', error);
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
-};
+};

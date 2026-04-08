@@ -6,6 +6,8 @@ const mongoose = require('mongoose');
 const { sendWhatsAppBill } = require('../../services/whatsappService');
 const { generateShopBillId } = require('../../utils/billIdGenerator');
 const { convertUnit, areRelatedUnits } = require('../../utils/unitConversion');
+const { recordStockIn, recordStockOut } = require('../admin/productHistoryController');
+
 
 exports.searchCustomers = async (req, res) => {
   try {
@@ -130,8 +132,14 @@ exports.createBill = async (req, res) => {
         // Only deduct stock if billType is ORDINARY, skip if REFERENCE
         if (billType !== 'REFERENCE') {
           product.stockLevel = product.stockLevel - item.quantity;
-
           await product.save({ session });
+
+          // Record stock out history
+          try {
+            await recordStockOut(product, req.user.id, item.quantity, `Sold via Bill: ${billId}`);
+          } catch (historyError) {
+            console.error('Failed to record stock out history:', historyError);
+          }
         }
         // -----------------------------
 
@@ -294,6 +302,13 @@ exports.updateBill = async (req, res) => {
             { $inc: { stockLevel: originalQuantityInProductUnit } },
             { session }
           );
+
+          // Record stock in history (reversing the sale)
+          try {
+            await recordStockIn(product, req.user.id, originalQuantityInProductUnit, `Refund/Edit (Bill: ${bill.billId})`);
+          } catch (historyError) {
+            console.error('Failed to record stock in history:', historyError);
+          }
         }
       }
     }
@@ -350,6 +365,13 @@ exports.updateBill = async (req, res) => {
           { $inc: { stockLevel: -quantityToDeduct } },
           { session }
         );
+
+        // Record stock out history
+        try {
+          await recordStockOut(product, req.user.id, quantityToDeduct, `Sold via Updated Bill: ${bill.billId}`);
+        } catch (historyError) {
+          console.error('Failed to record stock out history:', historyError);
+        }
       }
     }
 
@@ -447,6 +469,13 @@ exports.deleteBill = async (req, res) => {
             { $inc: { stockLevel: originalQuantityInProductUnit } },
             { session }
           );
+
+          // Record stock in history (reversing the sale for deletion)
+          try {
+            await recordStockIn(product, req.user.id, originalQuantityInProductUnit, `Bill Deleted: ${bill.billId}`);
+          } catch (historyError) {
+            console.error('Failed to record stock in history:', historyError);
+          }
         }
       }
     }
@@ -592,11 +621,20 @@ exports.getSalesReport = async (req, res) => {
       { $unwind: '$items' },
       {
         $group: {
-          _id: '$items.productName',
+          _id: { productName: '$items.productName', unit: '$items.unit', productId: '$items.product' },
           totalQuantity: { $sum: '$items.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } }
         }
       },
+      {
+        $lookup: {
+          from: 'products',
+          localField: '_id.productId',
+          foreignField: '_id',
+          as: 'productData'
+        }
+      },
+      { $unwind: { path: '$productData', preserveNullAndEmptyArrays: true } },
       { $sort: { totalQuantity: -1 } }
     ]);
 
@@ -618,7 +656,9 @@ exports.getSalesReport = async (req, res) => {
     res.json({
       stats,
       productSales: productSales.map(item => ({
-        productName: item._id,
+        productName: item._id.productName,
+        unit: item._id.unit,
+        category: item.productData?.category ? item.productData.category.toString() : null,
         totalQuantity: item.totalQuantity,
         totalRevenue: item.totalRevenue
       })),

@@ -58,7 +58,20 @@ exports.getCategories = async (req, res) => {
     }
 
     const categories = await Category.find(filter).populate('products');
-    res.json(categories);
+
+    // NEW: Filter by Shop's allowedCategories
+    let finalCategories = categories;
+    // Only apply filtering if it's a shop-side request (req.shopId is set by shopAuth)
+    if (req.shopId && req.user.role !== 'admin') {
+      const Shop = require('../../models/shopModel');
+      const shop = await Shop.findById(req.shopId);
+      if (shop && shop.allowedCategories && shop.allowedCategories.length > 0) {
+        const allowedIds = shop.allowedCategories.map(id => id.toString());
+        finalCategories = categories.filter(cat => allowedIds.includes(cat._id.toString()));
+      }
+    }
+
+    res.json(finalCategories);
   } catch (error) {
     console.error('Error fetching categories:', error);
     res.status(500).json({ message: 'Server Error' });
@@ -88,7 +101,20 @@ exports.getAllCategories = async (req, res) => {
   try {
     // Return all categories (admin categories) for shop users viewing admin products
     const categories = await Category.find({}).populate('products');
-    res.json(categories);
+
+    // NEW: Filter by Shop's allowedCategories
+    let finalCategories = categories;
+    // Only apply filtering if it's a shop-side request (req.shopId is set by shopAuth)
+    if (req.shopId && req.user.role !== 'admin') {
+      const Shop = require('../../models/shopModel');
+      const shop = await Shop.findById(req.shopId);
+      if (shop && shop.allowedCategories && shop.allowedCategories.length > 0) {
+        const allowedIds = shop.allowedCategories.map(id => id.toString());
+        finalCategories = categories.filter(cat => allowedIds.includes(cat._id.toString()));
+      }
+    }
+
+    res.json(finalCategories);
   } catch (error) {
     console.error('Error fetching all categories:', error);
     res.status(500).json({ message: 'Server Error' });
@@ -101,11 +127,14 @@ exports.getShopCategories = async (req, res) => {
     // Import Product model here to avoid circular dependency
     const Product = require('../../models/productModel');
 
-    // Get shop ID from the authenticated user
-    const shopId = req.user.shopId;
+    // Get shop ID - from query if admin/authorized role, otherwise from token
+    let shopId = req.user.shopId;
+    if (!shopId && (req.user.role === 'admin' || req.user.role === 'product-billing-admin') && req.query.shopId) {
+      shopId = req.query.shopId;
+    }
 
     if (!shopId) {
-      return res.status(400).json({ message: 'Shop ID not found in user token.' });
+      return res.status(400).json({ message: 'Shop ID not provided.' });
     }
 
     // Find all products that belong to this shop
@@ -127,6 +156,18 @@ exports.getShopCategories = async (req, res) => {
     if (currentUser && currentUser.allowedCategories && currentUser.allowedCategories.length > 0) {
       const allowedIds = currentUser.allowedCategories.map(id => id.toString());
       finalCategories = uniqueCategories.filter(cat => allowedIds.includes(cat._id.toString()));
+    }
+
+    // NEW: Filter by Shop's allowedCategories
+    // Only apply filtering if it's a shop-side request or a shop user role
+    // Admins managing the shop should see all categories currently present in the shop
+    if (shopId && req.user.role !== 'admin' && req.user.role !== 'product-billing-admin') {
+      const Shop = require('../../models/shopModel');
+      const shop = await Shop.findById(shopId);
+      if (shop && shop.allowedCategories && shop.allowedCategories.length > 0) {
+        const allowedIds = shop.allowedCategories.map(id => id.toString());
+        finalCategories = finalCategories.filter(cat => allowedIds.includes(cat?._id?.toString()));
+      }
     }
 
     res.json(finalCategories);

@@ -605,11 +605,20 @@ exports.getSalesReport = async (req, res) => {
       { $unwind: '$items' },
       {
         $group: {
-          _id: '$items.productName',
+          _id: { productName: '$items.productName', unit: '$items.unit', productId: '$items.product' },
           totalQuantity: { $sum: '$items.quantity' },
           totalRevenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } }
         }
       },
+      {
+        $lookup: {
+          from: 'products',
+          localField: '_id.productId',
+          foreignField: '_id',
+          as: 'productData'
+        }
+      },
+      { $unwind: { path: '$productData', preserveNullAndEmptyArrays: true } },
       { $sort: { totalQuantity: -1 } }
     ]);
 
@@ -648,7 +657,9 @@ exports.getSalesReport = async (req, res) => {
     res.json({
       stats,
       productSales: productSales.map(item => ({
-        productName: item._id,
+        productName: item._id.productName,
+        unit: item._id.unit,
+        category: item.productData?.category ? item.productData.category.toString() : null,
         totalQuantity: item.totalQuantity,
         totalRevenue: item.totalRevenue
       })),

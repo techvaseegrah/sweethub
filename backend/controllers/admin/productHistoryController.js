@@ -7,14 +7,23 @@ exports.getProductHistory = async (req, res) => {
     const { productId } = req.params;
     const adminId = req.user.id;
 
-    // Verify that the product belongs to the admin side
-    const product = await Product.findOne({
-      _id: productId,
-      $or: [
+    // Build query based on user role
+    let productQuery = { _id: productId };
+
+    if (req.shopId) {
+      // If it's a shop user, product must belong to their shop
+      productQuery.shop = req.shopId;
+    } else if (req.user && req.user.role === 'admin') {
+      // If it's an admin, they see admin products (no shop)
+      productQuery.$or = [
         { shop: { $exists: false } },
         { shop: null }
-      ]
-    });
+      ];
+    } else {
+      return res.status(403).json({ message: 'Unauthorized access' });
+    }
+
+    const product = await Product.findOne(productQuery);
     if (!product) {
       return res.status(404).json({ message: 'Product not found or unauthorized' });
     }
@@ -46,16 +55,14 @@ exports.getAllProductHistory = async (req, res) => {
 };
 
 // Create a product history entry
-exports.createProductHistory = async (product, actionType, adminId, quantity = null, currentStock = null) => {
+exports.createProductHistory = async (product, actionType, adminId, quantity = null, currentStock = null, description = null) => {
   try {
-    // For "Added" and "Updated" actions, we use the product's current data
-    // For "Stock In" and "Stock Out" actions, we might have a specific quantity
-
     const historyEntry = new ProductHistory({
       productId: product._id,
       sku: product.sku,
       name: product.name,
       actionType,
+      description,
       quantity: quantity !== null ? quantity : product.stockLevel,
       currentStock: currentStock !== null ? currentStock : product.stockLevel,
       admin: adminId
@@ -76,9 +83,9 @@ exports.createProductHistory = async (product, actionType, adminId, quantity = n
 };
 
 // Record stock in operation
-exports.recordStockIn = async (product, adminId, quantity) => {
+exports.recordStockIn = async (product, adminId, quantity, description = null) => {
   try {
-    await exports.createProductHistory(product, 'Stock In', adminId, quantity, product.stockLevel);
+    await exports.createProductHistory(product, 'Stock In', adminId, quantity, product.stockLevel, description);
   } catch (error) {
     console.error('Error recording stock in:', error);
     throw error;
@@ -86,9 +93,9 @@ exports.recordStockIn = async (product, adminId, quantity) => {
 };
 
 // Record stock out operation
-exports.recordStockOut = async (product, adminId, quantity) => {
+exports.recordStockOut = async (product, adminId, quantity, description = null) => {
   try {
-    await exports.createProductHistory(product, 'Stock Out', adminId, quantity, product.stockLevel);
+    await exports.createProductHistory(product, 'Stock Out', adminId, quantity, product.stockLevel, description);
   } catch (error) {
     console.error('Error recording stock out:', error);
     throw error;

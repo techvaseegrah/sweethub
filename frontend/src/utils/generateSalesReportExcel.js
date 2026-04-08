@@ -22,15 +22,16 @@ export const generateSalesReportExcel = (reportData, dateRange, shopName = 'All 
     // 2. Product Sales Sheet Data
     const productData = productSales.map(p => ({
         "Product Name": p.productName,
-        "Quantity Sold": p.totalQuantity,
+        "Quantity Sold": `${p.totalQuantity} ${p.unit || 'units'}`,
         "Revenue (₹)": p.totalRevenue,
-        "Average Price (₹)": (p.totalRevenue / p.totalQuantity).toFixed(2)
+        "Average Price (₹)": p.totalQuantity > 0 ? (p.totalRevenue / p.totalQuantity).toFixed(2) : 0
     }));
 
     // 3. Customer Sales Sheet Data
     const customerData = customerSales.map(c => ({
-        "Customer Mobile": c.mobileNumber,
-        "Total Orders": c.totalOrders,
+        "Customer Name": c.name,
+        "Customer Mobile": c.mobile,
+        "Total Orders": c.totalBills,
         "Total Spent (₹)": c.totalSpent
     }));
 

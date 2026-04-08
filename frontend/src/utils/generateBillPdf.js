@@ -117,9 +117,9 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
             color: #000;
           }
           .bill-container {
-            max-width: 54mm;
+            max-width: 48mm;
             margin: 0 auto;
-            padding: 5mm;
+            padding: 2mm;
             border: 0;
             box-shadow: none;
           }
@@ -179,11 +179,12 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
           }
           .items-table th {
             font-size: 11px;
-            font-weight: 700;
-            text-align: left;
+            font-weight: 900;
+            text-align: center;
             padding: 2px 3px;
             background-color: #fff;
             color: #000;
+            border-bottom: 1px solid #000;
           }
           .items-table td {
             padding: 2px 3px;
@@ -229,9 +230,9 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
               color: #000000;
             }
             .bill-container {
-              max-width: 54mm;
+              max-width: 48mm;
               margin: 0 auto;
-              padding: 5mm;
+              padding: 2mm;
             }
             /* Bold headings for better print visibility */
             .shop-name {
@@ -257,8 +258,10 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
             /* Table header — semi-bold and black */
             .items-table th {
               font-size: 11px;
-              font-weight: 700;
+              font-weight: 900;
               color: #000000;
+              text-align: center;
+              border-bottom: 1px solid #000;
             }
             .items-table td {
               font-size: 12px;
@@ -332,30 +335,16 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
             </div>
           </div>
           
-          <!-- Compressed FROM and TO Information -->
-          ${(billData.fromInfo && Object.values(billData.fromInfo).some(val => val)) || (billData.toInfo && Object.values(billData.toInfo).some(val => val)) ? `
+          <!-- Compressed TO Information -->
+          ${billData.toInfo && Object.values(billData.toInfo).some(val => val) ? `
           <div class="from-to-info">
-            <!-- FROM Information -->
-            ${billData.fromInfo ? `
             <div class="from-to-section">
-              <div style="font-weight: bold; margin-bottom: 2px;">FROM:</div>
-              <div>${billData.fromInfo.name || ''}</div>
-              <div>${billData.fromInfo.address || ''}</div>
-              ${billData.fromInfo.gstin ? `<div>GSTIN: ${billData.fromInfo.gstin}</div>` : ''}
-              ${billData.fromInfo.phone ? `<div>Phone: ${billData.fromInfo.phone}</div>` : ''}
-            </div>
-            ` : ''}
-            
-            <!-- TO Information -->
-            ${billData.toInfo ? `
-            <div class="from-to-section" style="margin-top: 5px;">
               <div style="font-weight: bold; margin-bottom: 2px;">TO:</div>
               <div>${billData.toInfo.name || ''}</div>
               <div>${billData.toInfo.address || ''}</div>
               ${billData.toInfo.gstin ? `<div>GSTIN: ${billData.toInfo.gstin}</div>` : ''}
               ${billData.toInfo.phone ? `<div>Phone: ${billData.toInfo.phone}</div>` : ''}
             </div>
-            ` : ''}
           </div>
           ` : ''}
           
@@ -364,11 +353,11 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
           <table class="items-table">
             <thead>
               <tr>
-                <th style="text-align: center;">#</th>
-                <th style="text-align: left;">Item</th>
-                <th style="text-align: center;">Qty</th>
-                <th style="text-align: right;">Price</th>
-                <th style="text-align: right;">Total</th>
+                <th style="width: 8%; text-align: center;">#</th>
+                <th style="width: 38%; text-align: center;">Item</th>
+                <th style="width: 15%; text-align: center;">Qty</th>
+                <th style="width: 19%; text-align: center;">Price</th>
+                <th style="width: 20%; text-align: center;">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -389,9 +378,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
               ` : ''}
               ${discountAmount > 0 ? `
               <tr class="summary-row">
-                <td colspan="4" style="text-align: right; padding: 2px 3px;">
-                  Discount:
-                </td>
+                <td colspan="4" style="text-align: right; padding: 2px 3px;">Discount:</td>
                 <td style="text-align: right; padding: 2px 3px;">₹${discountAmount.toFixed(2)}</td>
               </tr>
               ` : ''}
@@ -435,6 +422,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
       </body>
       </html>
     `;
+
   } else if (formatType === 'tax') {
     // A4 Tax Invoice specific logic
     filenameSuffix = `tax_invoice_${billId}_${billDate.replace(/\//g, '-')}.pdf`;
@@ -467,7 +455,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
       totalTaxAmount += itemTaxAmount;
 
       return `
-        <tr style="text-align: center;">
+  < tr style = "text-align: center;" >
           <td style="padding: 5px; border: 1px solid #ddd;">${index + 1}</td>
           <td style="padding: 5px; border: 1px solid #ddd; text-align: left; font-weight: bold;">${(item.productName || 'Item').toUpperCase()}</td>
           <td style="padding: 5px; border: 1px solid #ddd;">${item.sku || '-'}</td>
@@ -476,51 +464,51 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
           <td style="padding: 5px; border: 1px solid #ddd; text-align: right;">₹ ${unitPrice.toFixed(2)}</td>
           <td style="padding: 5px; border: 1px solid #ddd; text-align: right;">₹ ${itemTaxAmount.toFixed(2)} (${gstPercentage.toFixed(0)}%)</td>
           <td style="padding: 5px; border: 1px solid #ddd; text-align: right; font-weight: bold;">₹ ${itemGrossAmount.toFixed(2)}</td>
-        </tr>
-      `;
+        </tr >
+  `;
     }).join('');
 
     // Tax Invoice HTML structure (Table-based layout for better PDF consistency)
     htmlContent = `
-      <!DOCTYPE html>
-      <html>
+  < !DOCTYPE html >
+    <html>
       <head>
         <meta charset="utf-8">
-        <title>Tax Invoice - ${billId}</title>
-        <style>
-          * { box-sizing: border-box; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; font-size: 11px; color: #000; line-height: 1.4; background: #fff; }
-          .container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 10mm; background: #fff; }
-          .header-company { text-align: center; margin-bottom: 2px; }
-          .header-company h1 { font-size: 22px; font-weight: 800; margin: 0; color: #000; text-transform: uppercase; letter-spacing: 0.5px; }
-          .header-company p { margin: 1px 0; font-size: 10px; color: #000; font-weight: 600; }
-          .top-border { border-top: 2.5px solid #000; margin-top: 8px; margin-bottom: 8px; }
-          .invoice-title { text-align: center; font-size: 14px; font-weight: 800; margin: 10px 0; color: #000; }
-          
-          /* Table-based grid for layout reliability */
-          .layout-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }
-          .layout-table td { vertical-align: top; border: none; padding: 0; }
-          
-          .details-p { margin: 2px 0; font-size: 11px; }
-          .details-strong { font-weight: 800; }
-          
-          .items-table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #ddd; }
-          .items-table th { background-color: #4472c4; color: #fff; font-weight: 800; padding: 8px 5px; border: 1px solid #ddd; font-size: 10.5px; text-transform: capitalize; }
-          .items-table td { border: 1px solid #ddd; padding: 5px; font-size: 10.5px; }
-          .total-row { font-weight: 800; background-color: #fff; }
-          .total-row td { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 8px 5px; }
+          <title>Tax Invoice - ${billId}</title>
+          <style>
+            * {box - sizing: border-box; }
+            body {font - family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; font-size: 11px; color: #000; line-height: 1.4; background: #fff; }
+            .container {width: 210mm; min-height: 297mm; margin: 0 auto; padding: 10mm; background: #fff; }
+            .header-company {text - align: center; margin-bottom: 2px; }
+            .header-company h1 {font - size: 22px; font-weight: 800; margin: 0; color: #000; text-transform: uppercase; letter-spacing: 0.5px; }
+            .header-company p {margin: 1px 0; font-size: 10px; color: #000; font-weight: 600; }
+            .top-border {border - top: 2.5px solid #000; margin-top: 8px; margin-bottom: 8px; }
+            .invoice-title {text - align: center; font-size: 14px; font-weight: 800; margin: 10px 0; color: #000; }
 
-          .tax-table, .amounts-table { width: 100%; border-collapse: collapse; }
-          .tax-table th, .amounts-table th { background-color: #4472c4; color: #fff; font-weight: 800; text-align: left; padding: 8px 10px; border: 1px solid #ddd; }
-          .tax-table td, .amounts-table td { border: 1px solid #ddd; padding: 6px 10px; font-weight: 600; font-size: 10.5px; }
-          
-          .blue-bar { background-color: #4472c4; color: #fff; font-weight: 800; padding: 6px 10px; margin-top: 10px; font-size: 11px; }
-          .bar-content { padding: 8px 10px; font-size: 10.5px; font-weight: 600; }
-          
-          .signature-section { margin-top: 60px; text-align: right; }
-          .signature-section p { margin: 2px 0; font-weight: 700; font-size: 11px; }
-          .authorized-signatory { margin-top: 60px; font-weight: 800; font-size: 12px; }
-        </style>
+            /* Table-based grid for layout reliability */
+            .layout-table {width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }
+            .layout-table td {vertical - align: top; border: none; padding: 0; }
+
+            .details-p {margin: 2px 0; font-size: 11px; }
+            .details-strong {font - weight: 800; }
+
+            .items-table {width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #ddd; }
+            .items-table th {background - color: #4472c4; color: #fff; font-weight: 800; padding: 8px 5px; border: 1px solid #ddd; font-size: 10.5px; text-transform: capitalize; }
+            .items-table td {border: 1px solid #ddd; padding: 5px; font-size: 10.5px; }
+            .total-row {font - weight: 800; background-color: #fff; }
+            .total-row td {border - top: 2px solid #000; border-bottom: 2px solid #000; padding: 8px 5px; }
+
+            .tax-table, .amounts-table {width: 100%; border-collapse: collapse; }
+            .tax-table th, .amounts-table th {background - color: #4472c4; color: #fff; font-weight: 800; text-align: left; padding: 8px 10px; border: 1px solid #ddd; }
+            .tax-table td, .amounts-table td {border: 1px solid #ddd; padding: 6px 10px; font-weight: 600; font-size: 10.5px; }
+
+            .blue-bar {background - color: #4472c4; color: #fff; font-weight: 800; padding: 6px 10px; margin-top: 10px; font-size: 11px; }
+            .bar-content {padding: 8px 10px; font-size: 10.5px; font-weight: 600; }
+
+            .signature-section {margin - top: 60px; text-align: right; }
+            .signature-section p {margin: 2px 0; font-weight: 700; font-size: 11px; }
+            .authorized-signatory {margin - top: 60px; font-weight: 800; font-size: 12px; }
+          </style>
       </head>
       <body>
         <div class="container">
@@ -651,8 +639,8 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
           </table>
         </div>
       </body>
-      </html>
-    `;
+    </html>
+`;
   } else {
     console.error('Unknown formatType:', formatType);
     alert('Unable to generate PDF: Unknown format type');

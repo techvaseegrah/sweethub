@@ -61,11 +61,11 @@ const generateShopBillId = async (shopId) => {
     // Generate shop code if not exists
     const shopCode = await generateShopCodeIfNeeded(shop);
 
-    // Find the last bill for this shop (regardless of date)
+    // Find the last bill with this shop code prefix (across all shops)
+    // to ensure global uniqueness and avoid duplicate key errors
     const lastBill = await Bill.findOne({
-      shop: shop._id,
       billId: { $regex: `^SHP-${shopCode}-` }
-    }).sort({ createdAt: -1 });
+    }).sort({ billId: -1 });
 
     let sequence = 1;
     if (lastBill && lastBill.billId) {
@@ -92,11 +92,10 @@ const generateShopBillId = async (shopId) => {
  */
 const generateAdminBillId = async () => {
   try {
-    // Find the last admin bill (regardless of date)
+    // Find the last admin bill (regardless of which shop it might be associated with)
     const lastBill = await Bill.findOne({
-      $or: [{ shop: null }, { shop: { $exists: false } }],
       billId: { $regex: `^ADM-` }
-    }).sort({ createdAt: -1 });
+    }).sort({ billId: -1 });
 
     let sequence = 1;
     if (lastBill && lastBill.billId) {
@@ -127,7 +126,7 @@ const generateBatchId = async () => {
     // Find the last schedule with a batchId (specifically matching our pattern)
     const lastSchedule = await DailySchedule.findOne({
       batchId: { $regex: /^PRO-/ }
-    }).sort({ createdAt: -1 });
+    }).sort({ batchId: -1 });
 
     let sequence = 1;
     if (lastSchedule && lastSchedule.batchId) {

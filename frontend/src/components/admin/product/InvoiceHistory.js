@@ -3,7 +3,8 @@ import axios from '../../../api/axios';
 import { LuFileCheck, LuInbox, LuEye, LuClock, LuCheck, LuX, LuDownload } from 'react-icons/lu';
 import { generateInvoicePdf } from '../../../utils/generateInvoicePdf';
 
-function InvoiceHistory({ closeModal }) {
+function InvoiceHistory({ closeModal, baseUrl = '/admin' }) {
+
   const [invoices, setInvoices] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [error, setError] = useState('');
@@ -15,9 +16,11 @@ function InvoiceHistory({ closeModal }) {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get('/admin/invoices');
+      const endpoint = baseUrl === '/shop' ? '/shop/invoices/all' : `${baseUrl}/invoices`;
+      const response = await axios.get(endpoint);
       setInvoices(response.data || []);
     } catch (err) {
+
       setError('Failed to fetch invoices. Please try again later.');
       console.error(err);
     } finally {
@@ -92,7 +95,7 @@ function InvoiceHistory({ closeModal }) {
 
           <div className="flex-1 overflow-y-auto p-6">
             {/* Back button */}
-            <button 
+            <button
               onClick={handleBackToList}
               className="mb-4 text-blue-600 hover:text-blue-800 flex items-center"
             >
@@ -110,8 +113,8 @@ function InvoiceHistory({ closeModal }) {
                 <p className="font-semibold text-gray-800">{formatDateTime(selectedInvoice.issueDate).date}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-500">Sent To Shop</p>
-                <p className="font-semibold text-gray-800">{selectedInvoice.shop.name}</p>
+                <p className="text-sm font-medium text-gray-500">{baseUrl === '/shop' ? 'From Admin' : 'Sent To Shop'}</p>
+                <p className="font-semibold text-gray-800">{baseUrl === '/shop' ? (selectedInvoice.admin?.name || 'Admin') : selectedInvoice.shop.name}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">Status</p>
@@ -153,7 +156,7 @@ function InvoiceHistory({ closeModal }) {
                 </table>
               </div>
             </div>
-            
+
             {/* Grand Total Display */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <div className="flex justify-between items-center mb-2">
@@ -182,7 +185,9 @@ function InvoiceHistory({ closeModal }) {
         <header className="flex justify-between items-center p-4 border-b">
           <div>
             <h3 className="text-xl font-semibold text-gray-800">Invoice History</h3>
-            <p className="text-sm text-gray-500">View all invoices sent to shops with date and time.</p>
+            <p className="text-sm text-gray-500">
+              {baseUrl === '/shop' ? 'View all invoices received from admin with date and time.' : 'View all invoices sent to shops with date and time.'}
+            </p>
           </div>
           <button onClick={closeModal} className="p-2 rounded-full hover:bg-gray-200">
             <LuX size={20} />
@@ -205,7 +210,9 @@ function InvoiceHistory({ closeModal }) {
               <LuInbox className="mx-auto text-5xl text-gray-400 mb-4" />
               <h3 className="text-xl font-semibold text-gray-600 mb-2">No Invoices Found</h3>
               <p className="text-gray-500">
-                You haven't created any invoices yet. Create your first invoice to see it here.
+                {baseUrl === '/shop'
+                  ? "You haven't received any invoices from admin yet."
+                  : "You haven't created any invoices yet. Create your first invoice to see it here."}
               </p>
             </div>
           ) : (
@@ -215,7 +222,7 @@ function InvoiceHistory({ closeModal }) {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice #</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sent To Shop</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{baseUrl === '/shop' ? 'From Admin' : 'Sent To Shop'}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -236,7 +243,7 @@ function InvoiceHistory({ closeModal }) {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {invoice.shop.name}
+                          {baseUrl === '/shop' ? (invoice.admin?.name || 'Admin') : invoice.shop.name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {getStatusBadge(invoice.status)}

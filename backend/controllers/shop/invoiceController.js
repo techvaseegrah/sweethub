@@ -2,6 +2,8 @@ const Invoice = require('../../models/invoiceModel');
 const Product = require('../../models/productModel');
 const Order = require('../../models/orderModel'); // Import the Order model
 const mongoose = require('mongoose');
+const { recordStockIn } = require('../admin/productHistoryController');
+
 
 /**
  * Retrieves the latest pending invoice for the currently logged-in shop.
@@ -10,12 +12,12 @@ const mongoose = require('mongoose');
 exports.getPendingInvoiceForShop = async (req, res) => {
   console.log('=== GET PENDING INVOICE REQUEST ===');
   console.log('User:', req.user);
-  
+
   try {
     // Get shop ID from the authenticated user - should be in req.user.shopId
     const shopId = req.user.shopId;
     console.log('Looking for pending invoices for shop ID:', shopId);
-    
+
     if (!shopId) {
       return res.status(400).json({ message: 'Shop ID not found in user token.' });
     }
@@ -26,7 +28,7 @@ exports.getPendingInvoiceForShop = async (req, res) => {
       .sort({ createdAt: -1 }); // Get the most recent pending invoice
 
     console.log('Found pending invoice:', pendingInvoice ? pendingInvoice.invoiceNumber : 'None');
-    
+
     // It's okay if there's no pending invoice, so we don't treat it as an error.
     // The frontend will handle the case where pendingInvoice is null.
     res.status(200).json(pendingInvoice);
@@ -42,12 +44,12 @@ exports.getPendingInvoiceForShop = async (req, res) => {
 exports.getAllInvoicesForShop = async (req, res) => {
   console.log('=== GET ALL INVOICES REQUEST ===');
   console.log('User:', req.user);
-  
+
   try {
     // Get shop ID from the authenticated user - should be in req.user.shopId
     const shopId = req.user.shopId;
     console.log('Looking for all invoices for shop ID:', shopId);
-    
+
     if (!shopId) {
       return res.status(400).json({ message: 'Shop ID not found in user token.' });
     }
@@ -58,7 +60,7 @@ exports.getAllInvoicesForShop = async (req, res) => {
       .sort({ createdAt: -1 }); // Get most recent first
 
     console.log('Found invoices:', invoices.length);
-    
+
     res.status(200).json(invoices);
   } catch (error) {
     console.error('Error fetching all invoices:', error);
@@ -75,7 +77,7 @@ exports.confirmInvoice = async (req, res) => {
   const { invoiceId } = req.params;
   const { confirmedItems, receivedQuantities } = req.body; // Array of product IDs that the shop confirmed and received quantities
   const shopId = req.user.shopId;
-  
+
   console.log('=== CONFIRM INVOICE REQUEST ===');
   console.log('Invoice ID:', invoiceId);
   console.log('Shop ID:', shopId);
@@ -111,10 +113,10 @@ exports.confirmInvoice = async (req, res) => {
 
       if (isConfirmed) {
         // Set the received quantity for the item
-        const receivedQty = receivedQuantities && receivedQuantities[item.product.toString()] 
-          ? parseFloat(receivedQuantities[item.product.toString()]) 
+        const receivedQty = receivedQuantities && receivedQuantities[item.product.toString()]
+          ? parseFloat(receivedQuantities[item.product.toString()])
           : 0;
-        
+
         item.receivedQuantity = receivedQty;
         // Mark the item as confirmed by the shop in the invoice record
         item.shopConfirmed = true;
@@ -147,6 +149,14 @@ exports.confirmInvoice = async (req, res) => {
           });
           await newShopProduct.save({ session });
           console.log(`Created new shop product with ID: ${newShopProduct._id}`);
+          shopProduct = newShopProduct;
+        }
+
+        // Record stock in history
+        try {
+          await recordStockIn(shopProduct, req.user.id, receivedQty, `Received via Invoice: ${invoice.invoiceNumber}`);
+        } catch (historyError) {
+          console.error('Failed to record stock in history:', historyError);
         }
       }
     }
@@ -155,11 +165,11 @@ exports.confirmInvoice = async (req, res) => {
     // Count how many items are confirmed
     const confirmedCount = invoice.items.filter(item => item.shopConfirmed).length;
     const totalItems = invoice.items.length;
-    
+
     // NEW LOGIC: Check if all confirmed items have matching quantities
     let allQuantitiesMatch = true;
     let hasAnyReceived = false;
-    
+
     for (const item of invoice.items) {
       if (item.shopConfirmed) {
         const receivedQty = item.receivedQuantity || 0;
@@ -172,7 +182,7 @@ exports.confirmInvoice = async (req, res) => {
         }
       }
     }
-    
+
     // DETERMINE STATUS BASED ON THE NEW LOGIC:
     if (confirmedCount === totalItems && allQuantitiesMatch) {
       // All items confirmed and all quantities match exactly - set status to Confirmed
@@ -185,7 +195,7 @@ exports.confirmInvoice = async (req, res) => {
       // No items confirmed or no quantities entered - keep status as Pending
       invoice.status = 'Pending';
     }
-    
+
     await invoice.save({ session });
 
     // Step 4: If the invoice was linked to an order, update the order status
@@ -206,10 +216,10 @@ exports.confirmInvoice = async (req, res) => {
     // Commit the transaction
     await session.commitTransaction();
     console.log('Invoice confirmation completed successfully');
-    res.status(200).json({ 
-      message: 'Invoice updated successfully!', 
+    res.status(200).json({
+      message: 'Invoice updated successfully!',
       status: invoice.status,
-      confirmedProducts: confirmedItems.length 
+      confirmedProducts: confirmedItems.length
     });
 
   } catch (error) {

@@ -22,6 +22,9 @@ router.get('/expired', shopAuth, getShopExpiredProducts);
 router.get('/stock-alerts', shopAuth, getShopStockAlerts);
 router.get('/low-stock', shopAuth, getShopStockAlerts);
 
+// Route to get a specific product for shop users
+router.get('/:id', shopAuth, require('../../controllers/admin/productController').getProductById);
+
 // Route to update product prices for shop users
 router.put('/:id', shopAuth, updateShopProduct);
 

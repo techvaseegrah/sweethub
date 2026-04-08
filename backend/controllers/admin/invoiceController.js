@@ -59,7 +59,8 @@ exports.createInvoice = async (req, res) => {
 
         // Record stock out history
         try {
-          await recordStockOut(product, req.user.id, quantity);
+          // Note: invoiceNumber is generated below, but we can use it here if we reorder or just use a generic message
+          await recordStockOut(product, req.user.id, quantity, `Sent to Shop: ${shop.name}`);
         } catch (historyError) {
           console.error('Failed to record stock out history:', historyError);
         }

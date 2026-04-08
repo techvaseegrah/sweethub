@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from '../../../api/axios';
 import { LuClock, LuPlus, LuPencil, LuArrowUp, LuArrowDown, LuX } from 'react-icons/lu';
 
-function ProductHistory({ closeModal, productId }) {
+function ProductHistory({ closeModal, productId, baseUrl = '/admin' }) {
   const [history, setHistory] = useState([]);
   const [product, setProduct] = useState(null);
   const [error, setError] = useState('');
@@ -14,18 +14,20 @@ function ProductHistory({ closeModal, productId }) {
     setLoading(true);
     setError('');
     try {
-      let url = '/admin/product-history';
+      // History endpoint is usually consistent or mapped
+      // Use baseUrl as base for requests
+      let url = `${baseUrl}/product-history`;
       if (productId) {
         url += `/product/${productId}`;
       }
-      
+
       const response = await axios.get(url);
       setHistory(response.data || []);
-      
+
       // If we have a specific product, also fetch its details
       if (productId) {
         try {
-          const productResponse = await axios.get(`/admin/products/${productId}`, { withCredentials: true });
+          const productResponse = await axios.get(`${baseUrl}/products/${productId}`, { withCredentials: true });
           setProduct(productResponse.data);
         } catch (productError) {
           console.error('Failed to fetch product details:', productError);
@@ -55,7 +57,7 @@ function ProductHistory({ closeModal, productId }) {
   // Get action type badge
   const getActionBadge = (actionType) => {
     const baseClasses = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium";
-    
+
     switch (actionType) {
       case 'Added':
         return (
@@ -96,6 +98,8 @@ function ProductHistory({ closeModal, productId }) {
 
   // Get action description
   const getActionDescription = (entry) => {
+    if (entry.description) return entry.description;
+
     switch (entry.actionType) {
       case 'Added':
         return `Product "${entry.name}" was added to inventory with ${entry.quantity} units at ₹${entry.netPrice || 0} net price and ₹${entry.sellingPrice || 0} selling price. Current stock: ${entry.currentStock != null ? entry.currentStock : 'N/A'} units.`;
@@ -143,8 +147,8 @@ function ProductHistory({ closeModal, productId }) {
               <LuClock className="mx-auto text-5xl text-gray-400 mb-4" />
               <h3 className="text-xl font-semibold text-gray-600 mb-2">No History Found</h3>
               <p className="text-gray-500">
-                {productId 
-                  ? 'No history records found for this product.' 
+                {productId
+                  ? 'No history records found for this product.'
                   : 'No product history records found.'}
               </p>
             </div>

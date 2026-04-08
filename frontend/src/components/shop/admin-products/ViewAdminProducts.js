@@ -137,29 +137,29 @@ function ViewAdminProducts() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">
                   Product Name
                 </th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                <th className="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                <th className="hidden lg:table-cell px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
+                <th className="px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
+                <th className="hidden lg:table-cell px-3 py-3 text-left text-sm font-semibold text-gray-500 uppercase tracking-wider">Category</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {uniqueProducts.map((product) => (
-                <tr key={product._id} className="hover:bg-gray-50">
-                  <td className="px-2 sm:px-6 py-4 text-sm font-semibold text-gray-900">
+                <tr key={product._id} className="hover:bg-gray-50 border-b border-gray-100">
+                  <td className="px-3 py-3 text-sm font-medium text-gray-900">
                     {product.name}
                   </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                     {product.sku}
                   </td>
-                  <td className="px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 uppercase">
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 uppercase">
                       {product.unit}
                     </span>
                   </td>
-                  <td className="hidden lg:table-cell px-2 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="hidden lg:table-cell px-3 py-3 whitespace-nowrap text-sm text-gray-500">
                     {(product.category ? (typeof product.category === 'object' ? product.category.name :
                       Array.isArray(categories) ? categories.find(cat => cat._id === product.category)?.name : 'N/A') : 'N/A')}
                   </td>

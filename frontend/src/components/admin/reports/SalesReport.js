@@ -110,12 +110,13 @@ const SalesReport = () => {
 
     const filteredProductSales = reportData.productSales.filter(p => {
         const matchesSearch = p.productName.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = selectedCategory === 'all' || productCategoryMap[p.productName] === selectedCategory;
+        const pCategory = p.category || productCategoryMap[p.productName];
+        const matchesCategory = selectedCategory === 'all' || pCategory === selectedCategory;
         return matchesSearch && matchesCategory;
     });
 
-    const displayRevenue = selectedCategory === 'all' 
-        ? reportData.stats.totalRevenue 
+    const displayRevenue = selectedCategory === 'all'
+        ? reportData.stats.totalRevenue
         : filteredProductSales.reduce((acc, item) => acc + item.totalRevenue, 0);
 
     const displayItemsSold = selectedCategory === 'all'
@@ -333,35 +334,35 @@ const SalesReport = () => {
                             <table className="w-full">
                                 <thead>
                                     <tr className="bg-gray-50/50">
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Shop Name</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Transactions</th>
-                                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Revenue</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Action</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Shop Name</th>
+                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Transactions</th>
+                                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Revenue</th>
+                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-50 text-sm font-medium text-gray-700">
+                                <tbody className="divide-y divide-gray-50 text-xs font-medium text-gray-700">
                                     {reportData.shopSummaries.map((shop, idx) => (
                                         <tr key={idx} className="hover:bg-gray-50 transition-colors cursor-pointer group" onClick={() => setSelectedShop(shop.shopId)}>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center space-x-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs ${shop.shopId === 'admin' ? 'bg-amber-500' : 'bg-indigo-500'}`}>
+                                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] ${shop.shopId === 'admin' ? 'bg-amber-500' : 'bg-indigo-500'}`}>
                                                         {shop.shopName.charAt(0)}
                                                     </div>
                                                     <span className="font-bold text-gray-800 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{shop.shopName}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-bold">
+                                            <td className="px-4 py-3 text-center">
+                                                <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">
                                                     {shop.totalTransactions} bills
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-right font-bold text-emerald-600">₹{shop.totalRevenue.toLocaleString()}</td>
-                                            <td className="px-6 py-4 text-center">
+                                            <td className="px-4 py-3 text-right font-bold text-emerald-600 whitespace-nowrap">₹{shop.totalRevenue.toLocaleString()}</td>
+                                            <td className="px-4 py-3 text-center">
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setSelectedShop(shop.shopId); }}
-                                                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline underline-offset-4"
+                                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline underline-offset-4 uppercase"
                                                 >
-                                                    View Detailed Report
+                                                    View Details
                                                 </button>
                                             </td>
                                         </tr>
@@ -401,37 +402,37 @@ const SalesReport = () => {
                             <table className="w-full">
                                 <thead>
                                     <tr className="bg-gray-50/50">
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Product Name</th>
-                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Qty Sold</th>
-                                        <th className="px-6 py-4 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Total Revenue</th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Product Name</th>
+                                        <th className="px-4 py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Qty Sold</th>
+                                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Total Revenue</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-50 text-sm font-medium text-gray-700">
+                                <tbody className="divide-y divide-gray-50 text-xs font-medium text-gray-700">
                                     {loading ? (
                                         [...Array(5)].map((_, i) => (
                                             <tr key={i} className="animate-pulse">
-                                                <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-3/4" /></td>
-                                                <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-1/2 mx-auto" /></td>
-                                                <td className="px-6 py-4"><div className="h-4 bg-gray-100 rounded w-3/4 ml-auto" /></td>
+                                                <td className="px-4 py-3"><div className="h-4 bg-gray-100 rounded w-3/4" /></td>
+                                                <td className="px-4 py-3"><div className="h-4 bg-gray-100 rounded w-1/2 mx-auto" /></td>
+                                                <td className="px-4 py-3"><div className="h-4 bg-gray-100 rounded w-3/4 ml-auto" /></td>
                                             </tr>
                                         ))
                                     ) : filteredProductSales.length > 0 ? (
                                         filteredProductSales.map((product, idx) => (
                                             <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 font-bold text-gray-800">{product.productName}</td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-bold">
-                                                        {product.totalQuantity.toLocaleString()} units
+                                                <td className="px-4 py-3 font-bold text-gray-800">{product.productName}</td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                                        {product.totalQuantity.toLocaleString()} {product.unit || 'units'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-bold text-emerald-600">₹{product.totalRevenue.toLocaleString()}</td>
+                                                <td className="px-4 py-3 text-right font-bold text-emerald-600">₹{product.totalRevenue.toLocaleString()}</td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="3" className="px-6 py-12 text-center">
-                                                <LuBox className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                                                <p className="text-gray-400 font-medium">No sales data found for products</p>
+                                            <td colSpan="3" className="px-4 py-8 text-center">
+                                                <LuBox className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                                                <p className="text-gray-400 text-xs font-medium">No sales data found for products</p>
                                             </td>
                                         </tr>
                                     )}
