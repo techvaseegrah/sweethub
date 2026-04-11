@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
-import { generateBillPdf } from '../../../utils/generateBillPdf';
+import { generateBillPdf, generateTaxInvoicePdf, printBill } from '../../../utils/generateBillPdf';
 import BillDetailView from './BillDetailView';
 import { useNavigate } from 'react-router-dom';
 import { formatDateToDDMMYYYY, formatDateTime } from '../../../utils/unitConversion';
@@ -226,15 +226,25 @@ function ShopViewBills() {
   // Calculate total sales for current filtered bills (all filtered, not just visible)
   const totalSalesAmount = calculateTotalSales(filteredBills);
 
-  const generateInvoice = (bill) => {
+  const generateInvoice = (bill, shouldPrint = false) => {
     // For shop bills, use the shop data from the bill itself
-    generateBillPdf(bill, {
+    const shopData = {
       name: bill.shopName || bill.shop?.name,
       address: bill.shopAddress || bill.shop?.location,
       gstNumber: bill.shopGstNumber || bill.shop?.gstNumber,
       fssaiNumber: bill.shopFssaiNumber || bill.shop?.fssaiNumber,
       phone: bill.shopPhone || bill.shop?.shopPhoneNumber
-    });
+    };
+
+    if (bill.isTaxInvoice) {
+      generateTaxInvoicePdf(bill, shopData, shouldPrint);
+    } else {
+      if (shouldPrint) {
+        printBill(bill, shopData);
+      } else {
+        generateBillPdf(bill, shopData);
+      }
+    }
   };
 
   const viewBillDetails = (bill) => {
@@ -304,14 +314,11 @@ function ShopViewBills() {
   };
 
   const handleDownloadPDF = (bill) => {
-    // For shop bills, use the shop data from the bill itself
-    generateBillPdf(bill, {
-      name: bill.shopName || bill.shop?.name,
-      address: bill.shopAddress || bill.shop?.location,
-      gstNumber: bill.shopGstNumber || bill.shop?.gstNumber,
-      fssaiNumber: bill.shopFssaiNumber || bill.shop?.fssaiNumber,
-      phone: bill.shopPhone || bill.shop?.shopPhoneNumber
-    });
+    generateInvoice(bill, false);
+  };
+
+  const handlePrint = (bill) => {
+    generateInvoice(bill, true);
   };
 
   const handleDownloadExcelClick = () => {
@@ -639,6 +646,15 @@ function ShopViewBills() {
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handlePrint(bill)}
+                                  className="text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 p-2 rounded-md transition-colors duration-200"
+                                  title="Print"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                   </svg>
                                 </button>
                               </>

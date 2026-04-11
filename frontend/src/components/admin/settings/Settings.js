@@ -294,6 +294,21 @@ const Settings = () => {
     }
   };
 
+  const handleToggleProductEditAccess = async (shopId, currentStatus) => {
+    try {
+      setLoading(true);
+      const newStatus = !currentStatus;
+      await axios.put(`/admin/shops/${shopId}/access`, { canEditProducts: newStatus });
+      setShops(shops.map(shop => shop._id === shopId ? { ...shop, canEditProducts: newStatus } : shop));
+      showSectionMessage('access', `Product edit access for ${shops.find(s => s._id === shopId)?.name} updated successfully`, 'success');
+    } catch (error) {
+      console.error('Error updating product edit access:', error);
+      showSectionMessage('access', 'Failed to update access. Please try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEditBatch = (batch) => {
     setNewBatch({
       name: batch.name,
@@ -504,6 +519,9 @@ const Settings = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tax Invoice Access
                 </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Product Edit Access
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -528,6 +546,24 @@ const Settings = () => {
                       </div>
                       <div className="ml-3 text-sm font-medium text-gray-700">
                         {shop.hasTaxInvoiceAccess ? 'Enabled' : 'Disabled'}
+                      </div>
+                    </label>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <label className="flex items-center cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={shop.canEditProducts !== false} // Default to true if undefined
+                          onChange={() => handleToggleProductEditAccess(shop._id, shop.canEditProducts !== false)}
+                          disabled={loading}
+                        />
+                        <div className={`block w-10 h-6 rounded-full transition-colors ${shop.canEditProducts !== false ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${shop.canEditProducts !== false ? 'transform translate-x-4' : ''}`}></div>
+                      </div>
+                      <div className="ml-3 text-sm font-medium text-gray-700">
+                        {shop.canEditProducts !== false ? 'Enabled' : 'Disabled'}
                       </div>
                     </label>
                   </td>

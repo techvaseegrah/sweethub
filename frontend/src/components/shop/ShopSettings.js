@@ -4,14 +4,14 @@ import axios from '../../api/axios';
 // Add a utility function to convert 24-hour time to 12-hour format with AM/PM
 const formatTimeTo12Hour = (time24) => {
   if (!time24) return '--:--';
-  
+
   const [hours, minutes] = time24.split(':');
   let hoursInt = parseInt(hours, 10);
   const ampm = hoursInt >= 12 ? 'PM' : 'AM';
-  
+
   // Convert to 12-hour format
   hoursInt = hoursInt % 12 || 12;
-  
+
   return `${hoursInt}:${minutes} ${ampm}`;
 };
 
@@ -20,7 +20,7 @@ const ShopSettings = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState(''); // success or error
-  
+
   // Batch states
   const [batches, setBatches] = useState([]);
   const [newBatch, setNewBatch] = useState({
@@ -32,9 +32,20 @@ const ShopSettings = () => {
   const [editingBatchId, setEditingBatchId] = useState(null);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState(null); // State for delete confirmation modal
-  
+
+  const [shopDetails, setShopDetails] = useState(null);
+
   // Fetch current GST settings on component mount
   useEffect(() => {
+    const fetchShopDetails = async () => {
+      try {
+        const response = await axios.get('/shop/details');
+        setShopDetails(response.data);
+      } catch (error) {
+        console.error('Error fetching shop details:', error);
+      }
+    };
+
     const fetchGstSettings = async () => {
       try {
         const response = await axios.get('/shop/settings/gst');
@@ -45,7 +56,7 @@ const ShopSettings = () => {
         setMessageType('error');
       }
     };
-    
+
     const fetchBatchSettings = async () => {
       try {
         const response = await axios.get('/shop/settings/batches');
@@ -55,7 +66,8 @@ const ShopSettings = () => {
         // Don't show error message for batches as it's not critical
       }
     };
-    
+
+    fetchShopDetails();
     fetchGstSettings();
     fetchBatchSettings();
   }, []);
@@ -66,16 +78,16 @@ const ShopSettings = () => {
       setMessageType('error');
       return;
     }
-    
+
     setLoading(true);
     setMessage('');
-    
+
     try {
       const response = await axios.post('/shop/settings/gst', { gstPercentage });
-      
+
       setMessage(response.data.message);
       setMessageType('success');
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setMessage('');
@@ -88,7 +100,7 @@ const ShopSettings = () => {
       setLoading(false);
     }
   };
-  
+
   // Batch functions
   const handleAddBatch = async () => {
     if (!newBatch.name) {
@@ -96,10 +108,10 @@ const ShopSettings = () => {
       setMessageType('error');
       return;
     }
-    
+
     setLoading(true);
     setMessage('');
-    
+
     try {
       const batchId = editingBatchId || Date.now().toString();
       const response = await axios.post('/shop/settings/batches', {
@@ -109,10 +121,10 @@ const ShopSettings = () => {
         lunchBreak: newBatch.lunchBreak,
         breakTime: newBatch.breakTime
       });
-      
+
       setMessage(response.data.message);
       setMessageType('success');
-      
+
       // Reset form
       setNewBatch({
         name: '',
@@ -121,11 +133,11 @@ const ShopSettings = () => {
         breakTime: { from: '', to: '', included: true }
       });
       setEditingBatchId(null);
-      
+
       // Refresh batches
       const batchResponse = await axios.get('/shop/settings/batches');
       setBatches(batchResponse.data);
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setMessage('');
@@ -138,7 +150,7 @@ const ShopSettings = () => {
       setLoading(false);
     }
   };
-  
+
   const handleEditBatch = (batch) => {
     setNewBatch({
       name: batch.name,
@@ -148,7 +160,7 @@ const ShopSettings = () => {
     });
     setEditingBatchId(batch.id);
   };
-  
+
   const handleDeleteBatch = async (batchId) => {
     setDeleteConfirmation(batchId);
   };
@@ -158,11 +170,11 @@ const ShopSettings = () => {
       const response = await axios.delete(`/shop/settings/batches/${batchId}`);
       setMessage(response.data.message);
       setMessageType('success');
-      
+
       // Refresh batches
       const batchResponse = await axios.get('/shop/settings/batches');
       setBatches(batchResponse.data);
-      
+
       // Clear message after 3 seconds
       setTimeout(() => {
         setMessage('');
@@ -194,11 +206,11 @@ const ShopSettings = () => {
         totalAmount: totalAmount.toFixed(2)
       };
     }
-    
+
     // Calculate base amount and GST
     const baseAmount = totalAmount / (1 + gstPercent / 100);
     const gstAmount = totalAmount - baseAmount;
-    
+
     return {
       baseAmount: baseAmount.toFixed(2),
       gstAmount: gstAmount.toFixed(2),
@@ -212,19 +224,88 @@ const ShopSettings = () => {
     <div className="bg-white p-6 rounded-xl shadow-md">
       <h1 className="text-2xl font-bold mb-6 text-gray-800">Shop Settings</h1>
       <p className="text-gray-600 mb-8">Configure shop-specific settings and preferences.</p>
-      
+
       {/* Message Display */}
       {message && (
         <div className={`mb-6 p-4 rounded-lg ${messageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
           {message}
         </div>
       )}
-      
+
+      {/* Shop Details Section - Professional Administrative View */}
+      {shopDetails && (
+        <div className="mb-10 bg-[#fafafa] rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gray-100 border border-gray-200 rounded flex items-center justify-center text-gray-600 font-bold">
+                {shopDetails.name ? shopDetails.name.charAt(0).toUpperCase() : 'S'}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 tracking-tight">Business Profile</h2>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Administrative Records</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 px-3 py-1 rounded">
+              <div className="w-1.5 h-1.5 bg-amber-400 rounded-full"></div>
+              <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Locked by Admin</span>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+              {/* Primary Identity & Contact */}
+              <div className="space-y-8">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Entity Name</label>
+                  <p className="text-xl font-bold text-gray-900">{shopDetails.name}</p>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Contact Details</label>
+                  <p className="text-xl font-bold text-gray-900">{shopDetails.shopPhoneNumber}</p>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Registered Location</label>
+                  <p className="text-xl font-bold text-gray-900 leading-tight">{shopDetails.location}</p>
+                </div>
+              </div>
+
+              {/* Compliance & Verification */}
+              <div className="space-y-6">
+                <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">GST Identification</label>
+                      <p className="text-md font-bold text-gray-900 font-mono tracking-wider">{shopDetails.gstNumber || 'UNSET'}</p>
+                    </div>
+                    <div className="pt-3 border-t border-gray-50">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">FSSAI Number</label>
+                      <p className="text-md font-bold text-gray-900 font-mono tracking-wider">{shopDetails.fssaiNumber || 'UNSET'}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 px-1">
+                  <svg className={`w-4 h-4 ${shopDetails.hasTaxInvoiceAccess ? 'text-green-600' : 'text-gray-300'}`} fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">
+                    {shopDetails.hasTaxInvoiceAccess ? 'Authorized for Tax Billing' : 'Limited to Standard Billing'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* GST Management Section */}
       <div className="border border-gray-200 rounded-lg p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">GST Management</h2>
         <p className="text-gray-600 mb-6">Configure GST settings for billing and invoices.</p>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -249,7 +330,7 @@ const ShopSettings = () => {
               Enter the GST percentage to be applied to all bills and invoices.
             </p>
           </div>
-          
+
           <div className="flex items-end">
             <button
               type="button"
@@ -261,7 +342,7 @@ const ShopSettings = () => {
             </button>
           </div>
         </div>
-        
+
         {/* Example Calculation */}
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="text-lg font-medium text-gray-800 mb-3">GST Calculation Example</h3>
@@ -284,18 +365,18 @@ const ShopSettings = () => {
           </p>
         </div>
       </div>
-      
+
       {/* Batch Management Section */}
       <div className="border border-gray-200 rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4 text-gray-800">Batch Management</h2>
         <p className="text-gray-600 mb-6">Configure work batches with predefined working hours, lunch breaks, and break times.</p>
-        
+
         {/* Add/Edit Batch Form */}
         <div className="bg-gray-50 p-4 rounded-lg mb-6">
           <h3 className="text-lg font-medium text-gray-800 mb-4">
             {editingBatchId ? 'Edit Batch' : 'Add New Batch'}
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -304,13 +385,13 @@ const ShopSettings = () => {
               <input
                 type="text"
                 value={newBatch.name}
-                onChange={(e) => setNewBatch({...newBatch, name: e.target.value})}
+                onChange={(e) => setNewBatch({ ...newBatch, name: e.target.value })}
                 placeholder="Enter batch name"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring focus:ring-primary focus:border-primary"
               />
             </div>
           </div>
-          
+
           {/* Working Hours */}
           <div className="mb-4 p-3 bg-white rounded border">
             <h4 className="font-medium text-gray-800 mb-2">Working Hours</h4>
@@ -321,8 +402,8 @@ const ShopSettings = () => {
                   type="time"
                   value={newBatch.workingHours.from}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    workingHours: {...newBatch.workingHours, from: e.target.value}
+                    ...newBatch,
+                    workingHours: { ...newBatch.workingHours, from: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -333,8 +414,8 @@ const ShopSettings = () => {
                   type="time"
                   value={newBatch.workingHours.to}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    workingHours: {...newBatch.workingHours, to: e.target.value}
+                    ...newBatch,
+                    workingHours: { ...newBatch.workingHours, to: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -345,8 +426,8 @@ const ShopSettings = () => {
                     type="checkbox"
                     checked={newBatch.workingHours.included}
                     onChange={(e) => setNewBatch({
-                      ...newBatch, 
-                      workingHours: {...newBatch.workingHours, included: e.target.checked}
+                      ...newBatch,
+                      workingHours: { ...newBatch.workingHours, included: e.target.checked }
                     })}
                     className="mr-2"
                   />
@@ -355,7 +436,7 @@ const ShopSettings = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Lunch Break */}
           <div className="mb-4 p-3 bg-white rounded border">
             <h4 className="font-medium text-gray-800 mb-2">Lunch Break</h4>
@@ -366,8 +447,8 @@ const ShopSettings = () => {
                   type="time"
                   value={newBatch.lunchBreak.from}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    lunchBreak: {...newBatch.lunchBreak, from: e.target.value}
+                    ...newBatch,
+                    lunchBreak: { ...newBatch.lunchBreak, from: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -378,8 +459,8 @@ const ShopSettings = () => {
                   type="time"
                   value={newBatch.lunchBreak.to}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    lunchBreak: {...newBatch.lunchBreak, to: e.target.value}
+                    ...newBatch,
+                    lunchBreak: { ...newBatch.lunchBreak, to: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -390,8 +471,8 @@ const ShopSettings = () => {
                     type="checkbox"
                     checked={newBatch.lunchBreak.included}
                     onChange={(e) => setNewBatch({
-                      ...newBatch, 
-                      lunchBreak: {...newBatch.lunchBreak, included: e.target.checked}
+                      ...newBatch,
+                      lunchBreak: { ...newBatch.lunchBreak, included: e.target.checked }
                     })}
                     className="mr-2"
                   />
@@ -400,7 +481,7 @@ const ShopSettings = () => {
               </div>
             </div>
           </div>
-          
+
           {/* Break Time */}
           <div className="mb-4 p-3 bg-white rounded border">
             <h4 className="font-medium text-gray-800 mb-2">Break Time</h4>
@@ -411,8 +492,8 @@ const ShopSettings = () => {
                   type="time"
                   value={newBatch.breakTime.from}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    breakTime: {...newBatch.breakTime, from: e.target.value}
+                    ...newBatch,
+                    breakTime: { ...newBatch.breakTime, from: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -423,8 +504,8 @@ const ShopSettings = () => {
                   type="time"
                   value={newBatch.breakTime.to}
                   onChange={(e) => setNewBatch({
-                    ...newBatch, 
-                    breakTime: {...newBatch.breakTime, to: e.target.value}
+                    ...newBatch,
+                    breakTime: { ...newBatch.breakTime, to: e.target.value }
                   })}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                 />
@@ -435,8 +516,8 @@ const ShopSettings = () => {
                     type="checkbox"
                     checked={newBatch.breakTime.included}
                     onChange={(e) => setNewBatch({
-                      ...newBatch, 
-                      breakTime: {...newBatch.breakTime, included: e.target.checked}
+                      ...newBatch,
+                      breakTime: { ...newBatch.breakTime, included: e.target.checked }
                     })}
                     className="mr-2"
                   />
@@ -445,7 +526,7 @@ const ShopSettings = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -474,7 +555,7 @@ const ShopSettings = () => {
             )}
           </div>
         </div>
-        
+
         {/* Batches List */}
         <div>
           <h3 className="text-lg font-medium text-gray-800 mb-4">Existing Batches</h3>
@@ -501,30 +582,30 @@ const ShopSettings = () => {
                       </button>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2 text-sm">
                     <div>
                       <p className="font-medium text-gray-700">Working Hours</p>
                       <p className="text-gray-600">
-                        {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} - 
+                        {batch.workingHours?.from ? formatTimeTo12Hour(batch.workingHours.from) : '--:--'} -
                         {batch.workingHours?.to ? formatTimeTo12Hour(batch.workingHours.to) : '--:--'}
                         {!batch.workingHours?.included && ' (Excluded)'}
                       </p>
                     </div>
-                    
+
                     <div>
                       <p className="font-medium text-gray-700">Lunch Break</p>
                       <p className="text-gray-600">
-                        {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} - 
+                        {batch.lunchBreak?.from ? formatTimeTo12Hour(batch.lunchBreak.from) : '--:--'} -
                         {batch.lunchBreak?.to ? formatTimeTo12Hour(batch.lunchBreak.to) : '--:--'}
                         {batch.lunchBreak?.included !== undefined && !batch.lunchBreak?.included && ' (Excluded)'}
                       </p>
                     </div>
-                    
+
                     <div>
                       <p className="font-medium text-gray-700">Break Time</p>
                       <p className="text-gray-600">
-                        {batch.breakTime?.from ? formatTimeTo12Hour(batch.breakTime.from) : '--:--'} - 
+                        {batch.breakTime?.from ? formatTimeTo12Hour(batch.breakTime.from) : '--:--'} -
                         {batch.breakTime?.to ? formatTimeTo12Hour(batch.breakTime.to) : '--:--'}
                         {batch.breakTime?.included !== undefined && !batch.breakTime?.included && ' (Excluded)'}
                       </p>
@@ -536,7 +617,7 @@ const ShopSettings = () => {
           )}
         </div>
       </div>
-      
+
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

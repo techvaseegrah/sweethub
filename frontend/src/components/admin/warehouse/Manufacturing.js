@@ -272,11 +272,11 @@ const Manufacturing = () => {
             };
 
             if (isEditing) {
-                await axios.put(`/admin/warehouse/manufacturing/${currentProcess._id}`, data);
-                setMessage('Manufacturing process updated successfully');
+                const response = await axios.put(`/admin/warehouse/manufacturing/${currentProcess._id}`, data);
+                setMessage(response.data.message || 'Manufacturing process updated successfully');
             } else {
-                await axios.post('/admin/warehouse/manufacturing', data);
-                setMessage('Manufacturing process added successfully');
+                const response = await axios.post('/admin/warehouse/manufacturing', data);
+                setMessage(response.data.message || 'Manufacturing process added successfully');
             }
 
             setIsModalOpen(false);

@@ -12,14 +12,15 @@ const generateReturnId = async () => {
 const createShopReturn = async (req, res) => {
     try {
         const returnId = await generateReturnId();
-        const { productName, batchNumber, quantityReturned, reasonForReturn, source, remarks } = req.body;
-        
+        const { productName, category, batchNumber, quantityReturned, reasonForReturn, source, remarks } = req.body;
+
         // Add shop identifier to distinguish shop returns
         const shopId = req.shopId; // From shopAuth middleware
-        
+
         const newReturn = new ReturnProduct({
             returnId,
             productName,
+            category,
             batchNumber,
             quantityReturned,
             reasonForReturn,
@@ -39,7 +40,7 @@ const createShopReturn = async (req, res) => {
 const getShopReturns = async (req, res) => {
     try {
         const shopId = req.shopId; // From shopAuth middleware
-        const returns = await ReturnProduct.find({ shopId });
+        const returns = await ReturnProduct.find({ shopId }).populate('category', 'name').sort({ dateOfReturn: -1 });
         res.status(200).json(returns);
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch return products', error: error.message });

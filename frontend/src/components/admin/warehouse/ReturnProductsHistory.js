@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
-import { LuHistory, LuDownload } from 'react-icons/lu';
+import { LuHistory, LuDownload, LuSearch } from 'react-icons/lu';
 import { generateReturnProductsReportPdf } from '../../../utils/generateReturnProductsReportPdf';
 
 const ReturnProductsHistory = ({ refresh }) => {
@@ -8,12 +8,24 @@ const ReturnProductsHistory = ({ refresh }) => {
     const [filteredReturns, setFilteredReturns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    
-    // Date filter states
+
+    // Date and Search filter states
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
+    const [categories, setCategories] = useState([]);
 
     useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const response = await axios.get('/admin/categories');
+                setCategories(response.data);
+            } catch (err) {
+                console.error('Failed to fetch categories:', err);
+            }
+        };
+
         const fetchReturns = async () => {
             try {
                 // For admin, fetch all returns (no shopId filter)
@@ -28,17 +40,18 @@ const ReturnProductsHistory = ({ refresh }) => {
                 setLoading(false);
             }
         };
+        fetchCategories();
         fetchReturns();
     }, [refresh]);
-    
-    // Apply date filters
+
+    // Apply filters (Date + Search)
     useEffect(() => {
         let result = [...returns];
-        
+
         if (dateFrom) {
             result = result.filter(returnItem => new Date(returnItem.dateOfReturn) >= new Date(dateFrom));
         }
-        
+
         if (dateTo) {
             result = result.filter(returnItem => {
                 const returnDate = new Date(returnItem.dateOfReturn);
@@ -47,22 +60,36 @@ const ReturnProductsHistory = ({ refresh }) => {
                 return returnDate <= toDate;
             });
         }
-        
+
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(item =>
+                item.productName.toLowerCase().includes(query) ||
+                item.returnId.toLowerCase().includes(query)
+            );
+        }
+
+        if (selectedCategory) {
+            result = result.filter(item =>
+                item.category && (item.category._id === selectedCategory || item.category === selectedCategory)
+            );
+        }
+
         setFilteredReturns(result);
-    }, [dateFrom, dateTo, returns]);
+    }, [dateFrom, dateTo, searchQuery, selectedCategory, returns]);
 
     if (loading) return (
-      <div className="p-6 text-center flex flex-col items-center justify-center">
-        <div className="relative flex justify-center items-center mb-4">
-          <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
-          <img 
-            src="/sweethub-logo.png" 
-            alt="Sweet Hub Logo" 
-            className="absolute w-8 h-8"
-          />
+        <div className="p-6 text-center flex flex-col items-center justify-center">
+            <div className="relative flex justify-center items-center mb-4">
+                <div className="w-12 h-12 border-4 border-red-100 border-t-red-500 rounded-full animate-spin"></div>
+                <img
+                    src="/sweethub-logo.png"
+                    alt="Sweet Hub Logo"
+                    className="absolute w-8 h-8"
+                />
+            </div>
+            <div className="text-red-500 font-medium">Loading...</div>
         </div>
-        <div className="text-red-500 font-medium">Loading...</div>
-      </div>
     );
 
     // Set date range for predefined periods
@@ -71,7 +98,7 @@ const ReturnProductsHistory = ({ refresh }) => {
         let start = new Date();
         let end = new Date();
 
-        switch(period) {
+        switch (period) {
             case 'daily':
                 // Today only
                 start = new Date(today);
@@ -113,30 +140,42 @@ const ReturnProductsHistory = ({ refresh }) => {
         const filterInfo = {};
         if (dateFrom) filterInfo.dateFrom = dateFrom;
         if (dateTo) filterInfo.dateTo = dateTo;
-        
+
         generateReturnProductsReportPdf(filteredReturns, filterInfo);
     };
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-md">
             {error && <div className="text-red-500 bg-red-100 p-3 rounded mb-4">{error}</div>}
-            
+
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-gray-800 flex items-center">
                     <LuHistory className="mr-2" /> Return Products History
                 </h3>
-                <button 
-                    onClick={exportToPdf}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center"
-                    disabled={filteredReturns.length === 0}
-                >
-                    <LuDownload className="mr-2" />
-                    Download PDF
-                </button>
+                <div className="flex items-center gap-2">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search by product or ID..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-sm w-64"
+                        />
+                        <LuSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    </div>
+                    <button
+                        onClick={exportToPdf}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center shadow-sm transition-all"
+                        disabled={filteredReturns.length === 0}
+                    >
+                        <LuDownload className="mr-2" />
+                        Download PDF
+                    </button>
+                </div>
             </div>
-            
+
             {/* Date Filters */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-100">
                 <div className="flex flex-wrap items-center gap-4">
                     <div className="flex items-center gap-2">
                         <label className="text-sm font-medium text-gray-700">From:</label>
@@ -156,27 +195,41 @@ const ReturnProductsHistory = ({ refresh }) => {
                             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                         />
                     </div>
-                    
+
+                    <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-gray-700">Category:</label>
+                        <select
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        >
+                            <option value="">All Categories</option>
+                            {categories.map(cat => (
+                                <option key={cat._id} value={cat._id}>{cat.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div className="flex flex-wrap gap-2">
-                        <button 
+                        <button
                             onClick={() => setDateRange('daily')}
                             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
                         >
                             Today
                         </button>
-                        <button 
+                        <button
                             onClick={() => setDateRange('weekly')}
                             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
                         >
                             This Week
                         </button>
-                        <button 
+                        <button
                             onClick={() => setDateRange('monthly')}
                             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
                         >
                             This Month
                         </button>
-                        <button 
+                        <button
                             onClick={() => setDateRange('yearly')}
                             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
                         >
@@ -184,7 +237,7 @@ const ReturnProductsHistory = ({ refresh }) => {
                         </button>
                     </div>
                 </div>
-                
+
                 {/* Date Range Summary */}
                 {(dateFrom || dateTo) && (
                     <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -192,7 +245,7 @@ const ReturnProductsHistory = ({ refresh }) => {
                             <div>
                                 <span className="text-blue-800 font-medium">Date Range:</span>
                                 <span className="text-blue-700 ml-2">
-                                    {dateFrom && dateTo 
+                                    {dateFrom && dateTo
                                         ? `${new Date(dateFrom).toLocaleDateString()} to ${new Date(dateTo).toLocaleDateString()}`
                                         : dateFrom
                                             ? `From: ${new Date(dateFrom).toLocaleDateString()}`
@@ -202,7 +255,7 @@ const ReturnProductsHistory = ({ refresh }) => {
                                     <span className="font-medium">Total Returns:</span> {filteredReturns.length}
                                 </span>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => { setDateFrom(''); setDateTo(''); }}
                                 className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                             >
@@ -219,6 +272,7 @@ const ReturnProductsHistory = ({ refresh }) => {
                         <tr>
                             <th className="py-3 px-4 text-left">Return ID</th>
                             <th className="py-3 px-4 text-left">Product Name</th>
+                            <th className="py-3 px-4 text-left">Category</th>
                             <th className="py-3 px-4 text-left">Quantity</th>
                             <th className="py-3 px-4 text-left">Reason</th>
                             <th className="py-3 px-4 text-left">Source</th>
@@ -227,19 +281,20 @@ const ReturnProductsHistory = ({ refresh }) => {
                         </tr>
                     </thead>
                     <tbody>
-    {filteredReturns.map(returnItem => (
-        <tr key={returnItem._id} className="border-b hover:bg-gray-50">
-            <td className="border px-4 py-2">{returnItem.returnId}</td>
-            <td className="border px-4 py-2">{returnItem.productName}</td>
-            <td className="border px-4 py-2">{returnItem.quantityReturned}</td>
-            <td className="border px-4 py-2">{returnItem.reasonForReturn}</td>
-            <td className="border px-4 py-2">{returnItem.source}</td>
-            <td className="border px-4 py-2">{new Date(returnItem.dateOfReturn).toLocaleDateString()}</td>
-            <td className="border px-4 py-2">{returnItem.remarks || '-'}</td>
+                        {filteredReturns.map(returnItem => (
+                            <tr key={returnItem._id} className="border-b hover:bg-gray-50">
+                                <td className="border px-4 py-2">{returnItem.returnId}</td>
+                                <td className="border px-4 py-2">{returnItem.productName}</td>
+                                <td className="border px-4 py-2">{returnItem.category?.name || '-'}</td>
+                                <td className="border px-4 py-2">{returnItem.quantityReturned}</td>
+                                <td className="border px-4 py-2">{returnItem.reasonForReturn}</td>
+                                <td className="border px-4 py-2">{returnItem.source}</td>
+                                <td className="border px-4 py-2">{new Date(returnItem.dateOfReturn).toLocaleDateString()}</td>
+                                <td className="border px-4 py-2">{returnItem.remarks || '-'}</td>
 
-        </tr>
-    ))}
-</tbody>
+                            </tr>
+                        ))}
+                    </tbody>
                 </table>
             </div>
         </div>

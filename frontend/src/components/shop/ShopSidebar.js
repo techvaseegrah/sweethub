@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink } from 'react-router-dom';
 import axios from '../../api/axios';
 import {
@@ -16,7 +17,9 @@ import {
   LuSettings,
   LuShoppingCart,
   LuTrendingUp,
-  LuChartBar
+  LuChartBar,
+  LuInfo,
+  LuX
 } from 'react-icons/lu';
 import { AuthContext } from '../../context/AuthContext';
 import LogoutConfirmationModal from '../LogoutConfirmationModal';
@@ -84,6 +87,8 @@ function ShopSidebar() {
   const [openMenu, setOpenMenu] = useState(null);
   const [hasPendingInvoice, setHasPendingInvoice] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showShopInfo, setShowShopInfo] = useState(false);
+  const [fullShopDetails, setFullShopDetails] = useState(null);
   const [sweetItems, setSweetItems] = useState([]);
   // Removed sweet items to eliminate emoji elements
   // useEffect(() => {
@@ -208,6 +213,7 @@ function ShopSidebar() {
         if (authState?.role !== 'attendance-only') {
           const response = await axios.get('/shop/details');
           setShopName(response.data.name);
+          setFullShopDetails(response.data);
         }
       } catch (err) {
         console.error('Failed to fetch shop name:', err);
@@ -270,6 +276,14 @@ function ShopSidebar() {
       </div>
 
       <div className="p-6 border-b border-gray-100 relative z-10">
+        {/* Shop Info Toggle */}
+        <button
+          onClick={() => setShowShopInfo(true)}
+          className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200 z-20 group"
+          title="Shop Information"
+        >
+          <LuInfo className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        </button>
         <div className="flex flex-col items-center justify-center space-y-3">
           <div className="relative">
             <div className="relative flex items-center justify-center">
@@ -437,12 +451,16 @@ function ShopSidebar() {
               </div>
             </summary>
             <nav className="mt-1 ml-6 space-y-1">
-              <NavLink to="/shop/products/category" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                <span className="font-medium">Add Category</span>
-              </NavLink>
-              <NavLink to="/shop/products/add" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
-                <span className="font-medium">Add Product</span>
-              </NavLink>
+              {(fullShopDetails?.canEditProducts !== false) && (
+                <>
+                  <NavLink to="/shop/products/category" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                    <span className="font-medium">Add Category</span>
+                  </NavLink>
+                  <NavLink to="/shop/products/add" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
+                    <span className="font-medium">Add Product</span>
+                  </NavLink>
+                </>
+              )}
               <NavLink to="/shop/products/view" className={({ isActive }) => `flex items-center px-3 py-2 text-sm rounded-lg ${isActive ? activeRed : `${textSecondary} ${hoverBg}`}`} onClick={() => { if (window.innerWidth < 1024) { window.dispatchEvent(new CustomEvent('close-sidebar')); } }}>
                 <span className="font-medium">View Products</span>
               </NavLink>
@@ -681,7 +699,95 @@ function ShopSidebar() {
         onClose={cancelLogout}
         onConfirm={confirmLogout}
       />
-    </div >
+
+      {showShopInfo && fullShopDetails && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200">
+            {/* Professional Header - Styled like ShopSettings */}
+            <div className="bg-white border-b border-gray-200 px-6 py-5 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center text-gray-600 font-bold text-xl shadow-sm">
+                  {fullShopDetails.name?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 tracking-tight">Business Profile</h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Administrative Records</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-md">
+                  <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse"></div>
+                  <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Locked by Admin</span>
+                </div>
+                <button
+                  onClick={() => setShowShopInfo(false)}
+                  className="p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <LuX className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content - Professionally Structured */}
+            <div className="p-8 bg-[#fafafa]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                {/* Primary Identity & Contact */}
+                <div className="space-y-8">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Entity Name</label>
+                    <p className="text-xl font-bold text-gray-900">{fullShopDetails.name}</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Contact Details</label>
+                    <p className="text-xl font-bold text-gray-900">{fullShopDetails.shopPhoneNumber}</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Shop Code</label>
+                    <p className="text-md font-bold text-gray-600 uppercase tracking-wide">{fullShopDetails.shopCode || 'STANDARD-STRE'}</p>
+                  </div>
+                </div>
+
+                {/* Location & Compliance */}
+                <div className="space-y-8">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Registered Location</label>
+                    <p className="text-lg font-bold text-gray-900 leading-snug">{fullShopDetails.location}</p>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
+                    <div>
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">GST Identification</label>
+                      <p className="text-md font-bold text-gray-900 font-mono tracking-wider">{fullShopDetails.gstNumber || 'UNSET'}</p>
+                    </div>
+                    <div className="pt-3 border-t border-gray-100">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">FSSAI Number</label>
+                      <p className="text-md font-bold text-gray-900 font-mono tracking-wider">{fullShopDetails.fssaiNumber || 'UNSET'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 px-1">
+                    <div className={`w-2 h-2 rounded-full ${fullShopDetails.hasTaxInvoiceAccess ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-gray-300'}`}></div>
+                    <span className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">
+                      {fullShopDetails.hasTaxInvoiceAccess ? 'Authorized for Tax Billing' : 'Standard Billing Only'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-10 pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => setShowShopInfo(false)}
+                  className="w-full py-3.5 bg-gray-900 hover:bg-black text-white rounded-lg font-bold text-sm tracking-wider uppercase transition-all shadow-lg hover:shadow-xl active:scale-[0.98]"
+                >
+                  Close Administrative View
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
   );
 }
 

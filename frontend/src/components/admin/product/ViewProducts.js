@@ -34,6 +34,7 @@ function ViewProducts({ baseUrl = '/admin' }) {
   const [availableProducts, setAvailableProducts] = useState([]);
   const [compSearchTerm, setCompSearchTerm] = useState('');
   const [showCompDropdown, setShowCompDropdown] = useState(false);
+  const [canEditProducts, setCanEditProducts] = useState(true); // New state for access control
   const compDropdownRef = React.useRef(null);
 
   const fetchProducts = async () => {
@@ -83,6 +84,21 @@ function ViewProducts({ baseUrl = '/admin' }) {
         }
       };
       fetchAvailableForMixed();
+    }
+
+    // Fetch shop details for access control if in shop mode
+    if (baseUrl === '/shop') {
+      const fetchShopDetails = async () => {
+        try {
+          const res = await axios.get('/shop/details', { withCredentials: true });
+          if (res.data && res.data.canEditProducts !== undefined) {
+            setCanEditProducts(res.data.canEditProducts);
+          }
+        } catch (err) {
+          console.error('Failed to fetch shop details for access control:', err);
+        }
+      };
+      fetchShopDetails();
     }
 
     // Handle clicks outside component dropdown
@@ -616,13 +632,15 @@ function ViewProducts({ baseUrl = '/admin' }) {
                       </td>
                       <td className="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => openEditModal(product)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Edit Product"
-                          >
-                            <LuPencil size={18} />
-                          </button>
+                          {(baseUrl === '/admin' || canEditProducts) && (
+                            <button
+                              onClick={() => openEditModal(product)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Edit Product"
+                            >
+                              <LuPencil size={18} />
+                            </button>
+                          )}
                           <button
                             onClick={() => openProductHistoryModal(product._id)}
                             className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
@@ -630,13 +648,15 @@ function ViewProducts({ baseUrl = '/admin' }) {
                           >
                             <LuHistory size={18} />
                           </button>
-                          <button
-                            onClick={() => openDeleteConfirmation(product._id)}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete Product"
-                          >
-                            <LuTrash2 size={18} />
-                          </button>
+                          {(baseUrl === '/admin' || canEditProducts) && (
+                            <button
+                              onClick={() => openDeleteConfirmation(product._id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete Product"
+                            >
+                              <LuTrash2 size={18} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

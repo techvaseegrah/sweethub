@@ -45,7 +45,9 @@ exports.getShopDetails = async (req, res) => {
     if (!req.shopId) {
       return res.status(400).json({ message: 'Shop ID not found in token.' });
     }
-    const shop = await Shop.findById(req.shopId).select('name location shopPhoneNumber gstNumber fssaiNumber hasTaxInvoiceAccess allowedCategories');
+    const shop = await Shop.findById(req.shopId)
+      .select('name location shopPhoneNumber gstNumber fssaiNumber hasTaxInvoiceAccess canEditProducts allowedCategories shopCode user')
+      .populate('user', 'username email');
     if (!shop) {
       return res.status(404).json({ message: 'Shop not found.' });
     }

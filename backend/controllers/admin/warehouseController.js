@@ -536,10 +536,36 @@ const addManufacturingProcess = async (req, res) => {
             category: category || undefined
         });
 
-        await newProcessRecord.save();
-        res.status(201).json(newProcessRecord);
+        try {
+            await newProcessRecord.save();
+            res.status(201).json(newProcessRecord);
+        } catch (error) {
+            // Handle duplicate key error (E11000)
+            if (error.code === 11000) {
+                const updatedProcess = await Manufacturing.findOneAndUpdate(
+                    { productName: productName },
+                    {
+                        ingredients,
+                        quantity,
+                        price,
+                        unit,
+                        expiryDate: expiryDate ? new Date(expiryDate) : undefined,
+                        usedByDate: usedByDate ? new Date(usedByDate) : undefined,
+                        createdByWorker,
+                        category: category || undefined
+                    },
+                    { new: true, runValidators: true }
+                );
+                return res.status(200).json({
+                    message: 'Manufacturing process updated as it already existed',
+                    process: updatedProcess
+                });
+            }
+            console.error('Error adding manufacturing process:', error);
+            res.status(500).json({ message: 'Server Error', error: error.message });
+        }
     } catch (error) {
-        console.error('Error adding manufacturing process:', error);
+        console.error('Error in addManufacturingProcess:', error);
         res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
@@ -664,18 +690,28 @@ const updateManufacturingProcess = async (req, res) => {
             updateFields.createdByWorker = createdByWorker;
         }
 
-        const updatedProcess = await Manufacturing.findByIdAndUpdate(
-            id,
-            updateFields, // Include all fields in update
-            { new: true, runValidators: true }
-        );
-        if (!updatedProcess) {
-            return res.status(404).json({ message: 'Process not found' });
+        try {
+            const updatedProcess = await Manufacturing.findByIdAndUpdate(
+                id,
+                updateFields,
+                { new: true, runValidators: true }
+            );
+            if (!updatedProcess) {
+                return res.status(404).json({ message: 'Process not found' });
+            }
+            res.json(updatedProcess);
+        } catch (error) {
+            if (error.code === 11000) {
+                return res.status(400).json({
+                    message: 'Another manufacturing process already exists with this product name.',
+                    error: 'Duplicate Name'
+                });
+            }
+            throw error;
         }
-        res.json(updatedProcess);
     } catch (error) {
         console.error('Error updating manufacturing process:', error);
-        res.status(500).json({ message: 'Server Error' });
+        res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
 

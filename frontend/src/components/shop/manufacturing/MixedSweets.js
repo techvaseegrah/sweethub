@@ -11,6 +11,7 @@ const MixedSweets = () => {
     const [productions, setProductions] = useState([]);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
+    const [canEditProducts, setCanEditProducts] = useState(true);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -68,14 +69,18 @@ const MixedSweets = () => {
     const fetchInitialData = async () => {
         setLoading(true);
         try {
-            const [catRes, prodRes, historyRes] = await Promise.all([
+            const [catRes, prodRes, historyRes, shopDetails] = await Promise.all([
                 axios.get('/shop/categories/shop-used'),
                 axios.get('/shop/products'),
-                axios.get('/shop/mixed-sweets')
+                axios.get('/shop/mixed-sweets'),
+                axios.get('/shop/details')
             ]);
             setCategories(Array.isArray(catRes.data) ? catRes.data : []);
             setAvailableProducts(Array.isArray(prodRes.data) ? prodRes.data : []);
             setProductions(Array.isArray(historyRes.data) ? historyRes.data : []);
+            if (shopDetails.data && shopDetails.data.canEditProducts !== undefined) {
+                setCanEditProducts(shopDetails.data.canEditProducts);
+            }
         } catch (err) {
             console.error('Failed to fetch initial data:', err);
             setError('Failed to load required data.');
@@ -316,6 +321,31 @@ const MixedSweets = () => {
                     </div>
                 </div>
                 <p className="text-slate-500 font-medium tracking-wide mt-4">Preparing Manufacturing Module...</p>
+            </div>
+        );
+    }
+
+    if (!canEditProducts) {
+        return (
+            <div className="max-w-7xl mx-auto p-8">
+                <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-slate-200/50 border border-slate-100 text-center space-y-8 relative overflow-hidden group">
+                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-rose-400 via-rose-500 to-rose-400"></div>
+                    <div className="w-24 h-24 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto text-rose-500 shadow-lg shadow-rose-100/50 group-hover:scale-110 transition-transform duration-500">
+                        <LuBoxes size={48} />
+                    </div>
+                    <div className="space-y-3">
+                        <h3 className="text-3xl font-black text-slate-800 tracking-tight">Access Restricted</h3>
+                        <p className="text-slate-500 text-lg max-w-lg mx-auto leading-relaxed">
+                            Manufacturing capabilities have been <span className="text-rose-600 font-bold">deactivated</span> by the administrator for your shop profile.
+                        </p>
+                    </div>
+                    <div className="pt-4">
+                        <div className="inline-flex items-center gap-3 px-6 py-3 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-400 font-medium">
+                            <span className="w-2 h-2 bg-rose-400 rounded-full animate-pulse"></span>
+                            Please contact central administration if you believe this is an error.
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }

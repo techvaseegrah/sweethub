@@ -16,6 +16,10 @@ const shopSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  canEditProducts: {
+    type: Boolean,
+    default: true,
+  },
   gstNumber: { // Add GST number field
     type: String,
   },

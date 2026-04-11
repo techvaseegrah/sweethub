@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { formatDateToDDMMYYYY, formatDateTime } from '../../../utils/unitConversion';
 import axios from '../../../api/axios';
+import { generateBillPdf, generateTaxInvoicePdf, printBill } from '../../../utils/generateBillPdf';
 
 const BillDetailView = ({ bill, onClose, onUpdate, initialEditMode = false }) => {
   const [isEditingPayment, setIsEditingPayment] = useState(initialEditMode);
@@ -33,18 +34,72 @@ const BillDetailView = ({ bill, onClose, onUpdate, initialEditMode = false }) =>
     }
   };
 
+  const handleDownload = () => {
+    const shopData = {
+      name: bill.shopName || bill.shop?.name,
+      address: bill.shopAddress || bill.shop?.location,
+      gstNumber: bill.shopGstNumber || bill.shop?.gstNumber,
+      fssaiNumber: bill.shopFssaiNumber || bill.shop?.fssaiNumber,
+      phone: bill.shopPhone || bill.shop?.shopPhoneNumber
+    };
+
+    if (bill.isTaxInvoice) {
+      generateTaxInvoicePdf(bill, shopData, false);
+    } else {
+      generateBillPdf(bill, shopData);
+    }
+  };
+
+  const handlePrint = () => {
+    const shopData = {
+      name: bill.shopName || bill.shop?.name,
+      address: bill.shopAddress || bill.shop?.location,
+      gstNumber: bill.shopGstNumber || bill.shop?.gstNumber,
+      fssaiNumber: bill.shopFssaiNumber || bill.shop?.fssaiNumber,
+      phone: bill.shopPhone || bill.shop?.shopPhoneNumber
+    };
+
+    if (bill.isTaxInvoice) {
+      generateTaxInvoicePdf(bill, shopData, true);
+    } else {
+      printBill(bill, shopData);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Bill Details</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-            >
-              &times;
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleDownload}
+                className="bg-green-100 text-green-600 hover:bg-green-200 p-2 rounded-md transition-colors duration-200 flex items-center gap-1 text-sm font-medium"
+                title="Download PDF"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+              <button
+                onClick={handlePrint}
+                className="bg-purple-100 text-purple-600 hover:bg-purple-200 p-2 rounded-md transition-colors duration-200 flex items-center gap-1 text-sm font-medium"
+                title="Print"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print
+              </button>
+              <button
+                onClick={onClose}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold ml-2"
+              >
+                &times;
+              </button>
+            </div>
           </div>
 
           {error && (

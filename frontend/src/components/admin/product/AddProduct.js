@@ -15,6 +15,7 @@ function AddProduct({ baseUrl = '/admin' }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [canEditProducts, setCanEditProducts] = useState(true);
 
   // States for searchable dropdown
   const [allProducts, setAllProducts] = useState([]);
@@ -48,6 +49,14 @@ function AddProduct({ baseUrl = '/admin' }) {
         if (Array.isArray(categoriesResponse.data) && categoriesResponse.data.length > 0) {
           setCategory(categoriesResponse.data[0]._id);
         }
+
+        // Fetch shop details for access control if in shop mode
+        if (baseUrl === '/shop') {
+          const shopDetails = await axios.get('/shop/details', { withCredentials: true });
+          if (shopDetails.data && shopDetails.data.canEditProducts !== undefined) {
+            setCanEditProducts(shopDetails.data.canEditProducts);
+          }
+        }
       } catch (err) {
         setError('Failed to load data.');
         console.error(err);
@@ -56,7 +65,7 @@ function AddProduct({ baseUrl = '/admin' }) {
       }
     };
     fetchData();
-  }, [CATEGORY_URL, PRODUCT_URL]);
+  }, [CATEGORY_URL, PRODUCT_URL, baseUrl]);
 
   // Handle clicks outside dropdown
   useEffect(() => {
@@ -244,6 +253,22 @@ function AddProduct({ baseUrl = '/admin' }) {
           />
         </div>
         <div className="text-red-500 font-medium">Loading...</div>
+      </div>
+    );
+  }
+
+  if (baseUrl === '/shop' && !canEditProducts) {
+    return (
+      <div className="p-6 bg-white rounded-lg shadow-lg">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-red-700 font-bold uppercase tracking-wider text-sm">Access Restricted</p>
+          </div>
+          <p className="text-red-600">The administrator has disabled product management for this shop. You cannot add or modify products at this time.</p>
+        </div>
       </div>
     );
   }

@@ -55,9 +55,11 @@ function CreateBill({ baseUrl = '/shop' }) {
     name: '',
     address: '',
     gstin: '',
-    state: '',
-    stateCode: '',
-    phone: ''
+    state: 'Tamil Nadu',
+    stateCode: '33',
+    phone: '',
+    placeOfSupply: '33-Tamil Nadu',
+    invoiceNo: ''
   });
 
   // From Info (Fetched from shop details)
@@ -84,7 +86,8 @@ function CreateBill({ baseUrl = '/shop' }) {
     rawInput: '',
 
     discountPercent: 0,
-    discountAmount: 0
+    discountAmount: 0,
+    hsn: ''
   });
 
   // Helper functions for calculations
@@ -128,7 +131,6 @@ function CreateBill({ baseUrl = '/shop' }) {
 
   // Modal States
   const [showOutOfStockModal, setShowOutOfStockModal] = useState(false);
-  const [showConfirmOutOfStockModal, setShowConfirmOutOfStockModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [stockQuantity, setStockQuantity] = useState(0);
   const [selectedProductIndex, setSelectedProductIndex] = useState(-1);
@@ -479,12 +481,6 @@ function CreateBill({ baseUrl = '/shop' }) {
 
   const handleConfirmOutOfStock = () => {
     setShowOutOfStockModal(false);
-    setShowConfirmOutOfStockModal(true);
-  };
-
-  const handleFinalConfirmOutOfStock = () => {
-    setShowConfirmOutOfStockModal(false);
-    if (selectedProduct) setupProductSelection(selectedProduct);
   };
 
   const handleUnitChange = (e) => {
@@ -580,6 +576,7 @@ function CreateBill({ baseUrl = '/shop' }) {
       baseUnit: currentItem.product.prices[0].unit,
       discountPercent: currentItem.discountPercent || 0,
       discountAmount: currentItem.discountAmount || 0,
+      hsn: currentItem.hsn || '',
     };
 
     const existingIndex = billItems.findIndex(i => i.product === newItem.product && i.unit === newItem.unit);
@@ -592,7 +589,7 @@ function CreateBill({ baseUrl = '/shop' }) {
     }
 
     setSearchTerm('');
-    setCurrentItem({ ...currentItem, product: null, unit: '', quantity: '', price: 0, productName: '', sku: '', isDecimalAsGram: false, rawInput: '', discountPercent: 0, discountAmount: 0 });
+    setCurrentItem({ ...currentItem, product: null, unit: '', quantity: '', price: 0, productName: '', sku: '', isDecimalAsGram: false, rawInput: '', discountPercent: 0, discountAmount: 0, hsn: '' });
     setError('');
     setTimeout(() => productSearchRef.current?.focus(), 50);
   };
@@ -683,9 +680,11 @@ function CreateBill({ baseUrl = '/shop' }) {
           name: '',
           address: '',
           gstin: '',
-          state: '',
-          stateCode: '',
-          phone: ''
+          state: 'Tamil Nadu',
+          stateCode: '33',
+          phone: '',
+          placeOfSupply: '33-Tamil Nadu',
+          invoiceNo: ''
         });
 
         // FIX: Scroll the specific container to top
@@ -812,15 +811,8 @@ function CreateBill({ baseUrl = '/shop' }) {
           <p className="text-red-500 text-xl font-bold mb-2">Item Out of Stock</p>
           <p>Qty Available: {stockQuantity}</p>
           <div className="mt-4 flex justify-center gap-2">
-            <button onClick={() => setShowOutOfStockModal(false)} className="px-4 py-2 bg-gray-300 rounded">Cancel</button>
-            <button onClick={handleConfirmOutOfStock} className="px-4 py-2 bg-blue-500 text-white rounded">Continue</button>
+            <button onClick={() => setShowOutOfStockModal(false)} className="px-6 py-2 bg-blue-500 text-white rounded font-bold">OK</button>
           </div>
-        </div>
-      </CustomModal>
-      <CustomModal isOpen={showConfirmOutOfStockModal} onClose={() => setShowConfirmOutOfStockModal(false)} title="Confirm" customZIndex="z-[100]">
-        <div className="p-4 text-center">
-          <p className="mb-4">Are you sure you want to add this out-of-stock item?</p>
-          <button onClick={handleFinalConfirmOutOfStock} className="px-4 py-2 bg-red-500 text-white rounded">Yes, Add It</button>
         </div>
       </CustomModal>
 
@@ -1050,13 +1042,47 @@ function CreateBill({ baseUrl = '/shop' }) {
                 )}
               </div>
             </div>
+            {isTaxInvoice && (
+              <div className="flex gap-2">
+                <div className="w-1/2 group">
+                  <label className="text-[10px] text-gray-500 font-bold ml-1 uppercase">GST Number</label>
+                  <input
+                    type="text"
+                    placeholder="Enter Customer GST No"
+                    className="w-full p-2 border-2 border-blue-100 rounded text-sm focus:border-blue-400 outline-none font-bold"
+                    value={toInfo.gstin}
+                    onChange={(e) => setToInfo({ ...toInfo, gstin: e.target.value })}
+                  />
+                </div>
+                <div className="w-1/2 group">
+                  <label className="text-[10px] text-gray-500 font-bold ml-1 uppercase">Place of Supply</label>
+                  <input
+                    type="text"
+                    placeholder="Enter Place of Supply"
+                    className="w-full p-2 border-2 border-blue-100 rounded text-sm focus:border-blue-400 outline-none font-bold"
+                    value={toInfo.placeOfSupply}
+                    onChange={(e) => setToInfo({ ...toInfo, placeOfSupply: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Side: Invoice Meta */}
           <div className="col-span-4 flex flex-col gap-2 items-end text-sm">
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Invoice No:</span>
-              <span className="font-bold">Auto-Gen</span>
+              {isTaxInvoice ? (
+                <input
+                  type="text"
+                  placeholder="Manual Inv No."
+                  className="border rounded p-1 text-sm font-bold w-32 text-right"
+                  value={toInfo.invoiceNo}
+                  onChange={(e) => setToInfo({ ...toInfo, invoiceNo: e.target.value })}
+                />
+              ) : (
+                <span className="font-bold">Auto-Gen</span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-gray-500">Date:</span>
@@ -1092,10 +1118,12 @@ function CreateBill({ baseUrl = '/shop' }) {
               <select
                 value={toInfo.state || 'Tamil Nadu'}
                 onChange={(e) => setToInfo({ ...toInfo, state: e.target.value })}
-                className="border rounded p-1 text-sm text-right"
+                className="border rounded p-1 text-sm text-right font-bold"
               >
                 <option value="Tamil Nadu">Tamil Nadu</option>
                 <option value="Kerala">Kerala</option>
+                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                <option value="Karnataka">Karnataka</option>
               </select>
             </div>
           </div>
@@ -1113,10 +1141,11 @@ function CreateBill({ baseUrl = '/shop' }) {
 
               <th className="p-2 border border-gray-200 w-16">QTY</th>
               <th className="p-2 border border-gray-200 w-20">UNIT</th>
+              {isTaxInvoice && <th className="p-2 border border-gray-200 w-24">HSN/SKU</th>}
               <th className="p-2 border border-gray-200 w-28 text-right">
-                PRICE/UNIT <br /><span className="text-[10px] lowercase font-normal">(Without Tax)</span>
+                PRICE/UNIT <br /><span className="text-[10px] lowercase font-normal">({isTaxInvoice ? 'Before Tax' : 'Without Tax'})</span>
               </th>
-
+              {isTaxInvoice && <th className="p-2 border border-gray-200 w-24 text-right">GST</th>}
               <th className="p-2 border border-gray-200 w-24 text-right">AMOUNT</th>
               <th className="p-2 border border-gray-200 w-8"></th>
             </tr>
@@ -1166,9 +1195,21 @@ function CreateBill({ baseUrl = '/shop' }) {
                   {currentItem.product ? getAvailableUnits(currentItem.product.prices).map(u => <option key={u} value={u}>{u}</option>) : <option>NONE</option>}
                 </select>
               </td>
+              {isTaxInvoice && (
+                <td className="p-1 border border-blue-200">
+                  <input
+                    type="text"
+                    className="w-full bg-white border border-blue-200 rounded p-1 text-xs text-center"
+                    placeholder="HSN/SAC"
+                    value={currentItem.hsn}
+                    onChange={(e) => setCurrentItem({ ...currentItem, hsn: e.target.value })}
+                  />
+                </td>
+              )}
               <td className="p-2 border border-blue-200 text-right">
-                {currentItem.price || 0}
+                {currentItem.price ? (isTaxInvoice ? (currentItem.price / (1 + gstPercentage / 100)).toFixed(2) : currentItem.price) : 0}
               </td>
+              {isTaxInvoice && <td className="p-2 border border-blue-200 text-right">{(calculateItemTaxAmount(currentItem.quantity, currentItem.price / (1 + gstPercentage / 100), gstPercentage)).toFixed(2)}</td>}
 
               <td className="p-2 border border-blue-200 text-right font-bold">
                 {calculateItemAmount(currentItem.rawInput || currentItem.quantity, currentItem.price, currentItem.discountPercent, currentItem.discountAmount).toFixed(2)}
@@ -1203,16 +1244,28 @@ function CreateBill({ baseUrl = '/shop' }) {
                       : <option value={item.unit}>{item.unit}</option>}
                   </select>
                 </td>
+                {isTaxInvoice && (
+                  <td className="p-1 border border-gray-200">
+                    <input
+                      type="text"
+                      className="w-full text-center p-1 border rounded bg-transparent hover:bg-white text-xs"
+                      value={item.hsn || ''}
+                      onChange={e => updateBillItem(idx, 'hsn', e.target.value)}
+                      placeholder="Enter HSN"
+                    />
+                  </td>
+                )}
                 <td className="p-2 border border-gray-200 text-right">
                   <input
                     type="text"
                     className="w-full text-right p-1 border rounded bg-transparent hover:bg-white"
-                    value={item.price}
+                    value={isTaxInvoice ? (item.price / (1 + gstPercentage / 100)).toFixed(2) : item.price}
                     onChange={e => updateBillItem(idx, 'price', parseFloat(e.target.value) || 0)}
                     min="0"
                     step="0.01"
                   />
                 </td>
+                {isTaxInvoice && <td className="p-2 border border-gray-200 text-right">{(calculateItemTaxAmount(item.quantity, item.price / (1 + gstPercentage / 100), gstPercentage)).toFixed(2)}</td>}
                 <td className="p-2 border border-gray-200 text-right font-bold">
                   {calculateItemAmount(item.quantity, item.price, item.discountPercent, item.discountAmount).toFixed(2)}
                 </td>

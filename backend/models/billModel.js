@@ -26,6 +26,8 @@ const billSchema = new mongoose.Schema({
       required: true,
     },
     productName: String,
+    sku: String,
+    hsn: String,
     unit: String,
     quantity: {
       type: Number,
@@ -95,7 +97,8 @@ const billSchema = new mongoose.Schema({
     gstin: String,
     state: String,
     stateCode: String,
-    phone: String
+    phone: String,
+    placeOfSupply: String
   },
   // Shop details for PDF generation
   shopName: String,

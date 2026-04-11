@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
-import { generateBillPdf, generateTaxInvoicePdf } from '../../../utils/generateBillPdf';
+import { generateBillPdf, generateTaxInvoicePdf, printBill } from '../../../utils/generateBillPdf';
 import BillDetailView from './BillDetailView';
 import { useNavigate } from 'react-router-dom';
 import { formatDateToDDMMYYYY, formatDateTime } from '../../../utils/unitConversion';
@@ -325,6 +325,18 @@ function AdminViewBills({ baseUrl = '/admin' }) {
 
   const handleDownloadPDF = (bill) => {
     generateInvoice(bill);
+  };
+
+  const handlePrint = (bill) => {
+    const shop = selectedShop === 'admin'
+      ? { name: 'Admin Shop', address: 'Main Admin Location', phone: '7339200636' }
+      : shops.find(s => s._id === (bill.shop?._id || bill.shop)) || bill.shop;
+
+    if (bill.isTaxInvoice) {
+      generateTaxInvoicePdf(bill, shop, true);
+    } else {
+      printBill(bill, shop);
+    }
   };
 
   const handleDownloadExcelClick = () => {
@@ -673,6 +685,15 @@ function AdminViewBills({ baseUrl = '/admin' }) {
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handlePrint(bill)}
+                                  className="text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 p-2 rounded-md transition-colors duration-200"
+                                  title="Print"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                   </svg>
                                 </button>
                               </>

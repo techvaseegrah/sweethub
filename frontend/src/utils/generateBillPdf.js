@@ -24,7 +24,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
   const shopFssaiNumber = shopData?.fssaiNumber || billData?.shop?.fssaiNumber || billData?.shopFssaiNumber || null;
 
   // Extract bill details
-  const billId = billData?.billId || (billData?._id ? billData._id.slice(-8) : 'N/A');
+  const billId = billData?.toInfo?.invoiceNo || billData?.billId || (billData?._id ? billData._id.slice(-8) : 'N/A');
   const billDate = billData?.billDate ? formatDateToDDMMYYYY(billData.billDate) : formatDateToDDMMYYYY(new Date().toISOString());
   const billTime = new Date(billData?.billDate || new Date()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -427,11 +427,11 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
     // A4 Tax Invoice specific logic
     filenameSuffix = `tax_invoice_${billId}_${billDate.replace(/\//g, '-')}.pdf`;
     pdfOptions = {
-      margin: [5, 5, 5, 5],
+      margin: [0, 0, 0, 0],
       filename: filenameSuffix,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'jpeg', quality: 1.0 },
       html2canvas: {
-        scale: 3,
+        scale: 2,
         useCORS: true,
         letterRendering: true,
         windowWidth: 1000
@@ -446,201 +446,272 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
     // Generate items HTML for A4 Tax Invoice
     const taxInvoiceItemsHtml = billData.items.map((item, index) => {
       const itemQty = parseFloat(item.quantity) || 0;
-      const itemGrossAmount = itemQty * (item.price || 0); // Price is assumed to be inclusive
-      const itemBaseAmount = gstPercentage > 0 ? itemGrossAmount / (1 + gstPercentage / 100) : itemGrossAmount;
-      const itemTaxAmount = itemGrossAmount - itemBaseAmount;
-      const unitPrice = itemBaseAmount / (itemQty || 1);
+      const itemTotal = itemQty * (item.price || 0);
+
+      // Calculate tax and base from the total
+      const itemTaxAmount = gstPercentage > 0 ? itemTotal - (itemTotal / (1 + gstPercentage / 100)) : 0;
+      const itemBaseAmount = itemTotal - itemTaxAmount;
+      const pricePerUnit = itemBaseAmount / (itemQty || 1);
 
       totalQty += itemQty;
       totalTaxAmount += itemTaxAmount;
 
       return `
-  < tr style = "text-align: center;" >
-          <td style="padding: 5px; border: 1px solid #ddd;">${index + 1}</td>
-          <td style="padding: 5px; border: 1px solid #ddd; text-align: left; font-weight: bold;">${(item.productName || 'Item').toUpperCase()}</td>
-          <td style="padding: 5px; border: 1px solid #ddd;">${item.sku || '-'}</td>
-          <td style="padding: 5px; border: 1px solid #ddd;">${itemQty}</td>
-          <td style="padding: 5px; border: 1px solid #ddd;">${item.unit || ''}</td>
-          <td style="padding: 5px; border: 1px solid #ddd; text-align: right;">₹ ${unitPrice.toFixed(2)}</td>
-          <td style="padding: 5px; border: 1px solid #ddd; text-align: right;">₹ ${itemTaxAmount.toFixed(2)} (${gstPercentage.toFixed(0)}%)</td>
-          <td style="padding: 5px; border: 1px solid #ddd; text-align: right; font-weight: bold;">₹ ${itemGrossAmount.toFixed(2)}</td>
-        </tr >
-  `;
+        <tr style="text-align: center; border-bottom: 1px solid #eee;">
+          <td style="padding: 10px 5px; border-right: 1px solid #eee;">${index + 1}</td>
+          <td style="padding: 10px 5px; border-right: 1px solid #eee; text-align: left; font-weight: 700;">${(item.productName || 'Item').toUpperCase()}</td>
+          <td style="padding: 10px 5px; border-right: 1px solid #eee;">${item.hsn || item.sku || '-'}</td>
+          <td style="padding: 10px 5px; border-right: 1px solid #eee;">${itemQty}</td>
+          <td style="padding: 10px 5px; border-right: 1px solid #eee;">${item.unit || '-'}</td>
+          <td style="padding: 10px 5px; border-right: 1px solid #eee; text-align: right;">₹ ${pricePerUnit.toFixed(2)}</td>
+          <td style="padding: 10px 5px; border-right: 1px solid #eee; text-align: right;">₹ ${itemTaxAmount.toFixed(2)} (${gstPercentage}%)</td>
+          <td style="padding: 10px 5px; text-align: right; font-weight: 700;">₹ ${itemTotal.toFixed(2)}</td>
+        </tr>
+      `;
     }).join('');
 
-    // Tax Invoice HTML structure (Table-based layout for better PDF consistency)
+    const invoiceWords = numberToWords(totalAmount);
+    const placeOfSupply = billData?.toInfo?.placeOfSupply || billData?.placeOfSupply || '33-Tamil Nadu';
+
     htmlContent = `
-  < !DOCTYPE html >
-    <html>
+      <!DOCTYPE html>
+      <html>
       <head>
         <meta charset="utf-8">
-          <title>Tax Invoice - ${billId}</title>
-          <style>
-            * {box - sizing: border-box; }
-            body {font - family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; font-size: 11px; color: #000; line-height: 1.4; background: #fff; }
-            .container {width: 210mm; min-height: 297mm; margin: 0 auto; padding: 10mm; background: #fff; }
-            .header-company {text - align: center; margin-bottom: 2px; }
-            .header-company h1 {font - size: 22px; font-weight: 800; margin: 0; color: #000; text-transform: uppercase; letter-spacing: 0.5px; }
-            .header-company p {margin: 1px 0; font-size: 10px; color: #000; font-weight: 600; }
-            .top-border {border - top: 2.5px solid #000; margin-top: 8px; margin-bottom: 8px; }
-            .invoice-title {text - align: center; font-size: 14px; font-weight: 800; margin: 10px 0; color: #000; }
+        <style>
+          @page { size: A4; margin: 0mm; }
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none; }
+          }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          body { font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; color: #000; line-height: 1.3; background: #fff; }
+          .page { 
+            width: 210mm; 
+            min-height: 297mm;
+            background: white; 
+            padding: 10mm; 
+            margin: 0 auto; 
+            box-sizing: border-box; 
+            position: relative;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .header { text-align: center; margin-bottom: 15px; }
+          .header h1 { margin: 0 0 8px 0; font-size: 24px; color: #000; font-weight: 900; }
+          .header p { margin: 4px 0; font-size: 11px; color: #000; font-weight: 700; }
+          
+          .invoice-type { 
+            text-align: center; 
+            font-size: 18px; 
+            font-weight: 900; 
+            margin: 8px 0; 
+            text-transform: uppercase; 
+            letter-spacing: 2px;
+            color: #000;
+          }
+          
+          .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 15px; }
+          .details-box h3 { margin: 0 0 8px 0; font-size: 14px; border-bottom: 2px solid #000; display: inline-block; padding-bottom: 2px; }
+          .details-box p { margin: 3px 0; font-size: 11px; color: #111; font-weight: 600; line-height: 1.4; }
+          .val { font-weight: 800; color: #000; }
 
-            /* Table-based grid for layout reliability */
-            .layout-table {width: 100%; border-collapse: collapse; margin-bottom: 15px; border: none; }
-            .layout-table td {vertical - align: top; border: none; padding: 0; }
+          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; border: 1.5px solid #000; }
+          .items-table th { background: #4472c4; color: white; padding: 10px 5px; font-size: 11px; font-weight: 800; border: 1px solid #000; }
+          .items-table td { font-size: 11px; padding: 8px 5px; border: 1px solid #000; }
+          .total-row { background: #f9f9f9; font-weight: 800; border-top: 2.5px solid #000; }
+          
+          .footer-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; margin-top: 20px; page-break-inside: avoid; break-inside: avoid; }
+          .tax-info { border: 1px solid #000; border-radius: 4px; overflow: hidden; }
+          .tax-header { background: #4472c4; color: white; padding: 6px 10px; font-size: 11px; font-weight: 700; }
+          .tax-row { display: flex; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid #000; font-size: 10px; color: #000; }
+          
+          .words-section { margin-top: 15px; border: 1px solid #000; padding: 10px; border-radius: 4px; }
+          .words-label { font-size: 10px; color: #333; font-weight: 700; text-transform: uppercase; margin-bottom: 5px; }
+          .words-content { font-size: 12px; font-weight: 800; color: #000; text-transform: capitalize; }
 
-            .details-p {margin: 2px 0; font-size: 11px; }
-            .details-strong {font - weight: 800; }
+          .amounts-box { border: 1px solid #000; border-radius: 4px; overflow: hidden; }
+          .amount-row { display: flex; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #000; font-size: 12px; font-weight: 600; color: #000; }
+          .grand-total { background: #f0f4ff; font-weight: 900; font-size: 14px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+          
+          .signature-section { margin-top: 40px; text-align: right; }
+          .signature-box { display: inline-block; text-align: right; }
+          .signature-box p { margin: 0; font-size: 12px; font-weight: 700; }
+          .signature-space { height: 60px; }
+          .authorized { font-weight: 800; border-top: 1.5px solid #000; padding-top: 5px; margin-top: 5px; }
 
-            .items-table {width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #ddd; }
-            .items-table th {background - color: #4472c4; color: #fff; font-weight: 800; padding: 8px 5px; border: 1px solid #ddd; font-size: 10.5px; text-transform: capitalize; }
-            .items-table td {border: 1px solid #ddd; padding: 5px; font-size: 10.5px; }
-            .total-row {font - weight: 800; background-color: #fff; }
-            .total-row td {border - top: 2px solid #000; border-bottom: 2px solid #000; padding: 8px 5px; }
-
-            .tax-table, .amounts-table {width: 100%; border-collapse: collapse; }
-            .tax-table th, .amounts-table th {background - color: #4472c4; color: #fff; font-weight: 800; text-align: left; padding: 8px 10px; border: 1px solid #ddd; }
-            .tax-table td, .amounts-table td {border: 1px solid #ddd; padding: 6px 10px; font-weight: 600; font-size: 10.5px; }
-
-            .blue-bar {background - color: #4472c4; color: #fff; font-weight: 800; padding: 6px 10px; margin-top: 10px; font-size: 11px; }
-            .bar-content {padding: 8px 10px; font-size: 10.5px; font-weight: 600; }
-
-            .signature-section {margin - top: 60px; text-align: right; }
-            .signature-section p {margin: 2px 0; font-weight: 700; font-size: 11px; }
-            .authorized-signatory {margin - top: 60px; font-weight: 800; font-size: 12px; }
-          </style>
+          .acknowledgement { margin-top: 50px; border-top: 2px dashed #000; padding-top: 30px; page-break-inside: avoid; break-inside: avoid; }
+          .ack-title { text-align: center; font-size: 18px; font-weight: 900; margin-bottom: 20px; color: #000; text-transform: uppercase; letter-spacing: 1px; }
+          
+          .ack-container { display: flex; flex-direction: column; gap: 20px; }
+          .ack-top { text-align: center; }
+          .ack-middle { display: flex; justify-content: space-between; align-items: flex-start; }
+          .ack-bottom { display: flex; justify-content: flex-end; margin-top: 40px; }
+          .seal-sign-box { border-top: 1px dotted #888; width: 180px; text-align: center; font-size: 11px; padding-top: 8px; font-weight: 700; }
+        </style>
       </head>
       <body>
-        <div class="container">
-          <div class="header-company">
+        <div class="page">
+          <!-- Page 1 Header -->
+          <div class="header">
             <h1>${shopName}</h1>
             <p>${shopAddress}</p>
             <p>TRICHY(DT)-621010</p>
             <p>7530023960, Ph. no.: 7530023960</p>
-            <p>GSTIN: ${shopGstNumber}, State: 33-Tamil Nadu</p>
+            <p>GSTIN: ${shopGstNumber || 'N/A'}, State: 33-Tamil Nadu</p>
           </div>
-
-          <div class="top-border"></div>
-          <div class="invoice-title">Tax Invoice</div>
-
-          <table class="layout-table">
-            <tr>
-              <td style="width: 60%;">
-                <p class="details-p"><strong class="details-strong">Bill To</strong></p>
-                <p style="font-weight: bold; font-size: 12px; margin-top: 5px;">${customerName.toUpperCase()}</p>
-                <p class="details-p">${customerAddress || 'N/A'}</p>
-                <p class="details-p">Contact No. : ${customerMobile}</p>
-                <p class="details-p">GSTIN : ${customerGstin || 'N/A'}</p>
-                <p class="details-p">State: ${customerState || '33-Tamil Nadu'}</p>
-              </td>
-              <td style="width: 40%; text-align: right;">
-                <p class="details-p"><strong class="details-strong">Invoice Details</strong></p>
-                <p style="margin-top: 5px;" class="details-p">Invoice No. : ${billId}</p>
-                <p class="details-p">Date : ${billDate}</p>
-                <p class="details-p">Time : ${billTime}</p>
-                <p class="details-p">Place of supply: 33-Tamil Nadu</p>
-              </td>
-            </tr>
-          </table>
-
+          <div style="border-top: 2px solid #000; width: 100%; margin: 10px 0;"></div>
+          <div class="invoice-type">Tax Invoice</div>
+          
+          <div class="details-grid">
+            <div class="details-box">
+              <h3>Bill To</h3>
+              <p class="val" style="font-size: 13px;">${customerName.toUpperCase()}</p>
+              <p>${customerAddress || 'No Address Provided'}</p>
+              <p>Contact No. : <span class="val">${customerMobile}</span></p>
+              <p>GSTIN : <span class="val">${customerGstin || 'N/A'}</span></p>
+              <p>State: <span class="val">${customerState || '33-Tamil Nadu'}</span></p>
+            </div>
+            <div class="details-box" style="text-align: right;">
+              <h3>Invoice Details</h3>
+              <p>Invoice No. : <span class="val">${billId}</span></p>
+              <p>Date : <span class="val">${billDate}</span></p>
+              <p>Time : <span class="val">${billTime}</span></p>
+              <p>Place of supply: <span class="val">${placeOfSupply}</span></p>
+            </div>
+          </div>
+          
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 35px; text-align: center;">#</th>
-                <th style="text-align: left;">Item name</th>
-                <th style="width: 100px;">HSN/ SAC</th>
-                <th style="width: 65px; text-align: center;">Qty</th>
-                <th style="width: 55px; text-align: center;">Unit</th>
-                <th style="width: 90px; text-align: right;">Price/ Unit</th>
-                <th style="width: 110px; text-align: right;">GST</th>
-                <th style="width: 100px; text-align: right;">Amount</th>
+                <th style="width: 5%">#</th>
+                <th style="text-align: left; width: 35%">Item name</th>
+                <th style="width: 12%">HSN/ SAC</th>
+                <th style="width: 8%">Qty</th>
+                <th style="width: 8%">Unit</th>
+                <th style="width: 10%">Price/Unit</th>
+                <th style="width: 10%">GST</th>
+                <th style="width: 12%">Amount</th>
               </tr>
             </thead>
             <tbody>
               ${taxInvoiceItemsHtml}
               <tr class="total-row">
-                <td colspan="2" style="text-align: left; padding-left: 10px;">Total</td>
-                <td></td>
+                <td colspan="3" style="text-align: right; padding-right: 20px;">Total</td>
                 <td style="text-align: center;">${totalQty}</td>
-                <td></td>
-                <td></td>
+                <td colspan="2"></td>
                 <td style="text-align: right;">₹ ${totalTaxAmount.toFixed(2)}</td>
                 <td style="text-align: right;">₹ ${totalAmount.toFixed(2)}</td>
               </tr>
             </tbody>
           </table>
-
-          <table class="layout-table" style="margin-top: 20px;">
-            <tr>
-              <td style="width: 62%; padding-right: 20px;">
-                <table class="tax-table">
-                  <thead>
-                    <tr>
-                      <th style="width: 25%;">Tax type</th>
-                      <th style="text-align: right;">Taxable amount</th>
-                      <th style="text-align: center;">Rate</th>
-                      <th style="text-align: right;">Tax amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>SGST</td>
-                      <td style="text-align: right;">₹ ${displayBaseOfNet.toFixed(2)}</td>
-                      <td style="text-align: center;">${(gstPercentage / 2).toFixed(1)}%</td>
-                      <td style="text-align: right;">₹ ${displaySgst.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td>CGST</td>
-                      <td style="text-align: right;">₹ ${displayBaseOfNet.toFixed(2)}</td>
-                      <td style="text-align: center;">${(gstPercentage / 2).toFixed(1)}%</td>
-                      <td style="text-align: right;">₹ ${displayCgst.toFixed(2)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div class="blue-bar">Invoice Amount In Words</div>
-                <div class="bar-content">${numberToWords(totalAmount)} Only</div>
-
-                <div class="blue-bar">Payment mode</div>
-                <div class="bar-content">${billData.paymentMethod || 'Credit'}</div>
-
-                <div class="blue-bar">Terms and Conditions</div>
-                <div class="bar-content">Thank you for purchase with us</div>
-              </td>
-              <td style="width: 38%;">
-                <table class="amounts-table">
-                  <thead>
-                    <tr>
-                      <th colspan="2">Amounts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Sub Total</td>
-                      <td style="text-align: right;">₹ ${totalAmount.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td>Total</td>
-                      <td style="text-align: right;">₹ ${totalAmount.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                      <td>Balance</td>
-                      <td style="text-align: right;">₹ ${balance.toFixed(2)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div class="signature-section">
-                  <p>For : ${shopName.toUpperCase()}</p>
-                  <div class="authorized-signatory">Authorized Signatory</div>
+          
+          <div class="footer-grid">
+            <div class="left-col">
+              <div class="tax-info">
+                <div class="tax-header">Tax Details</div>
+                <div class="tax-row">
+                  <span>SGST @ ${(gstPercentage / 2).toFixed(1)}% on ₹ ${displayBaseOfNet.toFixed(2)}</span>
+                  <span class="val">₹ ${displaySgst.toFixed(2)}</span>
                 </div>
-              </td>
-            </tr>
-          </table>
+                <div class="tax-row">
+                  <span>CGST @ ${(gstPercentage / 2).toFixed(1)}% on ₹ ${displayBaseOfNet.toFixed(2)}</span>
+                  <span class="val">₹ ${displayCgst.toFixed(2)}</span>
+                </div>
+              </div>
+              
+              <div class="words-section">
+                <div class="words-label">Invoice Amount in Words</div>
+                <div class="words-content">${invoiceWords} Rupees Only</div>
+              </div>
+              
+              <div class="details-box" style="margin-top: 10px;">
+                <p><strong>Payment mode:</strong> <span class="val">${billData.paymentMethod || 'Credit'}</span></p>
+                <p><strong>Terms and Conditions:</strong></p>
+                <p style="font-size: 10px; color: #666;">Thank you for your purchase with us. All items are subject to availability.</p>
+              </div>
+            </div>
+            
+            <div class="right-col">
+              <div class="amounts-box">
+                <div class="tax-header">Summary</div>
+                <div class="amount-row">
+                  <span>Sub Total</span>
+                  <span class="val">₹ ${subtotal.toFixed(2)}</span>
+                </div>
+                ${discountAmount > 0 ? `
+                <div class="amount-row">
+                  <span>Discount</span>
+                  <span class="val">- ₹ ${discountAmount.toFixed(2)}</span>
+                </div>
+                ` : ''}
+                <div class="amount-row grand-total">
+                  <span>Total</span>
+                  <span class="val">₹ ${totalAmount.toFixed(2)}</span>
+                </div>
+                <div class="amount-row">
+                  <span>Received</span>
+                  <span class="val">₹ ${amountPaid.toFixed(2)}</span>
+                </div>
+                <div class="amount-row">
+                  <span>Balance</span>
+                  <span class="val">₹ ${balance.toFixed(2)}</span>
+                </div>
+              </div>
+              
+              <div class="signature-section">
+                <div class="signature-box">
+                  <p>For : ${shopName.toUpperCase()}</p>
+                  <div class="signature-space"></div>
+                  <div class="authorized">Authorized Signatory</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Acknowledgement Section -->
+          <div class="acknowledgement">
+            <!-- Repeated Header for Acknowledgement -->
+            <div class="header">
+              <h1>${shopName}</h1>
+              <p>${shopAddress}</p>
+              <p>TRICHY(DT)-621010</p>
+              <p>7530023960, Ph. no.: 7530023960</p>
+              <p>GSTIN: ${shopGstNumber || 'N/A'}, State: 33-Tamil Nadu</p>
+            </div>
+            <div style="border-top: 2px solid #000; width: 100%; margin: 10px 0;"></div>
+            <div class="ack-title">Acknowledgement</div>
+            
+            <div class="ack-container">
+              <div class="ack-top">
+                <h2 style="margin: 0; color: #4472c4;">${shopName.toUpperCase()}</h2>
+              </div>
+              
+              <div class="ack-middle">
+                <div class="details-box">
+                  <h3>Invoice To</h3>
+                  <p class="val" style="font-size: 13px;">${customerName.toUpperCase()}</p>
+                  <p>${customerAddress || 'No Address Provided'}</p>
+                  <p>Contact No. : <span class="val">${customerMobile}</span></p>
+                </div>
+                <div class="details-box" style="text-align: right;">
+                  <h3>Invoice Details</h3>
+                  <p>Invoice No. : <span class="val">${billId}</span></p>
+                  <p>Invoice Date : <span class="val">${billDate}</span></p>
+                  <p>Invoice Amount : <span class="val">₹ ${totalAmount.toFixed(2)}</span></p>
+                </div>
+              </div>
+              
+              <div class="ack-bottom">
+                <div class="seal-sign-box">Receiver's Seal & Sign</div>
+              </div>
+            </div>
+          </div>
         </div>
       </body>
-    </html>
-`;
+      </html>
+    `;
   } else {
     console.error('Unknown formatType:', formatType);
     alert('Unable to generate PDF: Unknown format type');

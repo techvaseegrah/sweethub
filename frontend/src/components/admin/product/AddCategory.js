@@ -7,7 +7,7 @@ function AddCategory({ baseUrl = '/admin' }) {
   const isShop = baseUrl.includes('shop');
   const { authState } = useContext(AuthContext);
   const isProductBilling = authState?.role === 'product-billing-admin' || authState?.role === 'product-billing-shop';
-  
+
   const [showAccountModal, setShowAccountModal] = useState(false);
   const CATEGORY_URL = `${baseUrl}/categories`;
   const SHOPS_URL = `${baseUrl}/shops`;
@@ -18,6 +18,7 @@ function AddCategory({ baseUrl = '/admin' }) {
   const [loading, setLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [canEditProducts, setCanEditProducts] = useState(true);
 
   const fetchCategories = async () => {
     try {
@@ -34,7 +35,21 @@ function AddCategory({ baseUrl = '/admin' }) {
 
   useEffect(() => {
     fetchCategories();
-  }, [CATEGORY_URL]);
+    // Fetch shop details for access control if in shop mode
+    if (isShop) {
+      const fetchShopDetails = async () => {
+        try {
+          const res = await axios.get('/shop/details', { withCredentials: true });
+          if (res.data && res.data.canEditProducts !== undefined) {
+            setCanEditProducts(res.data.canEditProducts);
+          }
+        } catch (err) {
+          console.error('Failed to fetch shop details for access control:', err);
+        }
+      };
+      fetchShopDetails();
+    }
+  }, [CATEGORY_URL, isShop]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -112,6 +127,22 @@ function AddCategory({ baseUrl = '/admin' }) {
     );
   }
 
+  if (isShop && !canEditProducts) {
+    return (
+      <div className="p-6 bg-white rounded-lg shadow-lg">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <p className="text-red-700 font-bold uppercase tracking-wider text-sm">Access Restricted</p>
+          </div>
+          <p className="text-red-600">The administrator has disabled product management for this shop. You cannot add or modify categories at this time.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white p-4 md:p-6 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-6">
@@ -168,7 +199,7 @@ function AddCategory({ baseUrl = '/admin' }) {
                   {category.name} <span className="text-sm text-gray-500">({category.products.length} products)</span>
                 </p>
                 <div className="w-full flex justify-end sm:w-auto">
-                  {!isProductBilling && (
+                  {!isProductBilling && canEditProducts && (
                     <button
                       onClick={() => confirmDelete(category._id)}
                       className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm"

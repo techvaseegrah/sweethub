@@ -148,6 +148,7 @@ exports.createBill = async (req, res) => {
           product: product._id,
           productName: product.name,
           sku: product.sku,
+          hsn: item.hsn,
           unit: item.unit,
           quantity: item.quantity,
           price: item.price,
@@ -179,6 +180,8 @@ exports.createBill = async (req, res) => {
       discountAmount: discountAmount || 0,
       billType,
       ...(worker && { worker }),
+      isTaxInvoice: req.body.isTaxInvoice || false,
+      toInfo: req.body.toInfo,
       // Include shop details for PDF generation
       shopName: shopDetails?.name,
       shopAddress: shopDetails?.location,
@@ -346,7 +349,8 @@ exports.updateBill = async (req, res) => {
         unit: item.unit,
         quantity: item.quantity,
         price: item.price,
-        sku: product.sku
+        sku: product.sku,
+        hsn: item.hsn
       });
 
       // Deduct new stock

@@ -135,7 +135,8 @@ exports.createBill = async (req, res) => {
         unit: item.unit,
         quantity: item.quantity,
         price: item.price,
-        sku: product.sku // Good practice to save SKU
+        sku: product.sku,
+        hsn: item.hsn
       });
     }
 
@@ -332,7 +333,8 @@ exports.updateBill = async (req, res) => {
         unit: item.unit,
         quantity: item.quantity,
         price: item.price,
-        sku: product.sku
+        sku: product.sku,
+        hsn: item.hsn
       });
 
       // Deduct new stock

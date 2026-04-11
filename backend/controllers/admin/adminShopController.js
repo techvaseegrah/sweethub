@@ -162,11 +162,15 @@ exports.deleteShop = async (req, res) => {
 
 exports.updateShopAccess = async (req, res) => {
   const { id } = req.params;
-  const { hasTaxInvoiceAccess } = req.body;
+  const { hasTaxInvoiceAccess, canEditProducts } = req.body;
   try {
+    const updateData = {};
+    if (hasTaxInvoiceAccess !== undefined) updateData.hasTaxInvoiceAccess = hasTaxInvoiceAccess;
+    if (canEditProducts !== undefined) updateData.canEditProducts = canEditProducts;
+
     const updatedShop = await Shop.findByIdAndUpdate(
       id,
-      { hasTaxInvoiceAccess },
+      updateData,
       { new: true }
     );
     if (!updatedShop) {

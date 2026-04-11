@@ -14,11 +14,12 @@ const generateReturnId = async () => {
 const createReturn = async (req, res) => {
     try {
         const returnId = await generateReturnId();
-        const { productName, batchNumber, quantityReturned, reasonForReturn, source, remarks } = req.body;
+        const { productName, category, batchNumber, quantityReturned, reasonForReturn, source, remarks } = req.body;
 
         const newReturn = new ReturnProduct({
             returnId,
             productName,
+            category,
             batchNumber,
             quantityReturned,
             reasonForReturn,
@@ -36,7 +37,7 @@ const createReturn = async (req, res) => {
 // Get all return product entries (for admin - can see all)
 const getReturns = async (req, res) => {
     try {
-        const returns = await ReturnProduct.find({});
+        const returns = await ReturnProduct.find({}).populate('category', 'name').sort({ dateOfReturn: -1 });
         res.status(200).json(returns);
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch return products', error: error.message });
@@ -47,7 +48,7 @@ const getReturns = async (req, res) => {
 const getShopSpecificReturns = async (req, res) => {
     try {
         const { shopId } = req.params;
-        const returns = await ReturnProduct.find({ shopId });
+        const returns = await ReturnProduct.find({ shopId }).populate('category', 'name').sort({ dateOfReturn: -1 });
         res.status(200).json(returns);
     } catch (error) {
         res.status(500).json({ message: 'Failed to fetch return products', error: error.message });
