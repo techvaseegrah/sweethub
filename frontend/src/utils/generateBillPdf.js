@@ -84,7 +84,6 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
       const itemDisplayTotal = (item.quantity || 0) * (item.price || 0); // Calculate per-item total from quantity and price
       return `
       <tr style="font-size: 12px;">
-        <td style="padding: 2px 3px; text-align: center;">${index + 1}</td>
         <td style="padding: 2px 3px; text-align: left;">${item.productName || 'Item'}</td>
         <td style="padding: 2px 3px; text-align: center;">${item.quantity || 0}${item.unit ? ' ' + item.unit : ''}</td>
         <td style="padding: 2px 3px; text-align: right;">₹${(item.price || 0).toFixed(2)}</td>
@@ -353,48 +352,47 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
           <table class="items-table">
             <thead>
               <tr>
-                <th style="width: 8%; text-align: center;">#</th>
-                <th style="width: 38%; text-align: center;">Item</th>
+                <th style="width: 46%; text-align: left;">Item</th>
                 <th style="width: 15%; text-align: center;">Qty</th>
-                <th style="width: 19%; text-align: center;">Price</th>
-                <th style="width: 20%; text-align: center;">Total</th>
+                <th style="width: 19%; text-align: right;">Price</th>
+                <th style="width: 20%; text-align: right;">Total</th>
               </tr>
             </thead>
             <tbody>
               ${itemsHtml}
               <tr class="summary-row">
-                <td colspan="4" style="text-align: right; padding: 2px 3px;">Subtotal</td>
+                <td colspan="3" style="text-align: right; padding: 2px 3px;">Subtotal</td>
                 <td style="text-align: right; padding: 2px 3px;">₹${displayBaseOfNet.toFixed(2)}</td>
               </tr>
               ${gstPercentage > 0 ? `
               <tr class="summary-row">
-                <td colspan="4" style="text-align: right; padding: 2px 3px;">CGST@${(gstPercentage / 2).toFixed(1)}%</td>
+                <td colspan="3" style="text-align: right; padding: 2px 3px;">CGST@${(gstPercentage / 2).toFixed(1)}%</td>
                 <td style="text-align: right; padding: 2px 3px;">₹${displayCgst.toFixed(2)}</td>
               </tr>
               <tr class="summary-row">
-                <td colspan="4" style="text-align: right; padding: 2px 3px;">SGST@${(gstPercentage / 2).toFixed(1)}%</td>
+                <td colspan="3" style="text-align: right; padding: 2px 3px;">SGST@${(gstPercentage / 2).toFixed(1)}%</td>
                 <td style="text-align: right; padding: 2px 3px;">₹${displaySgst.toFixed(2)}</td>
               </tr>
               ` : ''}
               ${discountAmount > 0 ? `
               <tr class="summary-row">
-                <td colspan="4" style="text-align: right; padding: 2px 3px;">Discount:</td>
+                <td colspan="3" style="text-align: right; padding: 2px 3px;">Discount:</td>
                 <td style="text-align: right; padding: 2px 3px;">₹${discountAmount.toFixed(2)}</td>
               </tr>
               ` : ''}
               <tr class="summary-row total-row">
-                <td colspan="4" style="text-align: right; padding: 3px 3px;">Total Amount</td>
+                <td colspan="3" style="text-align: right; padding: 3px 3px;">Total Amount</td>
                 <td style="text-align: right; padding: 3px 3px;">₹${totalAmount.toFixed(2)}</td>
               </tr>
               ${amountPaid > 0 ? `
               <tr class="summary-row">
-                <td colspan="4" style="text-align: right; padding: 2px 3px;">Amount Paid</td>
+                <td colspan="3" style="text-align: right; padding: 2px 3px;">Amount Paid</td>
                 <td style="text-align: right; padding: 2px 3px;">₹${amountPaid.toFixed(2)}</td>
               </tr>
               ` : ''}
               ${balance > 0 ? `
               <tr class="summary-row">
-                <td colspan="4" style="text-align: right; padding: 2px 3px;">Balance</td>
+                <td colspan="3" style="text-align: right; padding: 2px 3px;">Balance</td>
                 <td style="text-align: right; padding: 2px 3px;">₹${balance.toFixed(2)}</td>
               </tr>
               ` : ''}
