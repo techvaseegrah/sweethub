@@ -93,6 +93,7 @@ const AddFinishedProductModal = ({ onClose, onSuccess }) => {
                             <option value="piece">piece</option>
                             <option value="box">box</option>
                             <option value="liter">liter</option>
+                            <option value="packet">packet</option>
                             <option value="ml">ml</option>
                         </select>
                     </div>

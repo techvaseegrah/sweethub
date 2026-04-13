@@ -85,7 +85,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
       return `
       <tr style="font-size: 12px;">
         <td style="padding: 2px 3px; text-align: left;">${item.productName || 'Item'}</td>
-        <td style="padding: 2px 3px; text-align: center;">${item.quantity || 0}${item.unit ? ' ' + item.unit : ''}</td>
+        <td style="padding: 2px 3px; text-align: center;">${item.quantity || 0}</td>
         <td style="padding: 2px 3px; text-align: right;">₹${(item.price || 0).toFixed(2)}</td>
         <td style="padding: 2px 3px; text-align: right;">₹${itemDisplayTotal.toFixed(2)}</td>
       </tr>

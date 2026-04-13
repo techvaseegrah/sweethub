@@ -17,7 +17,7 @@ export const useUnits = () => {
 // Unit Provider component
 export const UnitProvider = ({ children }) => {
   const [units, setUnits] = useState([]);
-  const [defaultUnits] = useState(['piece', 'kg', 'gram', 'box']);
+  const [defaultUnits] = useState(['piece', 'kg', 'gram', 'box', 'packet']);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { authState } = useContext(AuthContext);
