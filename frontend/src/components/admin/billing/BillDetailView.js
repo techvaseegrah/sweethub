@@ -231,7 +231,7 @@ const BillDetailView = ({ bill, onClose, onUpdate, initialEditMode = false }) =>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {bill.items.map((item, index) => (
                     <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 break-words align-top">
                         {item.productName || (item.product ? item.product.name : '[Deleted Product]')}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -241,7 +241,7 @@ const BillDetailView = ({ bill, onClose, onUpdate, initialEditMode = false }) =>
                         {item.quantity}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        ₹{item.price?.toFixed(2) || item.unitPrice?.toFixed(2) || '0.00'}
+                        ₹{(item.price % 1 === 0 ? Math.floor(item.price) : item.price?.toFixed(2)) || (item.unitPrice % 1 === 0 ? Math.floor(item.unitPrice) : item.unitPrice?.toFixed(2)) || '0'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         ₹{item.totalPrice?.toFixed(2) || ((item.price || item.unitPrice || 0) * item.quantity).toFixed(2)}

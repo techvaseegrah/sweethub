@@ -49,7 +49,7 @@ const generateInvoicePdfInternal = (invoiceData, shouldPrint) => {
     <tr style="font-size: 10px;">
       <td style="padding: 3px 4px; text-align: left;">${item.productName || item.product?.name || item.name || 'Item'}</td>
       <td style="padding: 3px 4px; text-align: center;">${item.quantity || 0}</td>
-      <td style="padding: 3px 4px; text-align: right;">₹${(item.unitPrice || item.price || 0).toFixed(2)}</td>
+      <td style="padding: 3px 4px; text-align: right;">₹${((item.unitPrice || item.price || 0) % 1 === 0 ? Math.floor(item.unitPrice || item.price || 0) : (item.unitPrice || item.price || 0).toFixed(2))}</td>
       <td style="padding: 3px 4px; text-align: right;">₹${(item.totalPrice || (item.unitPrice || item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
     </tr>
   `).join('');

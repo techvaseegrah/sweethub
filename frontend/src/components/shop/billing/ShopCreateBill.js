@@ -1207,7 +1207,7 @@ function CreateBill({ baseUrl = '/shop' }) {
                 </td>
               )}
               <td className="p-2 border border-blue-200 text-right">
-                {currentItem.price ? (isTaxInvoice ? (currentItem.price / (1 + gstPercentage / 100)).toFixed(2) : currentItem.price) : 0}
+                {currentItem.price ? (isTaxInvoice ? (currentItem.price / (1 + gstPercentage / 100)).toFixed(2) : (currentItem.price % 1 === 0 ? Math.floor(currentItem.price) : currentItem.price)) : 0}
               </td>
               {isTaxInvoice && <td className="p-2 border border-blue-200 text-right">{(calculateItemTaxAmount(currentItem.quantity, currentItem.price / (1 + gstPercentage / 100), gstPercentage)).toFixed(2)}</td>}
 
@@ -1259,7 +1259,7 @@ function CreateBill({ baseUrl = '/shop' }) {
                   <input
                     type="text"
                     className="w-full text-right p-1 border rounded bg-transparent hover:bg-white"
-                    value={isTaxInvoice ? (item.price / (1 + gstPercentage / 100)).toFixed(2) : item.price}
+                    value={isTaxInvoice ? (item.price / (1 + gstPercentage / 100)).toFixed(2) : (item.price % 1 === 0 ? Math.floor(item.price) : item.price)}
                     onChange={e => updateBillItem(idx, 'price', parseFloat(e.target.value) || 0)}
                     min="0"
                     step="0.01"

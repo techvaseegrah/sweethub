@@ -86,7 +86,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
       <tr style="font-size: 12px;">
         <td style="padding: 2px 3px; text-align: left;">${item.productName || 'Item'}</td>
         <td style="padding: 2px 3px; text-align: center;">${item.quantity || 0}</td>
-        <td style="padding: 2px 3px; text-align: right;">₹${(item.price || 0).toFixed(2)}</td>
+        <td style="padding: 2px 3px; text-align: right;">₹${(item.price || 0) % 1 === 0 ? Math.floor(item.price || 0) : (item.price || 0).toFixed(2)}</td>
         <td style="padding: 2px 3px; text-align: right;">₹${itemDisplayTotal.toFixed(2)}</td>
       </tr>
     `;
@@ -461,7 +461,7 @@ const generateBillPdfInternal = (billData, shopData, shouldPrint, formatType) =>
           <td style="padding: 10px 5px; border-right: 1px solid #eee;">${item.hsn || item.sku || '-'}</td>
           <td style="padding: 10px 5px; border-right: 1px solid #eee;">${itemQty}</td>
           <td style="padding: 10px 5px; border-right: 1px solid #eee;">${item.unit || '-'}</td>
-          <td style="padding: 10px 5px; border-right: 1px solid #eee; text-align: right;">₹ ${pricePerUnit.toFixed(2)}</td>
+          <td style="padding: 10px 5px; border-right: 1px solid #eee; text-align: right;">₹ ${pricePerUnit % 1 === 0 ? Math.floor(pricePerUnit) : pricePerUnit.toFixed(2)}</td>
           <td style="padding: 10px 5px; border-right: 1px solid #eee; text-align: right;">₹ ${itemTaxAmount.toFixed(2)} (${gstPercentage}%)</td>
           <td style="padding: 10px 5px; text-align: right; font-weight: 700;">₹ ${itemTotal.toFixed(2)}</td>
         </tr>
@@ -788,5 +788,5 @@ const numberToWords = (num) => {
 
   if (amount === 0) return 'Zero';
   return convert(amount).trim();
-  
+
 };
