@@ -45,16 +45,17 @@ const generateShopBillId = async (shopId) => {
 
     // Get shop details to get the shop code
     let shop = await Shop.findById(shopId);
-    console.log('Found shop by ID:', !!shop);
+    console.log('Found shop by ID result:', !!shop);
 
     if (!shop) {
       // If not found, try to find by user reference
       console.log('Trying to find shop by user ID:', shopId);
       shop = await Shop.findOne({ user: shopId });
-      console.log('Found shop by user reference:', !!shop);
+      console.log('Found shop by user reference result:', !!shop);
 
       if (!shop) {
-        throw new Error('Shop not found');
+        console.error('Shop not found for ID/UserID:', shopId);
+        throw new Error(`Shop not found for ID: ${shopId}`);
       }
     }
 

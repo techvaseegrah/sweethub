@@ -79,11 +79,16 @@ exports.createBill = async (req, res) => {
   session.startTransaction();
 
   try {
+    console.log('--- Create Bill Started ---');
+    console.log('Request Body:', JSON.stringify(req.body, null, 2));
+    console.log('User:', req.user);
+
     // 1. Identify Shop from Auth Middleware (req.user or req.shopId)
     // Assuming authMiddleware sets req.user.shopId
     const shopId = req.user?.shopId || req.shopId;
 
     if (!shopId) {
+      console.log('Shop identification failed: shopId is missing');
       await session.abortTransaction();
       session.endSession();
       return res.status(403).json({ message: 'Shop identification failed.' });
@@ -108,92 +113,115 @@ exports.createBill = async (req, res) => {
       // Note: fromInfo and toInfo are not used for shop bills
     } = req.body;
 
-    // 2. Generate unique bill ID for this shop
-    const billId = await generateShopBillId(shopId);
+    console.log('Generating bill ID for shopId:', shopId);
+    let billId;
+    let newBill;
+    let shopDetails;
+    let savedSuccessfully = false;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-    // 3. Process Items & Deduct Stock
-    // Note: This logic assumes Shops sell from the main Product collection 
-    // where stockLevel is tracked.
-    // 3. Process Items & Deduct Stock (Modified)
-    const itemsWithDetails = [];
+    while (!savedSuccessfully && retryCount < maxRetries) {
+      try {
+        billId = await generateShopBillId(shopId);
+        console.log(`Generated Bill ID (Attempt ${retryCount + 1}):`, billId);
 
-    if (items && items.length > 0) {
-      for (const item of items) {
-        // Find the product
-        const product = await Product.findById(item.product).session(session);
+        // 3. Process Items & Deduct Stock
+        // (Moved inside retry loop or handled carefully - here we re-fetch itemsWithDetails)
+        const itemsWithDetails = [];
+        if (items && items.length > 0) {
+          for (const item of items) {
+            const productId = item.product && typeof item.product === 'object' ? item.product._id : item.product;
+            const product = await Product.findById(productId).session(session);
 
-        if (!product) {
-          throw new Error(`Product with ID ${item.product} not found`);
-        }
+            if (!product) {
+              throw new Error(`Product with ID ${productId} not found`);
+            }
 
-        // --- STOCK REDUCTION LOGIC ---
-        // Deduct the quantity directly from stockLevel
-        // We use 'stockLevel' because that is the field name in your Product model
-        // Only deduct stock if billType is ORDINARY, skip if REFERENCE
-        if (billType !== 'REFERENCE') {
-          product.stockLevel = product.stockLevel - item.quantity;
-          await product.save({ session });
-
-          // Record stock out history
-          try {
-            await recordStockOut(product, req.user.id, item.quantity, `Sold via Bill: ${billId}`);
-          } catch (historyError) {
-            console.error('Failed to record stock out history:', historyError);
+            itemsWithDetails.push({
+              product: product._id,
+              productName: product.name,
+              sku: product.sku,
+              hsn: item.hsn,
+              unit: item.unit,
+              quantity: item.quantity,
+              price: item.price,
+            });
           }
         }
-        // -----------------------------
 
-        // Prepare item details for the bill (Required for saving the bill)
-        itemsWithDetails.push({
-          product: product._id,
-          productName: product.name,
-          sku: product.sku,
-          hsn: item.hsn,
-          unit: item.unit,
-          quantity: item.quantity,
-          price: item.price,
+        shopDetails = await Shop.findById(shopId);
+
+        newBill = new Bill({
+          billId,
+          shop: shopId,
+          customerMobileNumber,
+          customerName,
+          items: itemsWithDetails,
+          baseAmount,
+          gstPercentage,
+          gstAmount,
+          totalAmount,
+          paymentMethod,
+          amountPaid,
+          discountType: discountType || 'none',
+          discountValue: discountValue || 0,
+          discountAmount: discountAmount || 0,
+          billType,
+          ...(worker && { worker }),
+          isTaxInvoice: req.body.isTaxInvoice || false,
+          toInfo: req.body.toInfo,
+          shopName: shopDetails?.name,
+          shopAddress: shopDetails?.location,
+          shopGstNumber: shopDetails?.gstNumber,
+          shopFssaiNumber: shopDetails?.fssaiNumber,
+          shopPhone: shopDetails?.shopPhoneNumber,
+          billDate: billDate || Date.now()
         });
+
+        await newBill.save({ session });
+        savedSuccessfully = true;
+      } catch (saveError) {
+        if (saveError.code === 11000 && saveError.message.includes('billId')) {
+          console.warn(`Duplicate billId detected: ${billId}. Retrying...`);
+          retryCount++;
+          if (retryCount >= maxRetries) throw saveError;
+          // Small delay before retry
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } else {
+          throw saveError;
+        }
       }
     }
 
-    // 4. Fetch Shop Details for Bill Creation
-    const shopDetails = await Shop.findById(shopId);
+    // --- STOCK REDUCTION LOGIC (Separate from bill saving to avoid double deduction on retry) ---
+    if (billType !== 'REFERENCE') {
+      for (const item of items) {
+        const productId = item.product && typeof item.product === 'object' ? item.product._id : item.product;
+        const product = await Product.findById(productId).session(session);
 
-    // 5. Create Bill
-    const newBill = new Bill({
-      billId,
-      shop: shopId,
-      customerMobileNumber,
-      customerName,
-      items: itemsWithDetails,
-      baseAmount,
-      gstPercentage,
-      gstAmount,
-      totalAmount,
-      paymentMethod,
-      amountPaid,
-      // Note: FROM and TO information are not used for shop bills
-      // Only admin bills use fromInfo and toInfo
-      // Add discount fields
-      discountType: discountType || 'none',
-      discountValue: discountValue || 0,
-      discountAmount: discountAmount || 0,
-      billType,
-      ...(worker && { worker }),
-      isTaxInvoice: req.body.isTaxInvoice || false,
-      toInfo: req.body.toInfo,
-      // Include shop details for PDF generation
-      shopName: shopDetails?.name,
-      shopAddress: shopDetails?.location,
-      shopGstNumber: shopDetails?.gstNumber,
-      shopFssaiNumber: shopDetails?.fssaiNumber,
-      shopPhone: shopDetails?.shopPhoneNumber,
-      billDate: billDate || Date.now() // Use provided date or default to now
-    });
+        let itemQuantityInProductUnit = item.quantity;
+        if (product.prices && product.prices.length > 0) {
+          const productBaseUnit = product.prices[0].unit;
+          if (areRelatedUnits(item.unit, productBaseUnit)) {
+            itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+          }
+        }
 
-    await newBill.save({ session });
+        console.log(`Deducting stock for ${product.name}: ${product.stockLevel} - ${itemQuantityInProductUnit}`);
+        product.stockLevel = (product.stockLevel || 0) - itemQuantityInProductUnit;
+        await product.save({ session });
+
+        try {
+          await recordStockOut(product, req.user.id, itemQuantityInProductUnit, `Sold via Bill: ${billId}`);
+        } catch (historyError) {
+          console.error('Failed to record stock out history:', historyError);
+        }
+      }
+    }
 
     await session.commitTransaction();
+    console.log('Transaction committed successfully');
     session.endSession();
 
     // 6. Get shop name for WhatsApp
@@ -201,6 +229,7 @@ exports.createBill = async (req, res) => {
 
     // 6. Send WhatsApp only for ordinary bills, not reference bills
     if (billType === 'ORDINARY') {
+      console.log('Sending WhatsApp bill...');
       sendWhatsAppBill(newBill, shopName);
     }
 
@@ -217,11 +246,13 @@ exports.createBill = async (req, res) => {
     session.endSession();
     console.error('Shop Create Bill Error:', error);
     res.status(500).json({
-      message: 'Failed to create bill',
-      error: error.message
+      message: `Failed to create bill: ${error.message}`,
+      error: error.message,
+      stack: error.stack
     });
   }
 };
+
 
 // Get a single bill by ID
 exports.getBillById = async (req, res) => {
@@ -318,7 +349,9 @@ exports.updateBill = async (req, res) => {
 
     // Process new items and deduct new stock
     for (const item of items) {
-      const product = await Product.findById(item.product).session(session);
+      // FIXED: item.product might be an object containing _id if sent from frontend
+      const productId = item.product && typeof item.product === 'object' ? item.product._id : item.product;
+      const product = await Product.findById(productId).session(session);
       if (!product) {
         await session.abortTransaction();
         session.endSession();

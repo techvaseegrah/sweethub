@@ -4,18 +4,46 @@
 
 // Define unit conversion factors relative to the base unit (kg)
 const UNIT_CONVERSION_FACTORS = {
-  kg: 1,        // base unit
-  gram: 0.001,  // 1 gram = 0.001 kg
-  g: 0.001,     // shorthand for gram
-  piece: 1,     // piece is treated as base unit for non-weight items
+  kg: 1,
+  kilogram: 1,
+  gram: 0.001,
+  grams: 0.001,
+  g: 0.001,
+  piece: 1,
+  pieces: 1,
+  pcs: 1,
+  pc: 1,
+  box: 1,
+  boxes: 1,
+  packet: 1,
+  packets: 1,
+  liter: 1,
+  liters: 1,
+  l: 1,
+  ml: 0.001,
+  milliliter: 0.001,
+  milliliters: 0.001,
 };
 
 // Define related units that can be converted between
 const RELATED_UNITS = {
-  kg: ['kg', 'gram', 'g'],
-  gram: ['gram', 'g', 'kg'],
-  g: ['g', 'gram', 'kg'],
-  piece: ['piece'],
+  kg: ['kg', 'gram', 'g', 'grams', 'kilogram'],
+  kilogram: ['kg', 'gram', 'g', 'grams', 'kilogram'],
+  gram: ['gram', 'g', 'kg', 'grams', 'kilogram'],
+  grams: ['gram', 'g', 'kg', 'grams', 'kilogram'],
+  g: ['g', 'gram', 'kg', 'grams', 'kilogram'],
+  piece: ['piece', 'pieces', 'pcs', 'pc'],
+  pieces: ['piece', 'pieces', 'pcs', 'pc'],
+  pcs: ['piece', 'pieces', 'pcs', 'pc'],
+  pc: ['piece', 'pieces', 'pcs', 'pc'],
+  box: ['box', 'boxes'],
+  boxes: ['box', 'boxes'],
+  packet: ['packet', 'packets'],
+  packets: ['packet', 'packets'],
+  liter: ['liter', 'liters', 'l', 'ml'],
+  liters: ['liter', 'liters', 'l', 'ml'],
+  l: ['liter', 'liters', 'l', 'ml'],
+  ml: ['ml', 'liter', 'liters', 'l'],
 };
 
 /**
@@ -26,6 +54,8 @@ const RELATED_UNITS = {
  * @returns {number} - The converted quantity
  */
 const convertUnit = (quantity, fromUnit, toUnit) => {
+  if (fromUnit === toUnit) return quantity;
+
   const fromFactor = UNIT_CONVERSION_FACTORS[fromUnit];
   const toFactor = UNIT_CONVERSION_FACTORS[toUnit];
 
@@ -82,7 +112,7 @@ const getAvailableUnits = (productPrices) => {
 
   // Get all units defined for the product
   const definedUnits = productPrices.map(price => price.unit);
-  
+
   // For each defined unit, add its related units
   const allUnits = new Set();
   definedUnits.forEach(unit => {
