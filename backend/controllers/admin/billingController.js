@@ -73,146 +73,177 @@ exports.hideCustomerSuggestions = async (req, res) => {
 };
 
 exports.createBill = async (req, res) => {
-  const { shopId: shopIdFromBody, customerMobileNumber, customerName, items, baseAmount, gstPercentage, gstAmount, totalAmount, paymentMethod, amountPaid, fromInfo, toInfo, discountType, discountValue, discountAmount, worker, billType = 'ORDINARY', billDate, isTaxInvoice } = req.body;
+  let retryCount = 0;
+  const maxRetries = 3;
+  let lastError = null;
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  while (retryCount < maxRetries) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-  try {
-    const finalShopId = req.shopId || shopIdFromBody;
+    try {
+      const {
+        shopId: shopIdFromBody,
+        customerMobileNumber,
+        customerName,
+        items,
+        baseAmount,
+        gstPercentage,
+        gstAmount,
+        totalAmount,
+        paymentMethod,
+        amountPaid,
+        fromInfo,
+        toInfo,
+        discountType,
+        discountValue,
+        discountAmount,
+        worker,
+        billType = 'ORDINARY',
+        billDate,
+        isTaxInvoice
+      } = req.body;
 
-    // Validate Shop
-    let shopDetails = null;
-    if (finalShopId && finalShopId !== 'admin') {
-      shopDetails = await Shop.findById(finalShopId).session(session);
-      if (!shopDetails) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(404).json({ message: 'Shop not found.' });
-      }
-    }
+      const finalShopId = req.shopId || shopIdFromBody;
 
-    // Generate bill ID based on whether it's admin or shop bill
-    let billId;
-    if (!finalShopId || finalShopId === 'admin') {
-      // Admin bill
-      billId = await generateAdminBillId();
-    } else {
-      // Shop bill created by admin
-      billId = await generateShopBillId(finalShopId);
-    }
-
-    // Prepare items and check stock
-    const itemsWithDetails = [];
-    for (const item of items) {
-      const product = await Product.findById(item.product).session(session);
-      if (!product) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(404).json({ message: `Product with ID ${item.product} not found.` });
-      }
-      // Check Stock - convert item quantity to product's unit if units are related
-      // Only check stock if billType is ORDINARY, skip if REFERENCE
-      if (billType !== 'REFERENCE') {
-        let itemQuantityInProductUnit = item.quantity;
-        if (product.prices && product.prices.length > 0) {
-          const productBaseUnit = product.prices[0].unit; // Assuming all prices use the same base unit
-          if (areRelatedUnits(item.unit, productBaseUnit)) {
-            itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
-          }
-        }
-
-        if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
+      // Validate Shop
+      let shopDetails = null;
+      if (finalShopId && finalShopId !== 'admin') {
+        shopDetails = await Shop.findById(finalShopId).session(session);
+        if (!shopDetails) {
           await session.abortTransaction();
           session.endSession();
-          return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel} ${product.prices && product.prices[0] ? product.prices[0].unit : 'units'}, requested: ${item.quantity} ${item.unit}` });
+          return res.status(404).json({ message: 'Shop not found.' });
         }
       }
 
-      itemsWithDetails.push({
-        product: product._id,
-        productName: product.name,
-        unit: item.unit,
-        quantity: item.quantity,
-        price: item.price,
-        sku: product.sku,
-        hsn: item.hsn
-      });
-    }
+      // Generate bill ID based on whether it's admin or shop bill
+      let billId;
+      if (!finalShopId || finalShopId === 'admin') {
+        billId = await generateAdminBillId();
+      } else {
+        billId = await generateShopBillId(finalShopId);
+      }
 
-    // Create Bill
-    const newBill = new Bill({
-      billId,
-      ...(finalShopId && finalShopId !== 'admin' && {
-        shop: finalShopId,
-        // Include shop details for PDF generation
-        shopName: shopDetails?.name,
-        shopAddress: shopDetails?.location,
-        shopGstNumber: shopDetails?.gstNumber,
-        shopFssaiNumber: shopDetails?.fssaiNumber,
-        shopPhone: shopDetails?.shopPhoneNumber
-      }),
-      customerMobileNumber,
-      customerName,
-      items: itemsWithDetails,
-      baseAmount,
-      gstPercentage,
-      gstAmount,
-      totalAmount,
-      paymentMethod,
-      amountPaid,
-      ...(fromInfo && { fromInfo }),
-      ...(toInfo && { toInfo }),
-      // Add discount fields
-      discountType: discountType || 'none',
-      discountValue: discountValue || 0,
-      discountAmount: discountAmount || 0,
-      billType,
-      ...(worker && { worker }),
-      isTaxInvoice: isTaxInvoice || false,
-      billDate: billDate || Date.now() // Use provided date or default to now
-    });
-
-    await newBill.save({ session });
-
-    // Deduct stock - convert quantity to product's unit if units are related
-    // Only deduct stock if billType is ORDINARY, skip if REFERENCE
-    if (billType !== 'REFERENCE') {
+      // Prepare items and check stock
+      const itemsWithDetails = [];
       for (const item of items) {
         const product = await Product.findById(item.product).session(session);
-
-        let quantityToDeduct = item.quantity;
-        if (product.prices && product.prices.length > 0) {
-          const productBaseUnit = product.prices[0].unit;
-          if (areRelatedUnits(item.unit, productBaseUnit)) {
-            quantityToDeduct = convertUnit(item.quantity, item.unit, productBaseUnit);
-          }
+        if (!product) {
+          throw new Error(`Product with ID ${item.product} not found.`);
         }
 
-        await Product.findByIdAndUpdate(
-          item.product,
-          { $inc: { stockLevel: -quantityToDeduct } },
-          { session }
-        );
+        // Stock Reduction logic inside transaction
+        if (billType !== 'REFERENCE') {
+          let itemQuantityInProductUnit = item.quantity;
+          if (product.prices && product.prices.length > 0) {
+            const productBaseUnit = product.prices[0].unit;
+            if (areRelatedUnits(item.unit, productBaseUnit)) {
+              itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+            }
+          }
+
+          if (parseFloat(product.stockLevel) < parseFloat(itemQuantityInProductUnit)) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: `Insufficient stock for product ${product.name}. Available: ${product.stockLevel}, requested: ${item.quantity} ${item.unit}` });
+          }
+
+          product.stockLevel = (product.stockLevel || 0) - itemQuantityInProductUnit;
+          await product.save({ session });
+        }
+
+        itemsWithDetails.push({
+          product: product._id,
+          productName: product.name,
+          unit: item.unit,
+          quantity: item.quantity,
+          price: item.price,
+          sku: product.sku,
+          hsn: item.hsn
+        });
       }
-    }
 
-    await session.commitTransaction();
-    session.endSession();
+      // Create Bill
+      const newBill = new Bill({
+        billId,
+        ...(finalShopId && finalShopId !== 'admin' && {
+          shop: finalShopId,
+          shopName: shopDetails?.name,
+          shopAddress: shopDetails?.location,
+          shopGstNumber: shopDetails?.gstNumber,
+          shopFssaiNumber: shopDetails?.fssaiNumber,
+          shopPhone: shopDetails?.shopPhoneNumber
+        }),
+        customerMobileNumber,
+        customerName,
+        items: itemsWithDetails,
+        baseAmount,
+        gstPercentage,
+        gstAmount,
+        totalAmount,
+        paymentMethod,
+        amountPaid,
+        ...(fromInfo && { fromInfo }),
+        ...(toInfo && { toInfo }),
+        discountType: discountType || 'none',
+        discountValue: discountValue || 0,
+        discountAmount: discountAmount || 0,
+        billType,
+        ...(worker && { worker }),
+        isTaxInvoice: isTaxInvoice || false,
+        billDate: billDate || Date.now()
+      });
 
-    // Send WhatsApp message only for ordinary bills, not reference bills
-    if (billType === 'ORDINARY') {
-      sendWhatsAppBill(newBill, shopDetails ? shopDetails.name : 'Admin');
-    }
+      await newBill.save({ session });
 
-    res.status(201).json(newBill);
-  } catch (error) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
+      await session.commitTransaction();
+      session.endSession();
+
+      // Post-transaction: Stock history
+      if (billType !== 'REFERENCE') {
+        for (const item of itemsWithDetails) {
+          try {
+            // For history, recordStockOut doesn't take session. We record it separately.
+            // Re-fetching product to ensure we have the state after deduction.
+            const p = await Product.findById(item.product);
+            let q = item.quantity;
+            if (p.prices && p.prices.length > 0) {
+              const bu = p.prices[0].unit;
+              if (areRelatedUnits(item.unit, bu)) q = convertUnit(item.quantity, item.unit, bu);
+            }
+            await recordStockOut(p, req.user.id, q, `Sold via Admin/Shop Bill: ${billId}`);
+          } catch (e) {
+            console.error('History record failed:', e);
+          }
+        }
+      }
+
+      // Send WhatsApp message
+      if (billType === 'ORDINARY') {
+        sendWhatsAppBill(newBill, shopDetails ? shopDetails.name : 'Admin');
+      }
+
+      return res.status(201).json(newBill);
+
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      session.endSession();
+
+      lastError = error;
+
+      if (error.code === 11000 && (error.message.includes('billId') || (error.keyPattern && error.keyPattern.billId))) {
+        console.warn(`Duplicate billId detected in admin create. Retrying... (${retryCount + 1}/${maxRetries})`);
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+        continue;
+      }
+
+      console.error('Create Bill Error:', error);
+      return res.status(500).json({ message: 'Server Error', error: error.message });
     }
-    session.endSession();
-    console.error('Create Bill Error:', error);
-    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 

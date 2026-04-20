@@ -75,181 +75,184 @@ exports.hideCustomerSuggestions = async (req, res) => {
 };
 
 exports.createBill = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  let retryCount = 0;
+  const maxRetries = 3;
+  let lastError = null;
 
-  try {
-    console.log('--- Create Bill Started ---');
-    console.log('Request Body:', JSON.stringify(req.body, null, 2));
-    console.log('User:', req.user);
+  while (retryCount < maxRetries) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    // 1. Identify Shop from Auth Middleware (req.user or req.shopId)
-    // Assuming authMiddleware sets req.user.shopId
-    const shopId = req.user?.shopId || req.shopId;
+    try {
+      console.log(`--- Create Bill Attempt ${retryCount + 1} ---`);
+      
+      // 1. Identify Shop from Auth Middleware (req.user or req.shopId)
+      const shopId = req.user?.shopId || req.shopId;
 
-    if (!shopId) {
-      console.log('Shop identification failed: shopId is missing');
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(403).json({ message: 'Shop identification failed.' });
-    }
+      if (!shopId) {
+        console.log('Shop identification failed: shopId is missing');
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(403).json({ message: 'Shop identification failed.' });
+      }
 
-    const {
-      customerMobileNumber,
-      customerName,
-      items,
-      baseAmount,
-      gstPercentage,
-      gstAmount,
-      totalAmount,
-      paymentMethod,
-      amountPaid,
-      discountType,
-      discountValue,
-      discountAmount,
-      worker,
-      billType = 'ORDINARY',
-      billDate // Extract billDate
-      // Note: fromInfo and toInfo are not used for shop bills
-    } = req.body;
+      const {
+        customerMobileNumber,
+        customerName,
+        items,
+        baseAmount,
+        gstPercentage,
+        gstAmount,
+        totalAmount,
+        paymentMethod,
+        amountPaid,
+        discountType,
+        discountValue,
+        discountAmount,
+        worker,
+        billType = 'ORDINARY',
+        billDate
+      } = req.body;
 
-    console.log('Generating bill ID for shopId:', shopId);
-    let billId;
-    let newBill;
-    let shopDetails;
-    let savedSuccessfully = false;
-    let retryCount = 0;
-    const maxRetries = 3;
+      // 2. Generate Bill ID
+      const billId = await generateShopBillId(shopId);
+      console.log(`Generated Bill ID:`, billId);
 
-    while (!savedSuccessfully && retryCount < maxRetries) {
-      try {
-        billId = await generateShopBillId(shopId);
-        console.log(`Generated Bill ID (Attempt ${retryCount + 1}):`, billId);
+      // 3. Process Items & Deduct Stock
+      const itemsWithDetails = [];
+      if (items && items.length > 0) {
+        for (const item of items) {
+          const productId = item.product && typeof item.product === 'object' ? item.product._id : item.product;
+          const product = await Product.findById(productId).session(session);
 
-        // 3. Process Items & Deduct Stock
-        // (Moved inside retry loop or handled carefully - here we re-fetch itemsWithDetails)
-        const itemsWithDetails = [];
-        if (items && items.length > 0) {
-          for (const item of items) {
-            const productId = item.product && typeof item.product === 'object' ? item.product._id : item.product;
-            const product = await Product.findById(productId).session(session);
+          if (!product) {
+            throw new Error(`Product with ID ${productId} not found`);
+          }
 
-            if (!product) {
-              throw new Error(`Product with ID ${productId} not found`);
+          itemsWithDetails.push({
+            product: product._id,
+            productName: product.name,
+            sku: product.sku,
+            hsn: item.hsn,
+            unit: item.unit,
+            quantity: item.quantity,
+            price: item.price,
+          });
+
+          // Stock Reduction logic inside transaction
+          if (billType !== 'REFERENCE') {
+            let itemQuantityInProductUnit = item.quantity;
+            if (product.prices && product.prices.length > 0) {
+              const productBaseUnit = product.prices[0].unit;
+              if (areRelatedUnits(item.unit, productBaseUnit)) {
+                itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+              }
             }
 
-            itemsWithDetails.push({
-              product: product._id,
-              productName: product.name,
-              sku: product.sku,
-              hsn: item.hsn,
-              unit: item.unit,
-              quantity: item.quantity,
-              price: item.price,
-            });
+            console.log(`Deducting stock for ${product.name}: ${product.stockLevel} - ${itemQuantityInProductUnit}`);
+            product.stockLevel = (product.stockLevel || 0) - itemQuantityInProductUnit;
+            await product.save({ session });
           }
         }
-
-        shopDetails = await Shop.findById(shopId);
-
-        newBill = new Bill({
-          billId,
-          shop: shopId,
-          customerMobileNumber,
-          customerName,
-          items: itemsWithDetails,
-          baseAmount,
-          gstPercentage,
-          gstAmount,
-          totalAmount,
-          paymentMethod,
-          amountPaid,
-          discountType: discountType || 'none',
-          discountValue: discountValue || 0,
-          discountAmount: discountAmount || 0,
-          billType,
-          ...(worker && { worker }),
-          isTaxInvoice: req.body.isTaxInvoice || false,
-          toInfo: req.body.toInfo,
-          shopName: shopDetails?.name,
-          shopAddress: shopDetails?.location,
-          shopGstNumber: shopDetails?.gstNumber,
-          shopFssaiNumber: shopDetails?.fssaiNumber,
-          shopPhone: shopDetails?.shopPhoneNumber,
-          billDate: billDate || Date.now()
-        });
-
-        await newBill.save({ session });
-        savedSuccessfully = true;
-      } catch (saveError) {
-        if (saveError.code === 11000 && saveError.message.includes('billId')) {
-          console.warn(`Duplicate billId detected: ${billId}. Retrying...`);
-          retryCount++;
-          if (retryCount >= maxRetries) throw saveError;
-          // Small delay before retry
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } else {
-          throw saveError;
-        }
       }
-    }
 
-    // --- STOCK REDUCTION LOGIC (Separate from bill saving to avoid double deduction on retry) ---
-    if (billType !== 'REFERENCE') {
-      for (const item of items) {
-        const productId = item.product && typeof item.product === 'object' ? item.product._id : item.product;
-        const product = await Product.findById(productId).session(session);
+      const shopDetails = await Shop.findById(shopId).session(session);
 
-        let itemQuantityInProductUnit = item.quantity;
-        if (product.prices && product.prices.length > 0) {
-          const productBaseUnit = product.prices[0].unit;
-          if (areRelatedUnits(item.unit, productBaseUnit)) {
-            itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+      const newBill = new Bill({
+        billId,
+        shop: shopId,
+        customerMobileNumber,
+        customerName,
+        items: itemsWithDetails,
+        baseAmount,
+        gstPercentage,
+        gstAmount,
+        totalAmount,
+        paymentMethod,
+        amountPaid,
+        discountType: discountType || 'none',
+        discountValue: discountValue || 0,
+        discountAmount: discountAmount || 0,
+        billType,
+        ...(worker && { worker }),
+        isTaxInvoice: req.body.isTaxInvoice || false,
+        toInfo: req.body.toInfo,
+        shopName: shopDetails?.name,
+        shopAddress: shopDetails?.location,
+        shopGstNumber: shopDetails?.gstNumber,
+        shopFssaiNumber: shopDetails?.fssaiNumber,
+        shopPhone: shopDetails?.shopPhoneNumber,
+        billDate: billDate || Date.now()
+      });
+
+      // 4. Save Bill
+      await newBill.save({ session });
+
+      // 5. Commit Transaction
+      await session.commitTransaction();
+      session.endSession();
+      console.log('Transaction committed successfully');
+
+      // 6. Post-transaction tasks (Stock History & WhatsApp)
+      if (billType !== 'REFERENCE') {
+        for (const item of itemsWithDetails) {
+          try {
+            // Re-fetch product to get latest state for history recording
+            const productForHistory = await Product.findById(item.product);
+            if (productForHistory) {
+              let itemQuantityInProductUnit = item.quantity;
+              if (productForHistory.prices && productForHistory.prices.length > 0) {
+                const productBaseUnit = productForHistory.prices[0].unit;
+                if (areRelatedUnits(item.unit, productBaseUnit)) {
+                  itemQuantityInProductUnit = convertUnit(item.quantity, item.unit, productBaseUnit);
+                }
+              }
+              await recordStockOut(productForHistory, req.user.id, itemQuantityInProductUnit, `Sold via Bill: ${billId}`);
+            }
+          } catch (historyError) {
+            console.error('Failed to record stock out history:', historyError);
           }
         }
+      }
 
-        console.log(`Deducting stock for ${product.name}: ${product.stockLevel} - ${itemQuantityInProductUnit}`);
-        product.stockLevel = (product.stockLevel || 0) - itemQuantityInProductUnit;
-        await product.save({ session });
+      const shopDisplayName = shopDetails?.name || 'Sri Sakthi Sweets';
+      if (billType === 'ORDINARY') {
+        console.log('Sending WhatsApp bill...');
+        sendWhatsAppBill(newBill, shopDisplayName);
+      }
 
-        try {
-          await recordStockOut(product, req.user.id, itemQuantityInProductUnit, `Sold via Bill: ${billId}`);
-        } catch (historyError) {
-          console.error('Failed to record stock out history:', historyError);
+      // 7. Respond to Frontend
+      return res.status(201).json({
+        ...newBill._doc,
+        shop: { name: shopDisplayName }
+      });
+
+    } catch (error) {
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
+      session.endSession();
+      
+      lastError = error;
+
+      // Handle duplicate billId with retry
+      if (error.code === 11000 && (error.message.includes('billId') || JSON.stringify(error.keyPattern).includes('billId'))) {
+        console.warn(`Duplicate billId detected. Retrying... (${retryCount + 1}/${maxRetries})`);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+          continue;
         }
       }
+      
+      // Fall through to error response if not retried or other error
+      console.error('Shop Create Bill Error:', error);
+      return res.status(500).json({
+        message: `Failed to create bill: ${error.message}`,
+        error: error.message,
+        stack: error.stack
+      });
     }
-
-    await session.commitTransaction();
-    console.log('Transaction committed successfully');
-    session.endSession();
-
-    // 6. Get shop name for WhatsApp
-    const shopName = shopDetails ? shopDetails.name : 'Sri Sakthi Sweets';
-
-    // 6. Send WhatsApp only for ordinary bills, not reference bills
-    if (billType === 'ORDINARY') {
-      console.log('Sending WhatsApp bill...');
-      sendWhatsAppBill(newBill, shopName);
-    }
-
-    // 7. Respond to Frontend
-    res.status(201).json({
-      ...newBill._doc,
-      shop: { name: shopName }
-    });
-
-  } catch (error) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
-    }
-    session.endSession();
-    console.error('Shop Create Bill Error:', error);
-    res.status(500).json({
-      message: `Failed to create bill: ${error.message}`,
-      error: error.message,
-      stack: error.stack
-    });
   }
 };
 
