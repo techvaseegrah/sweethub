@@ -62,21 +62,30 @@ const generateShopBillId = async (shopId) => {
     // Generate shop code if not exists
     const shopCode = await generateShopCodeIfNeeded(shop);
 
-    // Find the last bill with this shop code prefix (across all shops)
-    // to ensure global uniqueness and avoid duplicate key errors
-    const lastBill = await Bill.findOne({
-      billId: { $regex: `^SHP-${shopCode}-` }
-    }).sort({ billId: -1 });
+    // Find the highest sequence number for this shop's bills.
+    // IMPORTANT: We must NOT use .sort({ billId: -1 }) here because billId is a
+    // string and lexicographic sorting breaks once sequences exceed single digits
+    // (e.g. "SHP-XX-0009" sorts after "SHP-XX-0010"). Instead, we fetch all
+    // matching bills and find the true numeric maximum.
+    const allShopBills = await Bill.find(
+      { billId: { $regex: `^SHP-${shopCode}-` } },
+      { billId: 1 } // Projection: only fetch the billId field
+    );
 
     let sequence = 1;
-    if (lastBill && lastBill.billId) {
-      // Extract the sequence number from the last bill ID
-      const lastBillId = lastBill.billId;
-      const lastSequenceStr = lastBillId.split('-')[2]; // Get the sequence part
-      const lastSequence = parseInt(lastSequenceStr);
-      if (!isNaN(lastSequence)) {
-        sequence = lastSequence + 1;
+    if (allShopBills && allShopBills.length > 0) {
+      let maxSequence = 0;
+      for (const bill of allShopBills) {
+        if (bill.billId) {
+          const parts = bill.billId.split('-');
+          // Format is SHP-{SHOPCODE}-{SEQUENCE}, so parts[2] is the sequence
+          const seq = parseInt(parts[2]);
+          if (!isNaN(seq) && seq > maxSequence) {
+            maxSequence = seq;
+          }
+        }
       }
+      sequence = maxSequence + 1;
     }
 
     const sequenceString = sequence.toString().padStart(4, '0');
@@ -93,21 +102,27 @@ const generateShopBillId = async (shopId) => {
  */
 const generateAdminBillId = async () => {
   try {
-    // Find the last admin bill (regardless of which shop it might be associated with)
-    const lastBill = await Bill.findOne({
-      billId: { $regex: `^ADM-` }
-    }).sort({ billId: -1 });
+    // Find all admin bills and compute the true numeric maximum.
+    // IMPORTANT: Do NOT sort by billId string — lexicographic order breaks past 9
+    // (e.g. "ADM-0009" > "ADM-0010").
+    const allAdminBills = await Bill.find(
+      { billId: { $regex: `^ADM-` } },
+      { billId: 1 }
+    );
 
     let sequence = 1;
-    if (lastBill && lastBill.billId) {
-      // Extract the sequence number from the last bill ID
-      const lastBillId = lastBill.billId;
-      const parts = lastBillId.split('-');
-      const lastSequenceStr = parts[1]; // Get the sequence part
-      const lastSequence = parseInt(lastSequenceStr);
-      if (!isNaN(lastSequence)) {
-        sequence = lastSequence + 1;
+    if (allAdminBills && allAdminBills.length > 0) {
+      let maxSequence = 0;
+      for (const bill of allAdminBills) {
+        if (bill.billId) {
+          const parts = bill.billId.split('-');
+          const seq = parseInt(parts[1]);
+          if (!isNaN(seq) && seq > maxSequence) {
+            maxSequence = seq;
+          }
+        }
       }
+      sequence = maxSequence + 1;
     }
 
     const sequenceString = sequence.toString().padStart(4, '0');
