@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from '../../../api/axios';
 // Correct import: using LuCircleCheck and LuX from the available exports
 import { LuArrowBigRight, LuCircleCheck, LuX, LuSearch } from 'react-icons/lu';
+import UnitSelector from '../../common/UnitSelector';
 
 const ReturnProductForm = ({ onReturnSuccess }) => {
     const [products, setProducts] = useState([]);
@@ -10,6 +11,7 @@ const ReturnProductForm = ({ onReturnSuccess }) => {
         category: '',
         batchNumber: '',
         quantityReturned: '',
+        unit: 'Pcs',
         reasonForReturn: 'Damaged',
         source: 'Shop',  // Keep default as Shop for shop side
         remarks: ''
@@ -139,6 +141,7 @@ const ReturnProductForm = ({ onReturnSuccess }) => {
                 category: '',
                 batchNumber: '',
                 quantityReturned: '',
+                unit: 'Pcs',
                 reasonForReturn: 'Damaged',
                 source: 'Shop',
                 remarks: ''
@@ -220,7 +223,24 @@ const ReturnProductForm = ({ onReturnSuccess }) => {
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Quantity Returned</label>
-                    <input type="number" name="quantityReturned" value={formData.quantityReturned} onChange={handleChange} required min="1" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-gray-50 focus:ring-primary focus:border-primary" />
+                    <div className="mt-1 flex space-x-2">
+                        <input 
+                            type="text" 
+                            name="quantityReturned" 
+                            value={formData.quantityReturned} 
+                            onChange={handleChange} 
+                            required 
+                            min="1" 
+                            className="block w-2/3 border border-gray-300 rounded-md shadow-sm p-2 bg-gray-50 focus:ring-primary focus:border-primary h-[42px]" 
+                        />
+                        <div className="w-1/3">
+                            <UnitSelector
+                                value={formData.unit}
+                                onChange={(unit) => setFormData(prev => ({ ...prev, unit }))}
+                                className="h-[42px]"
+                            />
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Reason for Return</label>

@@ -269,13 +269,67 @@ function ShopSidebar() {
   const notificationBadge = 'bg-green-500 text-white';
 
   return (
-    <div className={`h-screen w-64 ${sidebarBg} ${textPrimary} flex flex-col border-r ${borderColor} overflow-hidden shadow-sm relative`}>
+    <>
+      <style>{`
+          .sidebar-container nav span,
+          .sidebar-container summary span,
+          .sidebar-container .logout-text,
+          .sidebar-container .panel-text-container {
+              white-space: nowrap;
+              transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+          }
+          @media (min-width: 1024px) {
+              .sidebar-container:not(:hover) nav span,
+              .sidebar-container:not(:hover) summary span,
+              .sidebar-container:not(:hover) .alertBadge,
+              .sidebar-container:not(:hover) summary svg.w-4,
+              .sidebar-container:not(:hover) nav svg.w-4,
+              .sidebar-container:not(:hover) .panel-text-container,
+              .sidebar-container:not(:hover) .logout-text {
+                  opacity: 0;
+                  visibility: hidden;
+              }
+              .sidebar-container:not(:hover) nav nav {
+                  display: none !important;
+              }
+          }
+          .sidebar-container svg {
+              flex-shrink: 0;
+          }
+          .sidebar-container .logo-image {
+              transition: transform 0.3s ease;
+              transform-origin: center;
+          }
+          .sidebar-container .orbit-dots {
+              transition: opacity 0.3s ease;
+          }
+          @media (min-width: 1024px) {
+              .sidebar-container:not(:hover) .logo-image {
+                  transform: scale(0.9);
+              }
+              .sidebar-container:not(:hover) .orbit-dots {
+                  opacity: 0;
+                  visibility: hidden;
+              }
+          }
+          /* Hide scrollbar for Chrome, Safari and Opera */
+          .sidebar-container nav::-webkit-scrollbar {
+              display: none;
+          }
+          /* Hide scrollbar for IE, Edge and Firefox */
+          .sidebar-container nav {
+              -ms-overflow-style: none;  /* IE and Edge */
+              scrollbar-width: none;  /* Firefox */
+              overflow-x: hidden;
+          }
+      `}</style>
+      <div className={`sidebar-container h-screen w-64 lg:w-20 lg:hover:w-64 group transition-all duration-300 ease-in-out ${sidebarBg} ${textPrimary} flex flex-col border-r ${borderColor} overflow-x-hidden shadow-sm relative z-50`}>
       {/* Removed Animated Sweet Elements Background to eliminate emoji elements */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         {/* Sweet elements removed */}
       </div>
 
-      <div className="p-6 border-b border-gray-100 relative z-10">
+      <div className="p-6 pt-10 border-b border-gray-100 relative z-10">
         {/* Shop Info Toggle */}
         <button
           onClick={() => setShowShopInfo(true)}
@@ -284,26 +338,27 @@ function ShopSidebar() {
         >
           <LuInfo className="w-5 h-5 group-hover:scale-110 transition-transform" />
         </button>
-        <div className="flex flex-col items-center justify-center space-y-3">
+        <div className="flex flex-col items-center justify-center space-y-3 mt-2">
           <div className="relative">
-            <div className="relative flex items-center justify-center">
+            <div className="relative flex items-center justify-center mt-2">
               <img
                 src="/sweethub-logo.png"
                 alt="Sweet Hub Logo"
-                className="h-16 w-auto animate-cottonCandy"
+                className="h-16 w-auto object-contain logo-image relative z-10"
                 onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
+                  e.target.parentElement.style.display = 'none';
+                  e.target.parentElement.nextElementSibling.classList.remove('hidden');
+                  e.target.parentElement.nextElementSibling.classList.add('flex');
                 }}
               />
-              <div className="absolute h-20 w-20 rounded-full animate-[orbit_4s_linear_infinite]">
+              <div className="absolute h-20 w-20 rounded-full animate-[orbit_4s_linear_infinite] orbit-dots">
                 <span className="absolute top-0 left-1/2 -ml-1 w-2 h-2 bg-primary rounded-full"></span>
                 <span className="absolute left-0 top-1/2 -mt-1 w-2 h-2 bg-accent-cyan rounded-full"></span>
                 <span className="absolute bottom-0 left-1/2 -ml-1 w-2 h-2 bg-accent-green rounded-full"></span>
                 <span className="absolute right-0 top-1/2 -mt-1 w-2 h-2 bg-accent-orange rounded-full"></span>
               </div>
             </div>
-            <div className="hidden bg-red-500 text-white px-4 py-2 rounded-lg transform rotate-12 shadow-lg">
+            <div className="hidden bg-red-500 text-white px-4 py-2 rounded-lg transform rotate-12 shadow-lg logo-image">
               <div className="flex items-center">
                 <span className="text-green-400 font-bold text-lg mr-1">H</span>
                 <div>
@@ -314,14 +369,14 @@ function ShopSidebar() {
               </div>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3 panel-text-container">
             <div className="text-left">
               <div className={`${textAccent} font-bold text-lg leading-tight`}>Sweet Hub</div>
               <div className={`${textSecondary} text-sm`}>Shop Panel</div>
             </div>
           </div>
           {shopName && (
-            <div className={`${textSecondary} font-bold text-red-600 text-lg font-large`}>{shopName}</div>
+            <div className={`${textSecondary} font-bold text-red-600 text-lg font-large panel-text-container`}>{shopName}</div>
           )}
         </div>
 
@@ -682,14 +737,13 @@ function ShopSidebar() {
         )}
       </nav>
 
-      {/* Logout Button */}
       <div className="px-4 py-6 border-t border-gray-200 relative z-10">
         <button
           onClick={handleLogout}
           className={`flex items-center w-full px-3 py-2.5 rounded-lg ${textPrimary} ${hoverBg} font-medium`}
         >
-          <LuLogOut className={`mr-3 text-lg ${iconColor}`} />
-          <span>Logout</span>
+          <LuLogOut className={`mr-3 text-lg ${iconColor} flex-shrink-0`} />
+          <span className="logout-text">Logout</span>
         </button>
       </div>
 
@@ -788,6 +842,7 @@ function ShopSidebar() {
         document.body
       )}
     </div>
+    </>
   );
 }
 

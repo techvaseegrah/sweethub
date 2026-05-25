@@ -29,6 +29,10 @@ const returnProductSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
+    unit: {
+        type: String,
+        default: 'Pcs'
+    },
     reasonForReturn: {
         type: String,
         enum: ['Damaged', 'Expired', 'Overproduction', 'Customer Return'],
